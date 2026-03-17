@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { regenerateText, generateImage } from "@/lib/ai";
 import {
     Trash2,
     Globe,
@@ -32,6 +33,29 @@ function copyHtml(article: GeneratedArticle) {
     if (!article.html) { toast.error("No HTML available for this article."); return; }
     navigator.clipboard.writeText(article.html);
     toast.success("HTML copied to clipboard!");
+}
+
+async function compressImageBase64(base64: string, maxWidth = 800, quality = 0.8): Promise<string> {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            let width = img.width;
+            let height = img.height;
+            if (width > maxWidth) {
+                height = Math.round((height * maxWidth) / width);
+                width = maxWidth;
+            }
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return resolve(base64);
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL("image/jpeg", quality).split(",")[1]);
+        };
+        img.onerror = () => resolve(base64);
+        img.src = `data:image/jpeg;base64,${base64}`;
+    });
 }
 
 export default function ArticlesLibrary() {
@@ -118,30 +142,22 @@ export default function ArticlesLibrary() {
         const settings = JSON.parse(localStorage.getItem("pinlisticle_settings") || "{}");
 
         try {
-            const res = await fetch("/api/gemini/regenerate", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    topic: selected.topic,
-                    itemTitle: item.title,
-                    itemContent: item.content,
-                    apiKey: settings.geminiKey,
-                    model: settings.preferredModel || "pro"
-                }),
+            const articleData = await regenerateText({
+                topic: selected.topic,
+                itemTitle: item.title,
+                itemContent: item.content,
+                apiKey: settings.geminiKey,
+                modelPrefix: settings.preferredModel || "pro"
             });
-            const json = await res.json();
-            if (json.success && json.data) {
-                const newArticle = { ...selected };
-                if (newArticle.data) {
-                    newArticle.data.listicle_items[idx].title = json.data.title;
-                    newArticle.data.listicle_items[idx].content = json.data.content;
-                    newArticle.html = buildArticleHtml(newArticle.data, settings.amazonTag);
-                    await saveArticle(newArticle);
-                    setSelected(newArticle);
-                    toast.success("Text regenerated successfully!");
-                }
-            } else {
-                toast.error(json.error || "Failed to regenerate text");
+            
+            const newArticle = { ...selected };
+            if (newArticle.data) {
+                newArticle.data.listicle_items[idx].title = articleData.title;
+                newArticle.data.listicle_items[idx].content = articleData.content;
+                newArticle.html = buildArticleHtml(newArticle.data, settings.amazonTag);
+                await saveArticle(newArticle);
+                setSelected(newArticle);
+                toast.success("Text regenerated successfully!");
             }
         } catch (e: any) {
             toast.error(e.message);
@@ -160,26 +176,21 @@ export default function ArticlesLibrary() {
         const settings = JSON.parse(localStorage.getItem("pinlisticle_settings") || "{}");
 
         try {
-            const res = await fetch("/api/imagen", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    prompt: item.image_prompt,
-                    apiKey: settings.geminiKey
-                }),
+            const rawImageBase64 = await generateImage({
+                prompt: item.image_prompt,
+                apiKey: settings.geminiKey
             });
-            const json = await res.json();
-            if (json.success && json.image) {
+
+            if (rawImageBase64) {
+                const compressedBase64 = await compressImageBase64(rawImageBase64);
                 const newArticle = { ...selected };
                 if (newArticle.data) {
-                    newArticle.data.listicle_items[idx].image_base64 = json.image;
+                    newArticle.data.listicle_items[idx].image_base64 = compressedBase64;
                     newArticle.html = buildArticleHtml(newArticle.data, settings.amazonTag);
                     await saveArticle(newArticle);
                     setSelected(newArticle);
                     toast.success("Image regenerated successfully!");
                 }
-            } else {
-                toast.error(json.error || "Failed to regenerate image");
             }
         } catch (e: any) {
             toast.error(e.message);

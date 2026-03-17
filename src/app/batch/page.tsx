@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { generateContent, generateImage } from "@/lib/ai";
 import { toast } from "sonner";
 import {
     PlayCircle,
@@ -559,21 +560,14 @@ export default function BatchPage() {
                 const articleId = `article-${Date.now()}-${i}`;
 
                 // 1. Generate text
-                const textRes = await fetch("/api/gemini", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        topic: current[i].keyword,
-                        keyword: current[i].seoKeyword || current[i].keyword,
-                        tone: current[i].tone,
-                        count: current[i].count,
-                        apiKey,
-                        model: modelToUse,
-                    }),
+                const articleData = await generateContent({
+                    topic: current[i].keyword,
+                    keyword: current[i].seoKeyword || current[i].keyword,
+                    tone: current[i].tone,
+                    count: current[i].count,
+                    apiKey,
+                    modelPrefix: modelToUse,
                 });
-                const textJson = await textRes.json();
-                if (!textJson.success) throw new Error(textJson.error || "Text generation failed.");
-                const articleData = textJson.data;
 
                 // 2. Generate images for EVERY listicle item
                 let firstAttachmentId: null | number = null;
@@ -584,18 +578,16 @@ export default function BatchPage() {
                         current[i].message = `Generating image ${j + 1}/${articleData.listicle_items.length}…`;
                         setRows([...current]);
                         try {
-                            const imgRes = await fetch("/api/imagen", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ prompt: item.image_prompt, apiKey }),
+                            const rawImageBase64 = await generateImage({
+                                prompt: item.image_prompt,
+                                apiKey,
                             });
-                            const imgJson = await imgRes.json();
 
-                            if (imgJson.success && imgJson.image) {
+                            if (rawImageBase64) {
                                 current[i].message = `Compressing image ${j + 1}…`;
                                 setRows([...current]);
                                 
-                                const compressedBase64 = await compressImageBase64(imgJson.image);
+                                const compressedBase64 = await compressImageBase64(rawImageBase64);
 
                                 // Save the image directly to the item object
                                 item.image_base64 = compressedBase64;
