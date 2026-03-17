@@ -618,7 +618,8 @@ export default function BatchPage() {
                                     }
                                 }
                             }
-                        } catch {
+                        } catch (e: any) {
+                            if (e.name === "QuotaExceededError") throw e;
                             // Single image failure is non-fatal; continue to next item
                         }
                     }
@@ -687,6 +688,13 @@ export default function BatchPage() {
                 };
                 saveArticle(errArticle);
                 current[i] = { ...current[i], status: "error", message: e.message };
+
+                if (e.name === "QuotaExceededError") {
+                    toast.error("Quota Exceeded: Halting remaining batch articles to save credits.");
+                    setRows([...current]);
+                    setIsProcessing(false);
+                    return;
+                }
             }
 
             completed++;

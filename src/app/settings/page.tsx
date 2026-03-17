@@ -147,18 +147,19 @@ export default function Settings() {
                     </div>
                     <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
-                            API Key
+                            API Keys
                         </label>
-                        <input
-                            type="text"
+                        <textarea
                             name="geminiKey"
                             value={formData.geminiKey}
-                            onChange={handleChange}
-                            placeholder="AIzaSy…"
-                            className="premium-input font-mono text-xs"
+                            onChange={(e) => setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }))}
+                            placeholder={`AIzaSy...\nAIzaSy...`}
+                            className="premium-input font-mono text-xs min-h-[80px] resize-y"
                         />
-                        <p className="text-xs text-slate-400 mt-1.5">
-                            Used for both text generation (Gemini models) and image generation (Imagen).
+                        <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                            Used for both text generation (Gemini) and image generation (Imagen). 
+                            <br/>
+                            <span className="text-purple-600 font-medium">Pro Tip:</span> Enter multiple API keys (separated by commas or newlines) to automatically load balance requests. This permanently bypasses the 70 requests/day Imagen quota by pooling multiple free Google accounts.
                         </p>
                     </div>
                 </div>

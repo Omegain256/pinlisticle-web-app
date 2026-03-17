@@ -10,12 +10,79 @@ const MODELS = {
 
 export type Tone = "Casual" | "Professional" | "Fun" | "Minimal";
 
+// ─── Multi-Key Load Balancer ───────────────────────────────────────────────
+
+export class QuotaExceededError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "QuotaExceededError";
+    }
+}
+
+let currentKeyIndex = 0;
+
+export function parseApiKeys(keysString: string): string[] {
+    if (!keysString) return [];
+    return keysString.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+}
+
+async function fetchWithKeyRotation(
+    keysString: string,
+    urlTemplate: string,
+    options: any
+): Promise<any> {
+    const keys = parseApiKeys(keysString);
+    if (keys.length === 0) throw new Error("No API keys provided. Please add them in Settings.");
+
+    let attempts = 0;
+    const maxAttempts = keys.length;
+    let lastResponseData: any = null;
+
+    while (attempts < maxAttempts) {
+        const key = keys[currentKeyIndex % keys.length];
+        currentKeyIndex++; // Rotate for the next call
+        attempts++;
+
+        const finalUrl = urlTemplate.replace("API_KEY_PLACEHOLDER", key);
+
+        try {
+            const res = await fetch(finalUrl, options);
+            const data = await res.json();
+            
+            if (res.ok) {
+                return data;
+            }
+
+            const errorMsg = data.error?.message || "Unknown error";
+            const isQuotaError = res.status === 429 || errorMsg.toLowerCase().includes("quota");
+
+            if (isQuotaError) {
+                console.warn(`API Key ending in ...${key.slice(-4)} hit quota limit. Rotating to next key if available.`);
+                lastResponseData = data;
+                continue; // Try next key
+            } else {
+                // Not a quota error, immediately throw a normal error
+                throw new Error(errorMsg);
+            }
+        } catch (e: any) {
+            // For true network failures or the error we just threw above
+            if (e.message !== "fetch failed" && !e?.message?.toLowerCase().includes("quota")) {
+                throw e; 
+            }
+        }
+    }
+
+    throw new QuotaExceededError(lastResponseData?.error?.message || "All provided API keys have exceeded their active quota limits.");
+}
+
+// ─── Generation Utilities ──────────────────────────────────────────────────
+
 export async function generateContent(params: {
     topic: string;
     keyword?: string;
     tone: Tone;
     count: number;
-    apiKey: string;
+    apiKey: string; // Accepts string of comma/newline separated keys
     modelPrefix: "pro" | "lite";
 }) {
     const { topic, keyword, tone, count, apiKey, modelPrefix } = params;
@@ -63,7 +130,8 @@ export async function generateContent(params: {
     prompt += `        { "product_name": "Specific real-world brand/product name", "amazon_search_term": "precise search term for Amazon" }\n`;
     prompt += `      ] // Generate EXACTLY 3 product recommendations per listicle item.\n    }\n  ]\n}`;
 
-    const res = await fetch(`${GEMINI_BASE}/${modelId}:generateContent?key=${apiKey}`, {
+    const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
+    const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -78,11 +146,8 @@ export async function generateContent(params: {
         }),
     });
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message || "Gemini API Error");
-
     const textPayload = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!textPayload) throw new Error("Invalid response format from Gemini.");
+    if (!textPayload) throw new Error("Invalid response format from Gemini (missing text candidate).");
 
     try {
         return JSON.parse(textPayload);
@@ -96,7 +161,8 @@ export async function generateImage(params: { prompt: string; apiKey: string }) 
 
     const fortifiedPrompt = `${prompt}, Ultra-realistic, extremely detailed, true-to-life photography. If humans are visible: PERFECT human anatomy, EXACTLY 5 digits per hand, exactly 2 normal hands, no extra limbs, normal human proportions, no mutations.`;
 
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`, {
+    const urlTemplate = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=API_KEY_PLACEHOLDER`;
+    const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -108,9 +174,6 @@ export async function generateImage(params: { prompt: string; apiKey: string }) 
             }
         })
     });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message || "Imagen API Error");
 
     const base64Image = data.predictions?.[0]?.bytesBase64Encoded;
     if (!base64Image) throw new Error("Invalid image response format from Imagen.");
@@ -149,7 +212,8 @@ export async function regenerateText(params: {
     prompt += `  "content": "Deeply researched, trendy, highly specific description. Exactly ~60 words. No generic info."\n`;
     prompt += `}`;
 
-    const res = await fetch(`${GEMINI_BASE}/${modelId}:generateContent?key=${apiKey}`, {
+    const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
+    const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -164,11 +228,8 @@ export async function regenerateText(params: {
         }),
     });
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message || "Gemini API Error");
-
     const textPayload = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!textPayload) throw new Error("Invalid response format from Gemini.");
+    if (!textPayload) throw new Error("Invalid response format from Gemini (missing text candidate).");
 
     try {
         return JSON.parse(textPayload);
