@@ -49,6 +49,29 @@ function getSettings() {
     }
 }
 
+async function compressImageBase64(base64: string, maxWidth = 800, quality = 0.8): Promise<string> {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            let width = img.width;
+            let height = img.height;
+            if (width > maxWidth) {
+                height = Math.round((height * maxWidth) / width);
+                width = maxWidth;
+            }
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return resolve(base64);
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL("image/jpeg", quality).split(",")[1]);
+        };
+        img.onerror = () => resolve(base64);
+        img.src = `data:image/jpeg;base64,${base64}`;
+    });
+}
+
 // ─── Sub-components ───────────────────────────────────────────
 
 function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
@@ -569,12 +592,17 @@ export default function BatchPage() {
                             const imgJson = await imgRes.json();
 
                             if (imgJson.success && imgJson.image) {
+                                current[i].message = `Compressing image ${j + 1}…`;
+                                setRows([...current]);
+                                
+                                const compressedBase64 = await compressImageBase64(imgJson.image);
+
                                 // Save the image directly to the item object
-                                item.image_base64 = imgJson.image;
+                                item.image_base64 = compressedBase64;
 
                                 // Set the first generated image as the featured image
                                 if (!articleData.featured_image_base64) {
-                                    articleData.featured_image_base64 = imgJson.image;
+                                    articleData.featured_image_base64 = compressedBase64;
                                 }
 
                                 if (integration === "wordpress") {
@@ -588,7 +616,7 @@ export default function BatchPage() {
                                             wpUrl: effectiveWP.url,
                                             wpUser: effectiveWP.user,
                                             wpAppPassword: effectiveWP.pass,
-                                            payload: { base64: imgJson.image, filename: `pinlisticle-${Date.now()}-${j}.jpg` },
+                                            payload: { base64: compressedBase64, filename: `pinlisticle-${Date.now()}-${j}.jpg` },
                                         }),
                                     });
                                     const uploadJson = await uploadRes.json();
