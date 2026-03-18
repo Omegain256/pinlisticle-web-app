@@ -161,7 +161,7 @@ export async function generateImage(params: { prompt: string; apiKey: string }) 
     const { prompt, apiKey } = params;
 
     // Best strategy for Pinterest realism: Anti-AI aesthetics. Force amateur smartphone photography, natural textures, and unedited looks.
-    const fortifiedPrompt = `${prompt}, highly realistic candid snapshot of a PERSON, true amateur photography, shot on smartphone, natural skin texture, visible pores, asymmetrical features, unedited, authentic everyday life, slight motion blur, zero studio lighting, zero airbrushing, raw photo. CRITICAL: NO flat lays. NO isolated products. The person MUST be visible wearing the items. Frame the shot so hands are entirely OUT OF FRAME or hidden deep in pockets. No visible fingers.`;
+    const fortifiedPrompt = `${prompt}, highly realistic candid full body standing portrait of a PERSON, true amateur photography, shot on smartphone, natural skin texture, visible pores, asymmetrical features, unedited, authentic everyday life, slight motion blur, zero studio lighting, zero airbrushing, raw photo. CRITICAL: NO flat lays. NO isolated products. The person MUST be fully visible from head to mid-thigh/feet wearing the complete outfit. Frame the shot so hands are entirely OUT OF FRAME or hidden deep in pockets. No visible fingers.`;
 
     const urlTemplate = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=API_KEY_PLACEHOLDER`;
     const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
