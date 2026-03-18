@@ -49,6 +49,11 @@ export async function POST(req: Request) {
 
             options.body = imageBuffer;
         }
+        else if (action === 'test_connection') {
+            endpoint = `${secureUrl.replace(/\/$/, '')}/wp-json/wp/v2/users/me`;
+            options.method = 'GET';
+            delete options.body;
+        }
         else {
             return NextResponse.json({ error: "Invalid action." }, { status: 400 });
         }

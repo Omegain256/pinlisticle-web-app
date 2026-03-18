@@ -110,10 +110,12 @@ export default function Settings() {
                     payload: {},
                 }),
             });
-            if (res.status !== 401 && res.status < 500) {
+            if (res.ok) {
                 toast.success(`Connection to ${site.name} looks good!`);
             } else {
-                toast.error(`Credentials for ${site.name} may be incorrect.`);
+                const data = await res.json();
+                const errMsg = data.error || data.wp_message || "Invalid credentials";
+                toast.error(`Auth Failed: ${errMsg}`);
             }
         } catch {
             toast.error(`Could not reach ${site.name}. Check the URL.`);
