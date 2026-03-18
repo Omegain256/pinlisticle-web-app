@@ -102,10 +102,79 @@ export default function ArticlesLibrary() {
             toast.error("No WordPress site selected. Go to Settings to add one.");
             return;
         }
-        if (!article.html || !article.data) { toast.error("Article data is incomplete."); return; }
+        if (!article.data) { toast.error("Article data is incomplete."); return; }
 
-        const loadingId = toast.loading(`Pushing to ${targetSite.name}…`);
+        const loadingId = toast.loading(`Preparing article for ${targetSite.name}…`);
         try {
+            let firstAttachmentId: null | number = null;
+            let updatedArticle = { ...article };
+            let hasNewUploads = false;
+
+            // 1. Upload any pending base64 images to WordPress
+            for (let i = 0; i < updatedArticle.data!.listicle_items.length; i++) {
+                const item = updatedArticle.data!.listicle_items[i];
+                if (item.image_base64 && !item.wp_attachment_id) {
+                    toast.loading(`Uploading image ${i + 1} to WordPress…`, { id: loadingId });
+                    
+                    const uploadRes = await fetch("/api/wordpress", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            action: "upload_media",
+                            wpUrl: targetSite.url,
+                            wpUser: targetSite.user,
+                            wpAppPassword: targetSite.appPassword,
+                            payload: { base64: item.image_base64, filename: `generated-${Date.now()}-${i}.jpg` },
+                        }),
+                    });
+
+                    let uploadJson;
+                    try {
+                        uploadJson = await uploadRes.json();
+                    } catch (e) {
+                        throw new Error(`Failed to upload Image ${i + 1}.`);
+                    }
+
+                    if (uploadJson.success) {
+                        item.wp_attachment_id = uploadJson.data.id;
+                        item.wp_source_url = uploadJson.data.source_url;
+                        hasNewUploads = true;
+                        if (!firstAttachmentId) firstAttachmentId = uploadJson.data.id;
+                    } else {
+                        throw new Error(uploadJson.error || "WordPress Media API error.");
+                    }
+                } else if (item.wp_attachment_id && !firstAttachmentId) {
+                    firstAttachmentId = item.wp_attachment_id;
+                }
+            }
+
+            // 2. Rebuild HTML if new URLs were acquired
+            if (hasNewUploads) {
+                toast.loading(`Rebuilding HTML payload…`, { id: loadingId });
+                const settings = JSON.parse(localStorage.getItem("pinlisticle_settings") || "{}");
+                updatedArticle.html = buildArticleHtml(updatedArticle.data!, settings.amazonTag);
+                await saveArticle(updatedArticle);
+                if (selected?.id === updatedArticle.id) setSelected(updatedArticle);
+            }
+
+            if (!updatedArticle.html) throw new Error("Article has no HTML body.");
+
+            // 3. Create the Draft Post in WordPress
+            toast.loading(`Creating WordPress Draft…`, { id: loadingId });
+            const payload: any = {
+                title: updatedArticle.data!.seo_title,
+                content: updatedArticle.html,
+                status: "draft",
+                excerpt: updatedArticle.data!.seo_desc,
+                meta: {
+                    pinlisticle_seo_title: updatedArticle.data!.seo_title,
+                    pinlisticle_seo_desc: updatedArticle.data!.seo_desc,
+                    pinlisticle_pinterest_title: updatedArticle.data!.pinterest_title,
+                    pinlisticle_pinterest_desc: updatedArticle.data!.pinterest_desc,
+                },
+            };
+            if (firstAttachmentId) payload.featured_media = firstAttachmentId;
+
             const res = await fetch("/api/wordpress", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -114,24 +183,21 @@ export default function ArticlesLibrary() {
                     wpUrl: targetSite.url,
                     wpUser: targetSite.user,
                     wpAppPassword: targetSite.appPassword,
-                    payload: {
-                        title: article.data.seo_title,
-                        content: article.html,
-                        status: "draft",
-                        excerpt: article.data.seo_desc,
-                    },
+                    payload,
                 }),
             });
             const json = await res.json();
-            toast.dismiss(loadingId);
+            
             if (json.success) {
-                toast.success(`Draft created in ${targetSite.name}!`);
+                updatedArticle.wpPostUrl = json.data?.link;
+                await saveArticle(updatedArticle);
+                if (selected?.id === updatedArticle.id) setSelected(updatedArticle);
+                toast.success(`Draft created successfully in ${targetSite.name}!`, { id: loadingId });
             } else {
-                toast.error(json.error || "WordPress API error.");
+                toast.error(json.error || "WordPress Post API error.", { id: loadingId });
             }
         } catch (e: any) {
-            toast.dismiss(loadingId);
-            toast.error(e.message);
+            toast.error(e.message, { id: loadingId });
         }
     };
 
@@ -186,6 +252,8 @@ export default function ArticlesLibrary() {
                 const newArticle = { ...selected };
                 if (newArticle.data) {
                     newArticle.data.listicle_items[idx].image_base64 = compressedBase64;
+                    delete newArticle.data.listicle_items[idx].wp_attachment_id;
+                    delete newArticle.data.listicle_items[idx].wp_source_url;
                     newArticle.html = buildArticleHtml(newArticle.data, settings.amazonTag);
                     await saveArticle(newArticle);
                     setSelected(newArticle);

@@ -108,8 +108,7 @@ export async function generateContent(params: {
         "- IMPERFECT REALISM: Demand natural skin texture, asymmetrical features, slightly messy hair, and authentic mundane environments to destroy the 'smooth' AI look. Avoid 'perfect' models.",
         "- AVOID HANDS PARADOX: AI struggles with hands. To ensure 100% realism, explicitly frame subjects to HIDE their hands. Add constraints like 'hands in pockets', 'hands completely resting out of frame', 'cropped at waist', or 'holding nothing visible'.",
         "- BANNED VISUALS: Do not include complex anatomical poses. Avoid studio lighting, high-fashion, artificial gloss, or standard 'stock photo' perfection. Emphasize 'casual unposed lifestyle photography'.",
-        "- PRODUCTS: Recommendations must be specific real-world products suitable for a GQ-level audience.",
-        "- SHORT PRODUCTS: Keep product names concise (e.g., 'Cartier Tank' instead of 'Cartier Tank Must de Cartier Small Model').",
+        "- RECREATE THIS LOOK (CRITICAL): The `product_recommendations` MUST BE EXACTLY the items described in the `image_prompt`. For example, if the image prompt mentions a 'camel overcoat' and 'leather loafers', the product recommendations must be for a camel overcoat and leather loafers. Do not suggest unrelated items.",
         "- Return ONLY a valid raw JSON object.",
     ].join(" ");
 

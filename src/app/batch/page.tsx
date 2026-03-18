@@ -20,13 +20,13 @@ import {
 import Link from "next/link";
 import {
     saveArticle,
+    getArticle,
     buildArticleHtml,
     type GeneratedArticle,
 } from "@/lib/articleStore";
 
 // ─── Types ────────────────────────────────────────────────────
 
-type Integration = "none" | "wordpress";
 type Tone = "Casual" | "Professional" | "Fun" | "Minimal";
 
 interface QueueRow {
@@ -120,20 +120,10 @@ function StatusBadge({ status, message }: { status: QueueRow["status"]; message?
 function Step1({
     value,
     onChange,
-    integration,
-    onIntegrationChange,
-    wpSites,
-    selectedWpSite,
-    onWpSiteChange,
     onNext,
 }: {
     value: string;
     onChange: (v: string) => void;
-    integration: Integration;
-    onIntegrationChange: (v: Integration) => void;
-    wpSites: any[];
-    selectedWpSite: string;
-    onWpSiteChange: (id: string) => void;
     onNext: () => void;
 }) {
     const keywordCount = value.split("\n").filter((l) => l.trim().length > 0).length;
@@ -146,8 +136,7 @@ function Step1({
                     Use this mode to generate any number of articles at once.
                 </p>
                 <p className="text-sm text-slate-500 mt-1 leading-relaxed">
-                    They are created in the background which means you can leave and come back later to see the results.
-                    Even better, you can choose an integration to automatically create drafts in WordPress, Shopify, and more.
+                    They are created in the background which means you can leave and come back later to see the results. Once generated, head over to the Articles Library to visually review and perfect the article before manually publishing to your WordPress site.
                 </p>
             </div>
 
@@ -175,61 +164,10 @@ function Step1({
                 />
             </div>
 
-            {/* Integration selector */}
-            <div className="glass-panel p-6">
-                <label className="text-sm font-semibold text-slate-800 block mb-1">
-                    Integration
-                </label>
-                <p className="text-xs text-slate-500 mb-3">
-                    Choose how generated articles should be saved or published.
-                </p>
-                <div className="flex gap-2">
-                    <button
-                        className={`integration-pill ${integration === "none" ? "selected" : ""}`}
-                        onClick={() => onIntegrationChange("none")}
-                    >
-                        <FileText size={15} /> Local Only
-                    </button>
-                    <button
-                        className={`integration-pill ${integration === "wordpress" ? "selected" : ""}`}
-                        onClick={() => onIntegrationChange("wordpress")}
-                    >
-                        <Globe size={15} /> WordPress
-                    </button>
-                    <button className="integration-pill disabled">
-                        + Shopify <span className="badge badge-queued ml-1" style={{ fontSize: "0.6rem" }}>Soon</span>
-                    </button>
-                </div>
-
-                {/* Inline WP Configuration selector */}
-                {integration === "wordpress" && (
-                    <div className="mt-4 pt-4 border-t border-slate-100 animate-slide-up">
-                        {wpSites.length === 0 ? (
-                            <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded border border-amber-200">
-                                No WordPress sites configured. Please visit Settings.
-                            </div>
-                        ) : (
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Target WordPress Site</label>
-                                <select
-                                    className="premium-input text-sm"
-                                    value={selectedWpSite}
-                                    onChange={(e) => onWpSiteChange(e.target.value)}
-                                >
-                                    {wpSites.map(site => (
-                                        <option key={site.id} value={site.id}>{site.name} ({site.url})</option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-
             <div className="flex justify-end">
                 <button
                     onClick={onNext}
-                    disabled={keywordCount === 0 || (integration === "wordpress" && wpSites.length === 0)}
+                    disabled={keywordCount === 0}
                     className="premium-button premium-button-primary gap-2 h-11 px-7 text-sm"
                 >
                     Preview & Edit Queue <ChevronRight size={16} />
@@ -361,14 +299,12 @@ function Step3({
     isProcessing,
     onRetry,
     onReset,
-    integration,
 }: {
     rows: QueueRow[];
     progress: number;
     isProcessing: boolean;
     onRetry: (id: string) => void;
     onReset: () => void;
-    integration: Integration;
 }) {
     const done = rows.filter((r) => r.status === "success").length;
     const failed = rows.filter((r) => r.status === "error").length;
@@ -465,9 +401,6 @@ export default function BatchPage() {
 
     // Step 1 state
     const [keywordText, setKeywordText] = useState("");
-    const [integration, setIntegration] = useState<Integration>("none");
-    const [wpSites, setWpSites] = useState<any[]>([]);
-    const [selectedWpSite, setSelectedWpSite] = useState<string>("");
     const [selectedModel, setSelectedModel] = useState<"pro" | "lite">("pro");
 
     // Step 2 state
@@ -480,16 +413,6 @@ export default function BatchPage() {
     // Pre-fill from settings
     useEffect(() => {
         const s = getSettings();
-        if (s.wpSites && s.wpSites.length > 0) {
-            setWpSites(s.wpSites);
-            setSelectedWpSite(s.wpSites[0].id);
-            setIntegration("wordpress");
-        } else if (s.wpUrl) {
-            const fallback = { id: "legacy", name: "Default", url: s.wpUrl, user: s.wpUser, appPassword: s.wpAppPassword };
-            setWpSites([fallback]);
-            setSelectedWpSite("legacy");
-            setIntegration("wordpress");
-        }
         if (s.preferredModel === "lite") setSelectedModel("lite");
     }, []);
 
@@ -508,13 +431,7 @@ export default function BatchPage() {
             status: "queued",
         }));
 
-        if (integration === "wordpress") {
-            const site = wpSites.find(s => s.id === selectedWpSite);
-            if (!site || !site.url || !site.user || !site.appPassword) {
-                toast.error("WordPress site selected is invalid or missing credentials. Please check Settings.");
-                return;
-            }
-        }
+
 
         if (!settings.geminiKey) {
             toast.error("Gemini API key is missing. Go to Settings first.");
@@ -547,11 +464,6 @@ export default function BatchPage() {
         const amazonTag = settings.amazonTag || "";
         const modelToUse = selectedModel;
 
-        const site = wpSites.find(s => s.id === selectedWpSite);
-        const effectiveWP = integration === "wordpress" && site
-            ? { url: site.url, user: site.user, pass: site.appPassword }
-            : { url: "", user: "", pass: "" };
-
         for (let i = 0; i < current.length; i++) {
             current[i] = { ...current[i], status: "processing", message: "Generating…" };
             setRows([...current]);
@@ -582,9 +494,9 @@ export default function BatchPage() {
                     });
                 }
 
-                // 2. Generate images for EVERY listicle item
-                let firstAttachmentId: null | number = null;
+                if (!articleData) throw new Error("Failed to generate article data structure.");
 
+                // 2. Generate images for EVERY listicle item
                 for (let j = 0; j < articleData.listicle_items.length; j++) {
                     const item = articleData.listicle_items[j];
                     
@@ -616,43 +528,11 @@ export default function BatchPage() {
                             // Single image failure is non-fatal; continue to next item
                         }
                     }
-
-                    // Upload to WordPress if needed
-                    if (item.image_base64 && integration === "wordpress" && !item.wp_attachment_id) {
-                        current[i].message = `Uploading image ${j + 1}…`;
-                        setRows([...current]);
-                        const uploadRes = await fetch("/api/wordpress", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                                action: "upload_media",
-                                wpUrl: effectiveWP.url,
-                                wpUser: effectiveWP.user,
-                                wpAppPassword: effectiveWP.pass,
-                                payload: { base64: item.image_base64, filename: `pinlisticle-${Date.now()}-${j}.jpg` },
-                            }),
-                        });
-                        
-                        let uploadJson;
-                        try {
-                            uploadJson = await uploadRes.json();
-                        } catch (e) {
-                            const errorText = uploadRes.status === 413 ? "Payload too large for Vercel limit" : "Invalid response from server (Timeout/504?)";
-                            throw new Error(errorText);
-                        }
-                        
-                        if (uploadJson.success) {
-                            item.wp_attachment_id = uploadJson.data.id;
-                            item.wp_source_url = uploadJson.data.source_url; // Required for the <img src> in HTML
-                            if (!firstAttachmentId) firstAttachmentId = uploadJson.data.id;
-                        }
-                    }
                 }
 
                 // 3. Build HTML
                 const html = buildArticleHtml(articleData, amazonTag);
 
-                // 4. Save locally (always)
                 const article: GeneratedArticle = {
                     id: articleId,
                     topic: current[i].keyword,
@@ -664,50 +544,6 @@ export default function BatchPage() {
                     html,
                 };
                 await saveArticle(article);
-
-                // 5. Push to WordPress (optional)
-                if (integration === "wordpress") {
-                    current[i].message = "Pushing to WordPress…";
-                    setRows([...current]);
-                    const payload: any = {
-                        title: articleData.seo_title,
-                        content: html,
-                        status: "draft",
-                        excerpt: articleData.seo_desc,
-                        meta: {
-                            pinlisticle_seo_title: articleData.seo_title,
-                            pinlisticle_seo_desc: articleData.seo_desc,
-                            pinlisticle_pinterest_title: articleData.pinterest_title,
-                            pinlisticle_pinterest_desc: articleData.pinterest_desc,
-                        },
-                    };
-                    if (firstAttachmentId) payload.featured_media = firstAttachmentId;
-
-                    const postRes = await fetch("/api/wordpress", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            action: "create_post",
-                            wpUrl: effectiveWP.url,
-                            wpUser: effectiveWP.user,
-                            wpAppPassword: effectiveWP.pass,
-                            payload,
-                        }),
-                    });
-                    
-                    let postJson;
-                    try {
-                        postJson = await postRes.json();
-                    } catch (e) {
-                        const errorText = postRes.status === 413 ? "Payload too large for Vercel limit" : "Invalid response from server (Timeout/504?)";
-                        throw new Error(errorText);
-                    }
-                    
-                    if (postJson.success && postJson.data?.link) {
-                        article.wpPostUrl = postJson.data.link;
-                        saveArticle(article);
-                    }
-                }
 
                 current[i] = { ...current[i], status: "success", message: "Done", articleId };
             } catch (e: any) {
@@ -753,7 +589,6 @@ export default function BatchPage() {
         setKeywordText("");
         setRows([]);
         setProgress(0);
-        setIntegration("none");
     };
 
     return (
@@ -769,15 +604,10 @@ export default function BatchPage() {
 
             {step === 1 && (
                 <Step1
-                    value={keywordText}
-                    onChange={setKeywordText}
-                    integration={integration}
-                    onIntegrationChange={setIntegration}
-                    wpSites={wpSites}
-                    selectedWpSite={selectedWpSite}
-                    onWpSiteChange={setSelectedWpSite}
-                    onNext={handleKeywordsNext}
-                />
+                        value={keywordText}
+                        onChange={setKeywordText}
+                        onNext={handleKeywordsNext}
+                    />
             )}
 
             {step === 2 && (
@@ -797,7 +627,6 @@ export default function BatchPage() {
                     isProcessing={isProcessing}
                     onRetry={handleRetry}
                     onReset={handleReset}
-                    integration={integration}
                 />
             )}
         </div>
