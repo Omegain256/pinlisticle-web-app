@@ -84,8 +84,10 @@ export async function generateContent(params: {
     count: number;
     apiKey: string; // Accepts string of comma/newline separated keys
     modelPrefix: "pro" | "lite";
+    brandVoice?: string;
+    internalLinks?: string;
 }) {
-    const { topic, keyword, tone, count, apiKey, modelPrefix } = params;
+    const { topic, keyword, tone, count, apiKey, modelPrefix, brandVoice, internalLinks } = params;
     const modelId = MODELS[modelPrefix] || MODELS.pro;
 
     const system_instruction = [

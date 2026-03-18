@@ -17,7 +17,7 @@ const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 export async function POST(req: Request) {
     try {
-        const { topic, keyword, tone, count, apiKey, model: modelPref } = await req.json();
+        const { topic, keyword, tone, count, apiKey, model: modelPref, brandVoice, internalLinks } = await req.json();
 
         if (!apiKey) {
             return NextResponse.json({ error: "No Gemini API Key provided." }, { status: 401 });
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
         // Select model — default to "pro" for best quality
         const modelId = MODELS[(modelPref as ModelKey) ?? "pro"] ?? MODELS.pro;
 
-        const system_instruction = [
+        const system_instruction_arr = [
             "You are an elite-level editorial writer for high-end publications like GQ, Vogue, and Harper's Bazaar.",
             "Your writing is sophisticated, culturally aware, and narrative-driven. You avoid generic AI fluff and PR-speak.",
             "GOAL: Write a Pinterest listicle that feels like a premium GQ feature — authoritative, discerning, and exceptionally well-written.",
@@ -48,12 +48,34 @@ export async function POST(req: Request) {
             "- PRODUCTS: Recommendations must be specific real-world products suitable for a GQ-level audience.",
             "- SHORT PRODUCTS: Keep product names concise (e.g., 'Cartier Tank' instead of 'Cartier Tank Must de Cartier Small Model').",
             "- Return ONLY a valid raw JSON object.",
-        ].join(" ");
+        ];
+
+        if (brandVoice) {
+            system_instruction_arr.push("- BRAND VOICE MATCH (CRITICAL): The user has provided an exact Brand Voice DNA sample in the prompt. You must forcefully overwrite your default writing tone to seamlessly match their vocabulary, rhythm, and sentence structure. Sound EXACTLY like them.");
+        }
+
+        if (internalLinks) {
+            system_instruction_arr.push("- INTERNAL LINKING: The user has provided a list of their own website URLs. You must forcefully map 1 to 2 of these URLs into the sub-item `content` fields naturally using valid HTML `<a href=\"...\">keyword</a>` anchors. Ensure they blend perfectly into the sentence. Do NOT put links in the intro.");
+        }
+
+        const system_instruction = system_instruction_arr.join(" ");
 
         let prompt = `Target Topic: ${topic}\n`;
         if (keyword) prompt += `Primary SEO Keyword: ${keyword}\n`;
         prompt += `Tone of Voice: ${tone || "Casual"}\n`;
         prompt += `Number of Listicle Items: ${count || 10}\n\n`;
+
+        if (brandVoice) {
+            prompt += `--- BRAND VOICE DNA SAMPLES ---\n`;
+            prompt += `${brandVoice}\n`;
+            prompt += `-------------------------------\n\n`;
+        }
+
+        if (internalLinks) {
+            prompt += `--- INTERNAL SEO LINKS TO INJECT ---\n`;
+            prompt += `${internalLinks}\n`;
+            prompt += `------------------------------------\n\n`;
+        }
 
         prompt += `Return a JSON object matching this schema exactly:\n`;
         prompt += `{\n`;

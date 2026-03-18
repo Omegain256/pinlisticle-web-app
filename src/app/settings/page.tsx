@@ -27,6 +27,8 @@ export default function Settings() {
     const [formData, setFormData] = useState({
         geminiKey: "",
         amazonTag: "",
+        brandVoice: "",
+        internalLinks: "",
         wpSites: [] as { id: string; name: string; url: string; user: string; appPassword: string }[],
         preferredModel: "pro",
     });
@@ -198,6 +200,52 @@ export default function Settings() {
                                 <p className="text-xs text-slate-500 leading-relaxed">{m.desc}</p>
                             </button>
                         ))}
+                    </div>
+                </div>
+
+                {/* ── Brand Voice DNA ──────────────────────────────────────── */}
+                <div className="glass-panel p-5">
+                    <div className="flex items-center gap-2 mb-4 text-emerald-600">
+                        <Cpu size={17} />
+                        <h2 className="text-sm font-semibold">Brand Voice DNA</h2>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
+                            Writing Samples
+                        </label>
+                        <textarea
+                            name="brandVoice"
+                            value={formData.brandVoice}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }))}
+                            placeholder="Paste 2-3 paragraphs of your best writing here. The AI will analyze and clone this exact tone, vocabulary, and sentence structure for all generated articles."
+                            className="premium-input text-sm min-h-[120px] resize-y"
+                        />
+                        <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                            Leave blank to use the standard AI editorial tone.
+                        </p>
+                    </div>
+                </div>
+
+                {/* ── SEO Internal Links ──────────────────────────────────────── */}
+                <div className="glass-panel p-5">
+                    <div className="flex items-center gap-2 mb-4 text-amber-600">
+                        <LinkIcon size={17} />
+                        <h2 className="text-sm font-semibold">SEO Internal Links</h2>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
+                            Target URLs & Keywords
+                        </label>
+                        <textarea
+                            name="internalLinks"
+                            value={formData.internalLinks}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }))}
+                            placeholder="https://mysite.com/best-watches | luxury watches&#10;https://mysite.com/style-guide | men's style guide"
+                            className="premium-input font-mono text-xs min-h-[100px] resize-y leading-relaxed"
+                        />
+                        <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                            Paste one URL and keyword pair per line. The AI will naturally weave 1-2 of these links into the body paragraphs of your new articles to dramatically boost SEO domain authority.
+                        </p>
                     </div>
                 </div>
 

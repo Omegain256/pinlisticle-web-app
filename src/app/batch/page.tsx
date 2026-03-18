@@ -577,6 +577,8 @@ export default function BatchPage() {
                         count: current[i].count,
                         apiKey,
                         modelPrefix: modelToUse,
+                        brandVoice: settings.brandVoice,
+                        internalLinks: settings.internalLinks,
                     });
                 }
 
@@ -585,6 +587,7 @@ export default function BatchPage() {
 
                 for (let j = 0; j < articleData.listicle_items.length; j++) {
                     const item = articleData.listicle_items[j];
+                    
                     if (item.image_prompt && !item.image_base64) {
                         current[i].message = `Generating image ${j + 1}/${articleData.listicle_items.length}…`;
                         setRows([...current]);
@@ -629,23 +632,19 @@ export default function BatchPage() {
                                 payload: { base64: item.image_base64, filename: `pinlisticle-${Date.now()}-${j}.jpg` },
                             }),
                         });
-                                    let uploadJson;
-                                    try {
-                                        uploadJson = await uploadRes.json();
-                                    } catch (e) {
-                                        const errorText = uploadRes.status === 413 ? "Payload too large for Vercel limit" : "Invalid response from server (Timeout/504?)";
-                                        throw new Error(errorText);
-                                    }
-                                    if (uploadJson.success) {
-                                        item.wp_attachment_id = uploadJson.data.id;
-                                        item.wp_source_url = uploadJson.data.source_url; // Required for the <img src> in HTML
-                                        if (!firstAttachmentId) firstAttachmentId = uploadJson.data.id;
-                                    }
-                                }
-                            }
-                        } catch (e: any) {
-                            if (e.name === "QuotaExceededError") throw e;
-                            // Single image failure is non-fatal; continue to next item
+                        
+                        let uploadJson;
+                        try {
+                            uploadJson = await uploadRes.json();
+                        } catch (e) {
+                            const errorText = uploadRes.status === 413 ? "Payload too large for Vercel limit" : "Invalid response from server (Timeout/504?)";
+                            throw new Error(errorText);
+                        }
+                        
+                        if (uploadJson.success) {
+                            item.wp_attachment_id = uploadJson.data.id;
+                            item.wp_source_url = uploadJson.data.source_url; // Required for the <img src> in HTML
+                            if (!firstAttachmentId) firstAttachmentId = uploadJson.data.id;
                         }
                     }
                 }
