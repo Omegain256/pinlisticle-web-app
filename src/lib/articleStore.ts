@@ -105,15 +105,15 @@ export function buildArticleHtml(data: GeneratedArticle["data"], amazonTag?: str
 
             // Output pure, unadulterated HTML wrapped in a Gutenberg Custom HTML block with inline CSS
             html += `<!-- wp:html -->\n`;
-            html += `<div style="margin: 2rem 0; padding: 1.5rem; background: #fafafa; border: 1px solid #eaeaea; border-radius: 8px;">\n`;
-            html += `  <h3 style="font-size: 0.85rem; font-weight: 700; letter-spacing: 0.1em; color: #111; margin-bottom: 1.25rem; text-transform: uppercase;">RECREATE THIS LOOK</h3>\n`;
-            html += `  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">\n`;
+            html += `<div style="margin: 2.5rem 0; padding: 2rem; background: #fafaf9; border: 1px solid #f0efed; border-radius: 12px;">\n`;
+            html += `  <h3 style="font-size: 1rem; font-weight: 800; letter-spacing: 0.15em; color: #111; margin-bottom: 1.5rem; text-transform: uppercase;">RECREATE THIS LOOK</h3>\n`;
+            html += `  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem;">\n`;
 
             products.forEach(prod => {
                 const searchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(prod.amazon_search_term)}&tag=${amazonTag}`;
-                html += `    <div style="background: #fff; border: 1px solid #f0f0f0; border-radius: 6px; padding: 1rem; display: flex; flex-direction: column; justify-content: space-between; gap: 0.75rem;">\n`;
-                html += `      <span style="font-size: 0.875rem; color: #444; font-weight: 500; line-height: 1.4;">${prod.product_name}</span>\n`;
-                html += `      <a href="${searchUrl}" target="_blank" rel="nofollow" style="font-size: 0.75rem; font-weight: 600; color: #111; text-decoration: none; border-bottom: 1px solid #111; padding-bottom: 2px; align-self: flex-start;">SHOP ITEM &rarr;</a>\n`;
+                html += `    <div style="background: #fff; border: 1px solid #eae8e4; border-radius: 8px; padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between; gap: 1.25rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">\n`;
+                html += `      <span style="font-size: 0.95rem; color: #333; font-weight: 600; line-height: 1.4;">${prod.product_name}</span>\n`;
+                html += `      <a href="${searchUrl}" target="_blank" rel="nofollow" style="display: block; text-align: center; background: #000; color: #fff; font-size: 0.8rem; font-weight: 700; text-decoration: none; padding: 0.75rem 1rem; border-radius: 6px; letter-spacing: 0.5px; text-transform: uppercase; margin-top: auto;">SHOP ITEM &rarr;</a>\n`;
                 html += `    </div>\n`;
             });
 
