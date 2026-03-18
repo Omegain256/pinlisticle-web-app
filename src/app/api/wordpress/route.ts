@@ -32,18 +32,19 @@ export async function POST(req: Request) {
         let options: RequestInit = { method: 'POST', headers };
 
         if (action === 'create_post') {
-            endpoint = `${secureUrl.replace(/\/$/, '')}/wp-json/wp/v2/posts`; // Or your CPT: /wp/v2/pin_listicle
+            endpoint = `${secureUrl.replace(/\/$/, '')}/wp-json/wp/v2/posts?pin_u=${encodeURIComponent(safeUser)}&pin_p=${encodeURIComponent(safePass)}`;
             options.body = JSON.stringify(payload);
         }
         else if (action === 'upload_media') {
-            endpoint = `${secureUrl.replace(/\/$/, '')}/wp-json/wp/v2/media`;
+            endpoint = `${secureUrl.replace(/\/$/, '')}/wp-json/wp/v2/media?pin_u=${encodeURIComponent(safeUser)}&pin_p=${encodeURIComponent(safePass)}`;
 
             // Convert base64 back to binary for WP
             const imageBuffer = Buffer.from(payload.base64, 'base64');
-
+            
             options.headers = {
+                // Keep headers as fallback
                 'Authorization': `Basic ${auth}`,
-                'X-WP-Auth': `Basic ${auth}`, // Custom header bypass
+                'X-WP-Auth': `Basic ${auth}`,
                 'Content-Type': 'image/jpeg',
                 'Content-Disposition': `attachment; filename="${payload.filename}"`,
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
             options.body = imageBuffer;
         }
         else if (action === 'test_connection') {
-            endpoint = `${secureUrl.replace(/\/$/, '')}/wp-json/wp/v2/users/me`;
+            endpoint = `${secureUrl.replace(/\/$/, '')}/wp-json/wp/v2/users/me?pin_u=${encodeURIComponent(safeUser)}&pin_p=${encodeURIComponent(safePass)}`;
             options.method = 'GET';
             delete options.body;
         }
