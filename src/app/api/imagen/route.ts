@@ -12,8 +12,8 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "No image prompt provided." }, { status: 400 });
         }
 
-        // Best strategy for Pinterest: candid 35mm film style, and forcefully exclude hands from the frame to prevent AI spaghetti
-        const fortifiedPrompt = `${prompt}, shot on 35mm film, Kodak Portra 400, editorial vogue lifestyle photography, soft natural lighting, extremely detailed, highly realistic. CRITICAL: Frame the shot so hands are entirely OUT OF FRAME or hidden deep in pockets. No visible fingers.`;
+        // Best strategy for Pinterest realism: Anti-AI aesthetics. Force amateur smartphone photography, natural textures, and unedited looks.
+        const fortifiedPrompt = `${prompt}, highly realistic candid snapshot, true amateur photography, shot on smartphone, natural skin texture, visible pores, asymmetrical features, unedited, authentic everyday life, slight motion blur, zero studio lighting, zero airbrushing, raw photo. CRITICAL: Frame the shot so hands are entirely OUT OF FRAME or hidden deep in pockets. No visible fingers.`;
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`, {
             method: 'POST',
