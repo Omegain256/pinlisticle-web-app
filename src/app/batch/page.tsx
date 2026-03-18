@@ -620,6 +620,7 @@ export default function BatchPage() {
                                     }
                                     if (uploadJson.success) {
                                         item.wp_attachment_id = uploadJson.data.id;
+                                        item.wp_source_url = uploadJson.data.source_url; // Required for the <img src> in HTML
                                         if (!firstAttachmentId) firstAttachmentId = uploadJson.data.id;
                                     }
                                 }

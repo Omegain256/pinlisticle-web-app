@@ -21,6 +21,7 @@ export interface GeneratedArticle {
             image_prompt?: string;
             image_base64?: string;
             wp_attachment_id?: number;
+            wp_source_url?: string;
             product_recommendations?: Array<{
                 product_name: string;
                 amazon_search_term: string;
@@ -86,9 +87,9 @@ export function buildArticleHtml(data: GeneratedArticle["data"], amazonTag?: str
         html += `<!-- wp:heading -->\n<h2 class="wp-block-heading" style="text-transform: uppercase;">${index + 1}. ${item.title}</h2>\n<!-- /wp:heading -->\n\n`;
 
         // 2. Image (Moved here: below heading, above content)
-        if (item.wp_attachment_id) {
+        if (item.wp_attachment_id && item.wp_source_url) {
             // WordPress context (use attachment ID block)
-            html += `<!-- wp:image {"id":${item.wp_attachment_id},"sizeSlug":"large","linkDestination":"none","className":"pinlisticle-item-img"} -->\n<figure class="wp-block-image size-large pinlisticle-item-img"><img src="" alt="${item.title}" class="wp-image-${item.wp_attachment_id}"/></figure>\n<!-- /wp:image -->\n`;
+            html += `<!-- wp:image {"id":${item.wp_attachment_id},"sizeSlug":"large","linkDestination":"none","className":"pinlisticle-item-img"} -->\n<figure class="wp-block-image size-large pinlisticle-item-img"><img src="${item.wp_source_url}" alt="${item.title}" class="wp-image-${item.wp_attachment_id}"/></figure>\n<!-- /wp:image -->\n`;
         } else if (item.image_base64) {
             // Local fallback
             html += `<!-- wp:image {"className":"pinlisticle-item-img"} -->\n<figure class="wp-block-image pinlisticle-item-img"><img src="data:image/jpeg;base64,${item.image_base64}" alt="${item.title}"/></figure>\n<!-- /wp:image -->\n`;
@@ -102,22 +103,22 @@ export function buildArticleHtml(data: GeneratedArticle["data"], amazonTag?: str
         if (item.product_recommendations && item.product_recommendations.length > 0 && amazonTag) {
             const products = item.product_recommendations.slice(0, 3);
 
-            // Output pure, unadulterated HTML wrapped in a Gutenberg Custom HTML block
+            // Output pure, unadulterated HTML wrapped in a Gutenberg Custom HTML block with inline CSS
             html += `<!-- wp:html -->\n`;
-            html += `<div class="pinlisticle-shop-container">\n`;
-            html += `  <h3 class="pinlisticle-shop-header">RECREATE THIS LOOK</h3>\n`;
-            html += `  <div class="pinlisticle-shop-grid">\n`;
+            html += `<div style="margin: 2rem 0; padding: 1.5rem; background: #fafafa; border: 1px solid #eaeaea; border-radius: 8px;">\n`;
+            html += `  <h3 style="font-size: 0.85rem; font-weight: 700; letter-spacing: 0.1em; color: #111; margin-bottom: 1.25rem; text-transform: uppercase;">RECREATE THIS LOOK</h3>\n`;
+            html += `  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">\n`;
 
             products.forEach(prod => {
                 const searchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(prod.amazon_search_term)}&tag=${amazonTag}`;
-                html += `    <div class="pinlisticle-shop-item">\n`;
-                html += `      <span class="pinlisticle-shop-prod-name">${prod.product_name}</span>\n`;
-                html += `      <a href="${searchUrl}" class="pinlisticle-shop-btn" target="_blank" rel="nofollow">SHOP ITEM &rarr;</a>\n`;
+                html += `    <div style="background: #fff; border: 1px solid #f0f0f0; border-radius: 6px; padding: 1rem; display: flex; flex-direction: column; justify-content: space-between; gap: 0.75rem;">\n`;
+                html += `      <span style="font-size: 0.875rem; color: #444; font-weight: 500; line-height: 1.4;">${prod.product_name}</span>\n`;
+                html += `      <a href="${searchUrl}" target="_blank" rel="nofollow" style="font-size: 0.75rem; font-weight: 600; color: #111; text-decoration: none; border-bottom: 1px solid #111; padding-bottom: 2px; align-self: flex-start;">SHOP ITEM &rarr;</a>\n`;
                 html += `    </div>\n`;
             });
 
             html += `  </div>\n`;
-            html += `  <p class="pinlisticle-shop-disclaimer">*AS AN AMAZON ASSOCIATE, WE EARN FROM QUALIFYING PURCHASES.</p>\n`;
+            html += `  <p style="font-size: 0.65rem; color: #888; margin-top: 1rem; text-transform: uppercase;">*AS AN AMAZON ASSOCIATE, WE EARN FROM QUALIFYING PURCHASES.</p>\n`;
             html += `</div>\n`;
             html += `<!-- /wp:html -->\n\n`;
         }
