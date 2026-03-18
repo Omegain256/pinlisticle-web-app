@@ -14,10 +14,16 @@ export async function POST(req: Request) {
             secureUrl = secureUrl.replace('http://', 'https://');
         }
 
-        const auth = Buffer.from(`${wpUser}:${wpAppPassword}`).toString('base64');
-        const headers = {
+        // Clean credentials to prevent invisible copy/paste space errors
+        const safeUser = wpUser.trim();
+        // WordPress app passwords often copy with spaces (e.g. "aaaa bbbb"), we strip them before encoding
+        const safePass = wpAppPassword.trim().replace(/\s+/g, '');
+
+        const auth = Buffer.from(`${safeUser}:${safePass}`).toString('base64');
+        const headers: Record<string, string> = {
             'Authorization': `Basic ${auth}`,
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         };
 
@@ -57,7 +63,11 @@ export async function POST(req: Request) {
         }
 
         if (!response.ok) {
-            return NextResponse.json({ error: data.message || "WordPress API Error" }, { status: response.status });
+            return NextResponse.json({ 
+                error: data.message || "WordPress API Error",
+                code: data.code || 'unknown_error',
+                status: response.status 
+            }, { status: response.status });
         }
 
         return NextResponse.json({ success: true, data });
