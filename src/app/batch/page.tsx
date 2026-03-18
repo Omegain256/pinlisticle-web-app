@@ -557,24 +557,35 @@ export default function BatchPage() {
             setRows([...current]);
 
             try {
-                const articleId = `article-${Date.now()}-${i}`;
+                let articleId = current[i].articleId || `article-${Date.now()}-${i}`;
+                let articleData: GeneratedArticle["data"] | undefined;
+                
+                // Attempt to recover existing data if this is a retry
+                if (current[i].articleId) {
+                    const existing = await getArticle(current[i].articleId as string);
+                    if (existing?.data) {
+                        articleData = existing.data;
+                    }
+                }
 
-                // 1. Generate text
-                const articleData = await generateContent({
-                    topic: current[i].keyword,
-                    keyword: current[i].seoKeyword || current[i].keyword,
-                    tone: current[i].tone,
-                    count: current[i].count,
-                    apiKey,
-                    modelPrefix: modelToUse,
-                });
+                // 1. Generate text (skip if recovered)
+                if (!articleData) {
+                    articleData = await generateContent({
+                        topic: current[i].keyword,
+                        keyword: current[i].seoKeyword || current[i].keyword,
+                        tone: current[i].tone,
+                        count: current[i].count,
+                        apiKey,
+                        modelPrefix: modelToUse,
+                    });
+                }
 
                 // 2. Generate images for EVERY listicle item
                 let firstAttachmentId: null | number = null;
 
                 for (let j = 0; j < articleData.listicle_items.length; j++) {
                     const item = articleData.listicle_items[j];
-                    if (item.image_prompt) {
+                    if (item.image_prompt && !item.image_base64) {
                         current[i].message = `Generating image ${j + 1}/${articleData.listicle_items.length}…`;
                         setRows([...current]);
                         try {
@@ -596,21 +607,28 @@ export default function BatchPage() {
                                 if (!articleData.featured_image_base64) {
                                     articleData.featured_image_base64 = compressedBase64;
                                 }
+                            }
+                        } catch (e: any) {
+                            if (e.name === "QuotaExceededError") throw e;
+                            // Single image failure is non-fatal; continue to next item
+                        }
+                    }
 
-                                if (integration === "wordpress") {
-                                    current[i].message = `Uploading image ${j + 1}…`;
-                                    setRows([...current]);
-                                    const uploadRes = await fetch("/api/wordpress", {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({
-                                            action: "upload_media",
-                                            wpUrl: effectiveWP.url,
-                                            wpUser: effectiveWP.user,
-                                            wpAppPassword: effectiveWP.pass,
-                                            payload: { base64: compressedBase64, filename: `pinlisticle-${Date.now()}-${j}.jpg` },
-                                        }),
-                                    });
+                    // Upload to WordPress if needed
+                    if (item.image_base64 && integration === "wordpress" && !item.wp_attachment_id) {
+                        current[i].message = `Uploading image ${j + 1}…`;
+                        setRows([...current]);
+                        const uploadRes = await fetch("/api/wordpress", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                action: "upload_media",
+                                wpUrl: effectiveWP.url,
+                                wpUser: effectiveWP.user,
+                                wpAppPassword: effectiveWP.pass,
+                                payload: { base64: item.image_base64, filename: `pinlisticle-${Date.now()}-${j}.jpg` },
+                            }),
+                        });
                                     let uploadJson;
                                     try {
                                         uploadJson = await uploadRes.json();
