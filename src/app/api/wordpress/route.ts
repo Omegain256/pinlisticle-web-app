@@ -22,6 +22,7 @@ export async function POST(req: Request) {
         const auth = Buffer.from(`${safeUser}:${safePass}`).toString('base64');
         const headers: Record<string, string> = {
             'Authorization': `Basic ${auth}`,
+            'X-WP-Auth': `Basic ${auth}`, // Custom header to heavily bypass LiteSpeed stripping
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
@@ -42,6 +43,7 @@ export async function POST(req: Request) {
 
             options.headers = {
                 'Authorization': `Basic ${auth}`,
+                'X-WP-Auth': `Basic ${auth}`, // Custom header bypass
                 'Content-Type': 'image/jpeg',
                 'Content-Disposition': `attachment; filename="${payload.filename}"`,
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
