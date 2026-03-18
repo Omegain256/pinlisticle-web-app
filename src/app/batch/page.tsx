@@ -654,7 +654,7 @@ export default function BatchPage() {
                     const payload: any = {
                         title: articleData.seo_title,
                         content: html,
-                        status: "publish",
+                        status: "draft",
                         excerpt: articleData.seo_desc,
                         meta: {
                             pinlisticle_seo_title: articleData.seo_title,
