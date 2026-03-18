@@ -102,9 +102,9 @@ export async function generateContent(params: {
         "- THE INTRODUCTION: Must be exactly ~60 words. It should set a compelling, narrative scene (editorial style).",
         "- LISTICLE ENTRIES: Each entry content MUST be exactly ~60 words. Don't just describe the item; explain WHY it's essential, the history/craftsmanship behind it, or how it fits into a modern lifestyle.",
         "- SUBTITLES: Must be exceptionally punchy (max 4-5 words). Avoid generic labels. Use 'Hook' titles.",
-        "- image_prompt: Follow this formula for extreme realism: '[Subject description], [Setting/Background], [Lighting], [Camera Angle/Shot Type], raw photo, UGC candid style, 8k resolution, photorealistic'.",
-        "- ANATOMY: Append instructions for perfect human anatomy (e.g., 'anatomically correct hands, 5 fingers, realistic skin').",
-        "- BANNED VISUALS: Never result in distorted anatomy or missing features. Emphasize 'real-world photography'.",
+        "- image_prompt: Write a photographic formula for extreme Pinterest realism: '[Subject], [Setting/Background], [Lighting], Shot on 35mm film, editorial photography, soft natural lighting'.",
+        "- AVOID HANDS PARADOX: AI struggles with hands. To ensure 100% realism, explicitly frame subjects to HIDE their hands. Add constraints like 'hands in pockets', 'hands completely resting out of frame', 'cropped at waist', or 'holding nothing visible'.",
+        "- BANNED VISUALS: Do not include complex anatomical poses. Use cinematic, candid lifestyle framing. Avoid artificial lighting or standard 'stock photo' looks.",
         "- PRODUCTS: Recommendations must be specific real-world products suitable for a GQ-level audience.",
         "- SHORT PRODUCTS: Keep product names concise (e.g., 'Cartier Tank' instead of 'Cartier Tank Must de Cartier Small Model').",
         "- Return ONLY a valid raw JSON object.",
@@ -159,7 +159,8 @@ export async function generateContent(params: {
 export async function generateImage(params: { prompt: string; apiKey: string }) {
     const { prompt, apiKey } = params;
 
-    const fortifiedPrompt = `${prompt}, Ultra-realistic, extremely detailed, true-to-life photography. If humans are visible: PERFECT human anatomy, EXACTLY 5 digits per hand, exactly 2 normal hands, no extra limbs, normal human proportions, no mutations.`;
+    // Best strategy for Pinterest: candid 35mm film style, and forcefully exclude hands from the frame to prevent AI spaghetti
+    const fortifiedPrompt = `${prompt}, shot on 35mm film, Kodak Portra 400, editorial vogue lifestyle photography, soft natural lighting, extremely detailed, highly realistic. CRITICAL: Frame the shot so hands are entirely OUT OF FRAME or hidden deep in pockets. No visible fingers.`;
 
     const urlTemplate = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=API_KEY_PLACEHOLDER`;
     const data = await fetchWithKeyRotation(apiKey, urlTemplate, {

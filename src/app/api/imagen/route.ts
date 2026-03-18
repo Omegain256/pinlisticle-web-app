@@ -12,8 +12,8 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "No image prompt provided." }, { status: 400 });
         }
 
-        // Force absolute realism onto every single generated prompt
-        const fortifiedPrompt = `${prompt}, Ultra-realistic, extremely detailed, true-to-life photography. If humans are visible: PERFECT human anatomy, EXACTLY 5 digits per hand, exactly 2 normal hands, no extra limbs, normal human proportions, no mutations.`;
+        // Best strategy for Pinterest: candid 35mm film style, and forcefully exclude hands from the frame to prevent AI spaghetti
+        const fortifiedPrompt = `${prompt}, shot on 35mm film, Kodak Portra 400, editorial vogue lifestyle photography, soft natural lighting, extremely detailed, highly realistic. CRITICAL: Frame the shot so hands are entirely OUT OF FRAME or hidden deep in pockets. No visible fingers.`;
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`, {
             method: 'POST',

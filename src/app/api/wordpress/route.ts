@@ -8,21 +8,28 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Missing WordPress credentials." }, { status: 401 });
         }
 
+        // Fix for HTTP->HTTPS 301 redirects which strip Authorization headers
+        let secureUrl = wpUrl;
+        if (secureUrl.startsWith('http://') && !secureUrl.includes('localhost')) {
+            secureUrl = secureUrl.replace('http://', 'https://');
+        }
+
         const auth = Buffer.from(`${wpUser}:${wpAppPassword}`).toString('base64');
         const headers = {
             'Authorization': `Basic ${auth}`,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         };
 
         let endpoint = "";
         let options: RequestInit = { method: 'POST', headers };
 
         if (action === 'create_post') {
-            endpoint = `${wpUrl.replace(/\/$/, '')}/wp-json/wp/v2/posts`; // Or your CPT: /wp/v2/pin_listicle
+            endpoint = `${secureUrl.replace(/\/$/, '')}/wp-json/wp/v2/posts`; // Or your CPT: /wp/v2/pin_listicle
             options.body = JSON.stringify(payload);
         }
         else if (action === 'upload_media') {
-            endpoint = `${wpUrl.replace(/\/$/, '')}/wp-json/wp/v2/media`;
+            endpoint = `${secureUrl.replace(/\/$/, '')}/wp-json/wp/v2/media`;
 
             // Convert base64 back to binary for WP
             const imageBuffer = Buffer.from(payload.base64, 'base64');
@@ -30,7 +37,8 @@ export async function POST(req: Request) {
             options.headers = {
                 'Authorization': `Basic ${auth}`,
                 'Content-Type': 'image/jpeg',
-                'Content-Disposition': `attachment; filename="${payload.filename}"`
+                'Content-Disposition': `attachment; filename="${payload.filename}"`,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
             };
 
             options.body = imageBuffer;
@@ -40,7 +48,13 @@ export async function POST(req: Request) {
         }
 
         const response = await fetch(endpoint, options);
-        const data = await response.json();
+        let data;
+        const textResponse = await response.text();
+        try {
+            data = JSON.parse(textResponse);
+        } catch (e) {
+            return NextResponse.json({ error: `WordPress API returned an invalid response (not JSON). Code: ${response.status}`, details: textResponse.substring(0, 100) }, { status: response.status || 500 });
+        }
 
         if (!response.ok) {
             return NextResponse.json({ error: data.message || "WordPress API Error" }, { status: response.status });

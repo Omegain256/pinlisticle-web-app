@@ -50,7 +50,7 @@ function getSettings() {
     }
 }
 
-async function compressImageBase64(base64: string, maxWidth = 800, quality = 0.8): Promise<string> {
+async function compressImageBase64(base64: string, maxWidth = 800, quality = 0.7): Promise<string> {
     return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
@@ -611,7 +611,13 @@ export default function BatchPage() {
                                             payload: { base64: compressedBase64, filename: `pinlisticle-${Date.now()}-${j}.jpg` },
                                         }),
                                     });
-                                    const uploadJson = await uploadRes.json();
+                                    let uploadJson;
+                                    try {
+                                        uploadJson = await uploadRes.json();
+                                    } catch (e) {
+                                        const errorText = uploadRes.status === 413 ? "Payload too large for Vercel limit" : "Invalid response from server (Timeout/504?)";
+                                        throw new Error(errorText);
+                                    }
                                     if (uploadJson.success) {
                                         item.wp_attachment_id = uploadJson.data.id;
                                         if (!firstAttachmentId) firstAttachmentId = uploadJson.data.id;
@@ -670,7 +676,15 @@ export default function BatchPage() {
                             payload,
                         }),
                     });
-                    const postJson = await postRes.json();
+                    
+                    let postJson;
+                    try {
+                        postJson = await postRes.json();
+                    } catch (e) {
+                        const errorText = postRes.status === 413 ? "Payload too large for Vercel limit" : "Invalid response from server (Timeout/504?)";
+                        throw new Error(errorText);
+                    }
+                    
                     if (postJson.success && postJson.data?.link) {
                         article.wpPostUrl = postJson.data.link;
                         saveArticle(article);
