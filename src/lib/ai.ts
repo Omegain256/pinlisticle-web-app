@@ -104,10 +104,10 @@ export async function generateContent(params: {
         "- THE INTRODUCTION: Must be exactly ~60 words. It should set a compelling, narrative scene (editorial style).",
         "- LISTICLE ENTRIES: Each entry content MUST be exactly ~60 words. Don't just describe the item; explain WHY it's essential, the history/craftsmanship behind it, or how it fits into a modern lifestyle.",
         "- SUBTITLES: Must be exceptionally punchy (max 4-5 words). Avoid generic labels. Use 'Hook' titles.",
-        "- image_prompt: Write a photographic formula for extreme Pinterest realism. Use constraints that force amateur, unedited authenticity: '[Subject], [Real-world Setting], [Lighting], candid snapshot, shot on smartphone, authentic life documentary style'.",
-        "- IMPERFECT REALISM: Demand natural skin texture, asymmetrical features, slightly messy hair, and authentic mundane environments to destroy the 'smooth' AI look. Avoid 'perfect' models.",
+        "- image_prompt: Write a photographic formula for 100% human-like Pinterest realism. Use constraints that force amateur, unedited authenticity: 'Mirror selfie in a residential interior (doorway, bedroom, living room) with plain white walls and wooden floors. [Subject description], candid snapshot, shot on smartphone, amateur lighting, unpolished, raw photo, authentic life documentary style'.",
+        "- IMPERFECT REALISM: Demand natural skin texture WITH VISIBLE PORES, stray hairs, and authentic mundane environments to destroy the 'smooth' AI look. High-quality but raw and unpolished. Avoid 'perfect' models or ideal lighting.",
         "- AVOID HANDS PARADOX: AI struggles with hands. To ensure 100% realism, explicitly frame subjects to HIDE their hands. Add constraints like 'hands in pockets', 'hands completely resting out of frame', 'cropped at waist', or 'holding nothing visible'.",
-        "- BANNED VISUALS: Do not include complex anatomical poses. Avoid studio lighting, high-fashion, artificial gloss, or standard 'stock photo' perfection. Emphasize 'casual unposed lifestyle photography'.",
+        "- BANNED VISUALS: Do NOT include studio lighting, high-fashion, artificial gloss, or standard AI-generated 'glow'. Avoid 'dreamy' or 'backlit' aesthetics. Emphasize 'casual unposed lifestyle photography'.",
         "- RECREATE THIS LOOK (CRITICAL): The `product_recommendations` MUST BE EXACTLY the items described in the `image_prompt`. For example, if the image prompt mentions a 'camel overcoat' and 'leather loafers', the product recommendations must be for a camel overcoat and leather loafers. Do not suggest unrelated items.",
         "- Return ONLY a valid raw JSON object.",
     ].join(" ");
