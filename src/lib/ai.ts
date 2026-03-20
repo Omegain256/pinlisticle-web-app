@@ -162,7 +162,7 @@ export async function generateImage(params: { prompt: string; apiKey: string }) 
     const { prompt, apiKey } = params;
 
     // Best strategy for Pinterest realism: Anti-AI aesthetics. Force amateur smartphone photography, natural textures, and unedited looks.
-    const fortifiedPrompt = `${prompt}, highly realistic candid full body standing portrait of a PERSON, true amateur photography, shot on smartphone, natural skin texture, visible pores, asymmetrical features, unedited, authentic everyday life, slight motion blur, zero studio lighting, zero airbrushing, raw photo. CRITICAL: NO flat lays. NO isolated products. The person MUST be fully visible from head to mid-thigh/feet wearing the complete outfit. Frame the shot so hands are entirely OUT OF FRAME or hidden deep in pockets. No visible fingers.`;
+    const fortifiedPrompt = `${prompt}. FULL LENGTH BODY PORTRAIT, HEAD TO TOE, MUST BE WEARING SHOES OR BOOTS, NO BARE FEET, highly realistic mirror selfie in a residential interior, true amateur smartphone photography, natural skin texture, ENSURE EXACTLY TWO HANDS (hands hidden in pockets or held naturally at sides), unpolished, unedited, zero studio lighting, raw photo. CRITICAL: No hanging phones, no floating artifacts, no lanyards.`;
 
     const urlTemplate = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=API_KEY_PLACEHOLDER`;
     const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
@@ -179,7 +179,11 @@ export async function generateImage(params: { prompt: string; apiKey: string }) 
     });
 
     const base64Image = data.predictions?.[0]?.bytesBase64Encoded;
-    if (!base64Image) throw new Error("Invalid image response format from Imagen.");
+    if (!base64Image) {
+        console.error("Imagen API Error Payload:", data);
+        if (data.error) throw new Error(data.error.message);
+        throw new Error("Invalid image response format from Imagen (payload missing predictions).");
+    }
 
     return base64Image;
 }
