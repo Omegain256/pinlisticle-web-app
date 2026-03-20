@@ -572,7 +572,17 @@ export default function BatchPage() {
         }
 
         setIsProcessing(false);
-        toast.success("Batch complete! Articles saved to library.");
+        
+        const successCount = current.filter(r => r.status === "success").length;
+        const errorCount = current.filter(r => r.status === "error").length;
+
+        if (successCount > 0 && errorCount === 0) {
+            toast.success("Batch complete! All articles saved to library.");
+        } else if (successCount > 0 && errorCount > 0) {
+            toast.success(`Batch partial success: ${successCount} saved, ${errorCount} failed.`);
+        } else if (successCount === 0 && errorCount > 0) {
+            toast.error(`Batch failed: ${errorCount} errors occurred. Check the status column.`);
+        }
     };
 
     // Retry a single failed item

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { regenerateText, generateImage } from "@/lib/ai";
+import { regenerateText, generateImage, sanitizeModelId } from "@/lib/ai";
 import {
     Trash2,
     Globe,
@@ -213,7 +213,7 @@ export default function ArticlesLibrary() {
                 itemTitle: item.title,
                 itemContent: item.content,
                 apiKey: settings.geminiKey,
-                modelPrefix: settings.preferredModel || "pro"
+                modelPrefix: sanitizeModelId(settings.preferredModel || "pro") as "pro" | "lite"
             });
             
             const newArticle = { ...selected };

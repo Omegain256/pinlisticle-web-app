@@ -1,12 +1,32 @@
 // Utility functions for interacting with Google's Generative Language API from the client.
 // This bypasses Vercel's strict 4.5MB payload limits and 10s Serverless Function timeouts.
 
+// All currently available models are 2.x series, which use v1beta.
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 const MODELS_DEFAULT = {
-    pro: "gemini-1.5-pro",
-    lite: "gemini-1.5-flash",
+    pro: "gemini-2.5-pro",
+    lite: "gemini-2.5-flash",
 } as const;
+
+// ─── Deprecated Model Blocklist ───────────────────────────────────────────
+// Maps ANY deprecated/unavailable model ID to a confirmed-working replacement.
+// This catches stale values from localStorage, old Settings selections, etc.
+const DEPRECATED_MODEL_MAP: Record<string, string> = {
+    "gemini-2.0-flash": "gemini-2.5-flash",
+    "gemini-2.0-flash-lite": "gemini-2.5-flash",
+    "gemini-2.0-flash-exp": "gemini-2.5-flash",
+    "gemini-1.5-pro": "gemini-2.5-pro",
+    "gemini-1.5-pro-002": "gemini-2.5-pro",
+    "gemini-1.5-flash": "gemini-2.5-flash",
+    "gemini-1.5-flash-002": "gemini-2.5-flash",
+    "gemini-2.1-pro": "gemini-2.5-pro",
+};
+
+/** Sanitize any model ID — if it's deprecated, return the safe replacement. */
+export function sanitizeModelId(modelId: string): string {
+    return DEPRECATED_MODEL_MAP[modelId] || modelId;
+}
 
 // These will be used as fallbacks if no dynamic models are discovered
 const IMAGEN_MODELS_DEFAULT = [
@@ -135,10 +155,8 @@ export async function generateContent(params: {
     const { topic, keyword, tone, count, apiKey, modelPrefix, brandVoice, internalLinks } = params;
     const cached = getCachedModels();
     
-    // Strategy: 
-    // 1. If modelPrefix (pro/lite) is and found in cache, use it.
-    // 2. Otherwise, look for stable IDs in this order: gemini-2.5-pro, gemini-2.1-pro...
-    // 3. Fallback: hardcoded defaults
+    // Strategy: Use ONLY models confirmed on user's Google AI Studio dashboard.
+    // Priority: gemini-2.5-flash (1K RPM) > gemini-2.5-pro (150 RPM) > gemini-2.0-flash-lite
     let modelId = "";
     let sanitizedPrefix = modelPrefix;
     if (((modelPrefix as any) === "gemini-2.1-pro") || modelPrefix === "pro") sanitizedPrefix = "pro";
@@ -149,7 +167,13 @@ export async function generateContent(params: {
     if (cached.some(m => m.id === requestedId)) {
         modelId = requestedId;
     } else {
-        const priorities = ["gemini-1.5-pro", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-pro", "gemini-2.5-flash"];
+        // ONLY dashboard-confirmed models. Order: best capacity first.
+        const priorities = [
+            "gemini-2.5-flash",
+            "gemini-2.5-pro",
+            "gemini-2.0-flash-lite",
+            "gemini-2.0-flash-001"
+        ];
         for (const p of priorities) {
             if (cached.some(m => m.id === p)) {
                 modelId = p;
@@ -159,6 +183,11 @@ export async function generateContent(params: {
     }
 
     if (!modelId) modelId = requestedId;
+
+    // PERMANENT FIX: Always sanitize before API call — catches stale localStorage values
+    modelId = sanitizeModelId(modelId);
+
+    const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
 
     const system_instruction = [
         "You are an elite-level editorial writer for high-end publications like GQ, Vogue, and Harper's Bazaar.",
@@ -201,8 +230,6 @@ export async function generateContent(params: {
     prompt += `      "product_recommendations": [\n`;
     prompt += `        { "product_name": "Specific real-world brand/product name", "amazon_search_term": "precise search term for Amazon" }\n`;
     prompt += `      ] // Generate EXACTLY 3 product recommendations per listicle item.\n    }\n  ]\n}`;
-
-    const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
     const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -325,6 +352,8 @@ export async function regenerateText(params: {
 }) {
     const { topic, itemTitle, itemContent, apiKey, modelPrefix } = params;
     const cached = getCachedModels();
+    // Strategy: Use ONLY models confirmed on user's Google AI Studio dashboard.
+    // Priority: gemini-2.5-flash (1K RPM) > gemini-2.5-pro (150 RPM) > gemini-2.0-flash-lite
     let modelId = "";
     let sanitizedPrefix = modelPrefix;
     if (((modelPrefix as any) === "gemini-2.1-pro") || modelPrefix === "pro") sanitizedPrefix = "pro";
@@ -335,7 +364,13 @@ export async function regenerateText(params: {
     if (cached.some(m => m.id === requestedId)) {
         modelId = requestedId;
     } else {
-        const priorities = ["gemini-1.5-pro", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-pro", "gemini-2.5-flash"];
+        // ONLY dashboard-confirmed models. Order: best capacity first.
+        const priorities = [
+            "gemini-2.5-flash",
+            "gemini-2.5-pro",
+            "gemini-2.0-flash-lite",
+            "gemini-2.0-flash-001"
+        ];
         for (const p of priorities) {
             if (cached.some(m => m.id === p)) {
                 modelId = p;
@@ -345,6 +380,9 @@ export async function regenerateText(params: {
     }
 
     if (!modelId) modelId = requestedId;
+
+    // PERMANENT FIX: Always sanitize before API call — catches stale localStorage values
+    modelId = sanitizeModelId(modelId);
 
     const system_instruction = [
         "You are an expert Pinterest content creator and editor.",

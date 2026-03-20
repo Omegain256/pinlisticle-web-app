@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 const MODELS = {
     pro: "gemini-2.5-pro",
-    lite: "gemini-2.0-flash-lite",
+    lite: "gemini-2.5-flash",
 } as const;
 
 type ModelKey = keyof typeof MODELS;
@@ -17,15 +17,14 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "No Gemini API Key provided." }, { status: 401 });
         }
 
-        // Select model — default to "pro" for best quality
-        // Standard priority for No Assumptions: 2.5-pro > 2.0-flash
-        let modelId = "gemini-1.5-pro";
-        if (modelPref === "lite" || modelPref === "gemini-2.0-flash-lite") {
-            modelId = "gemini-2.0-flash";
+        // Dashboard-confirmed models: gemini-2.5-flash (1K RPM) > gemini-2.5-pro (150 RPM)
+        let modelId = "gemini-2.5-flash";
+        if (modelPref === "lite" || modelPref === "gemini-2.0-flash-lite" || modelPref === "gemini-2.0-flash") {
+            modelId = "gemini-2.5-flash";
         } else if (modelPref === "pro" || modelPref === "gemini-2.1-pro" || modelPref === "gemini-2.5-pro") {
-            modelId = "gemini-1.5-pro";
+            modelId = "gemini-2.5-pro";
         } else if (modelPref && modelPref.includes("gemini")) {
-            modelId = modelPref; // Use specifically discovered model if passed
+            modelId = modelPref;
         }
 
         const system_instruction = [

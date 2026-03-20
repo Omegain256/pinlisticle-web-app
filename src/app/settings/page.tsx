@@ -77,6 +77,23 @@ export default function Settings() {
                     delete parsed.wpAppPassword;
                 }
                 
+                // Auto-migrate any deprecated model stored in localStorage
+                const DEPRECATED_MODELS: Record<string, string> = {
+                    "gemini-2.0-flash": "gemini-2.5-flash",
+                    "gemini-2.0-flash-lite": "gemini-2.5-flash",
+                    "gemini-2.0-flash-exp": "gemini-2.5-flash",
+                    "gemini-1.5-pro": "gemini-2.5-pro",
+                    "gemini-1.5-pro-002": "gemini-2.5-pro",
+                    "gemini-1.5-flash": "gemini-2.5-flash",
+                    "gemini-1.5-flash-002": "gemini-2.5-flash",
+                    "gemini-2.1-pro": "gemini-2.5-pro",
+                };
+                if (parsed.preferredModel && DEPRECATED_MODELS[parsed.preferredModel]) {
+                    parsed.preferredModel = DEPRECATED_MODELS[parsed.preferredModel];
+                    // Persist the fix so it never triggers again
+                    localStorage.setItem("pinlisticle_settings", JSON.stringify({ ...parsed }));
+                }
+                
                 setFormData({ preferredModel: "pro", preferredImagenModel: "auto", wpSites: [], ...parsed });
             } catch {
                 /* ignore */
@@ -206,40 +223,94 @@ export default function Settings() {
                 </div>
 
                 {/* ── Model Selection ─────────────────────────────────── */}
-                <div className="glass-panel p-5">
-                    <div className="flex items-center gap-2 mb-4 text-indigo-600">
-                        <Cpu size={17} />
-                        <h2 className="text-sm font-semibold">Generation Model</h2>
-                    </div>
-                    <p className="text-xs text-slate-500 mb-3">
-                        Choose the default model for listicle generation. Can be overridden per batch.
-                    </p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {(discovered.length > 0 
-                            ? discovered.filter(m => m.id.includes("gemini"))
-                            : MODELS
-                        ).map((m) => (
-                            <button
-                                key={m.id}
+                <div className="glass-panel p-5 space-y-6">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-indigo-600">
+                            <Cpu size={17} />
+                            <h2 className="text-sm font-semibold">Model Health & Quota Pooling</h2>
+                        </div>
+                        <div className="flex gap-2">
+                            <button 
                                 type="button"
-                                onClick={() => setFormData((prev) => ({ ...prev, preferredModel: m.id }))}
-                                className={`rounded-lg border-2 p-4 text-left transition-all ${formData.preferredModel === m.id
-                                        ? (m as any).color || "border-purple-400 bg-purple-50"
-                                        : "border-slate-200 bg-white hover:border-slate-300"
-                                    }`}
+                                onClick={() => performSync(formData.geminiKey)} 
+                                disabled={isSyncing}
+                                className="text-[10px] font-bold text-purple-600 hover:text-purple-700 bg-purple-50 px-2 py-1 rounded-full border border-purple-100 flex items-center gap-1 transition-all active:scale-95 disabled:opacity-50"
                             >
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm font-bold text-slate-800 tracking-tight">{(m as any).name || m.id}</span>
-                                    <div className="flex items-center gap-1.5">
-                                        <span className={`badge ${(m as any).badgeClass || "badge-primary"} text-[0.6rem]`}>{(m as any).badge || "Detected"}</span>
-                                        {formData.preferredModel === m.id && (
-                                            <CheckCircle2 size={14} className="text-purple-600" />
-                                        )}
-                                    </div>
-                                </div>
-                                <p className="text-xs text-slate-500 leading-relaxed font-medium">{(m as any).desc || (m as any).description || "Available for generation."}</p>
+                                <RefreshCw className={`w-2.5 h-2.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                                {isSyncing ? 'Syncing...' : 'Force Sync'}
                             </button>
-                        ))}
+                            <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${discovered.length > 0 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                                {discovered.length} Models Detected
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Gemini Pool */}
+                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Gemini Standard (API v1)</span>
+                                <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                            </div>
+                            <div className="text-xs text-slate-700 flex flex-wrap gap-2">
+                                {["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash-lite", "gemini-2.0-flash-001"].map(m => (
+                                    <span key={m} className={`px-2 py-0.5 rounded-md border ${discovered.some(dm => dm.id === m) ? 'bg-white border-purple-200 text-purple-700 font-medium' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
+                                        {m}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Imagen Pool */}
+                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Imagen 4 Capacity Pool</span>
+                                <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                            </div>
+                            <div className="text-xs text-slate-700 flex flex-wrap gap-2">
+                                {["imagen-4.0-ultra-generate-001", "imagen-4.0-generate-001", "imagen-4.0-fast-generate-001", "imagen-3.0-generate-001"].map(m => (
+                                    <span key={m} className={`px-2 py-0.5 rounded-md border ${discovered.some(dm => dm.id === m) ? 'bg-white border-emerald-200 text-emerald-700 font-medium' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
+                                        {m}
+                                    </span>
+                                ))}
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-2 italic">
+                                * Automatically rotating through these variants to bypass the 70-image per-model limit.
+                            </p>
+                        </div>
+                    </div>
+
+                    <hr className="border-slate-100" />
+
+                    <div>
+                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Default Text Generation Model</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {(discovered.length > 0 
+                                ? discovered.filter(m => m.id.includes("gemini") && !["gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-2.0-flash-lite", "gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.5-pro-002", "gemini-1.5-flash-002", "gemini-2.1-pro"].includes(m.id))
+                                : MODELS
+                            ).map((m) => (
+                                <button
+                                    key={m.id}
+                                    type="button"
+                                    onClick={() => setFormData((prev) => ({ ...prev, preferredModel: m.id }))}
+                                    className={`rounded-lg border-2 p-4 text-left transition-all ${formData.preferredModel === m.id
+                                            ? (m as any).color || "border-purple-400 bg-purple-50"
+                                            : "border-slate-200 bg-white hover:border-slate-300"
+                                        }`}
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-bold text-slate-800 tracking-tight">{(m as any).name || m.id}</span>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className={`badge ${(m as any).badgeClass || "badge-primary"} text-[0.6rem]`}>{(m as any).badge || "Detected"}</span>
+                                            {formData.preferredModel === m.id && (
+                                                <CheckCircle2 size={14} className="text-purple-600" />
+                                            )}
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-slate-500 leading-relaxed font-medium">{(m as any).desc || (m as any).description || "Available for generation."}</p>
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
 
@@ -253,7 +324,6 @@ export default function Settings() {
                         Select a specific generation engine or use <b>Auto-Rotate</b> to pool all three quotas into one (Max Capacity).
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {/* Always show Auto-Rotate first */}
                         <button
                             type="button"
                             onClick={() => setFormData((prev) => ({ ...prev, preferredImagenModel: "auto" }))}
@@ -296,7 +366,7 @@ export default function Settings() {
                                         )}
                                     </div>
                                 </div>
-                                <p className="text-[0.7rem] text-slate-500 leading-tight font-medium">{(m as any).desc || (m as any).description || "High-quality image generation."}</p>
+                                <p className="text-[0.7rem] text-slate-500 leading-tight font-medium truncate">{(m as any).desc || "High-quality Image Generation."}</p>
                             </button>
                         ))}
                     </div>
