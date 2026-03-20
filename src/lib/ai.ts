@@ -169,9 +169,9 @@ export async function generateContent(params: {
 export async function generateImage(params: { prompt: string; apiKey: string; preferredModel?: string }) {
     const { prompt, apiKey, preferredModel } = params;
 
-    // Use preferred model if specified, otherwise rotate through all to maximize quota
+    // Use preferred model as the starting point, but always fallback to others to maximize success
     const modelsToTry = preferredModel && preferredModel !== "auto" 
-        ? [preferredModel] 
+        ? [preferredModel, ...IMAGEN_MODELS.filter(m => m !== preferredModel)] 
         : IMAGEN_MODELS;
 
     // Best strategy for Pinterest realism: Anti-AI aesthetics. Force amateur smartphone photography, natural textures, and unedited looks.
