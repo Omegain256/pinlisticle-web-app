@@ -276,8 +276,9 @@ export async function generateImage(params: { prompt: string; apiKey: string; pr
         modelsToTry = discoveredImagen.length > 0 ? discoveredImagen : [...IMAGEN_MODELS_DEFAULT];
     }
 
-    // Best strategy for Pinterest realism: Anti-AI aesthetics. Force amateur smartphone photography, natural textures, and unedited looks.
-    const fortifiedPrompt = `WIDE ANGLE FULL LENGTH FULL BODY PORTRAIT, HEAD TO TOE VISIBLE, NO CROPPED FEET. The person MUST be standing ON THE FLOOR and WEARING DETAILED SHOES OR BOOTS. ${prompt}. highly realistic mirror selfie in a residential interior, true amateur smartphone photography, natural skin texture, ENSURE EXACTLY TWO HANDS (hands hidden in pockets or at sides), unpolished, unedited, zero studio lighting, raw photo. CRITICAL: No hanging phones, no floating artifacts.`;
+    // Best strategy for Pinterest realism: Candid lifestyle photography, natural lighting, and authentic textures.
+    // We explicitly exclude mirrors/phones and demand anatomical integrity (2 hands) and face visibility.
+    const fortifiedPrompt = `CANDID LIFESTYLE PHOTOGRAPHY, AUTHENTIC MOMENT, FULL BODY SHOT, HEAD TO TOE VISIBLE. The person MUST be standing ON THE FLOOR and WEARING DETAILED SHOES OR BOOTS. ${prompt}. Soft natural lighting, organic skin textures with pores and slight imperfections (NO AI SMOOTHNESS), visible face clearly showing features, UNPOSED FEEL. CRITICAL: EXACTLY TWO HANDS (no more, no less), NO MOBILE PHONES, NO CAMERAS, NO MIRRORS, NO FLOATING ARTIFACTS.`;
 
     const base64Image = await tryGenerateWithRotation(apiKey, fortifiedPrompt, modelsToTry);
     return base64Image;

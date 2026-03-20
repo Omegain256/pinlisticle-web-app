@@ -464,7 +464,13 @@ export default function BatchPage() {
         const amazonTag = settings.amazonTag || "";
         const modelToUse = selectedModel;
 
+        let totalMissingImages = 0;
+
         for (let i = 0; i < current.length; i++) {
+            if (current[i].status !== "queued") continue;
+            
+            let articleMissingImages = 0;
+
             current[i] = { ...current[i], status: "processing", message: "Generating…" };
             setRows([...current]);
 
@@ -527,9 +533,12 @@ export default function BatchPage() {
                         } catch (e: any) {
                             if (e.name === "QuotaExceededError") throw e;
                             // Single image failure is non-fatal; continue to next item
+                            articleMissingImages++;
                         }
                     }
                 }
+
+                totalMissingImages += articleMissingImages;
 
                 // 3. Build HTML
                 const html = buildArticleHtml(articleData, amazonTag);
@@ -577,9 +586,13 @@ export default function BatchPage() {
         const errorCount = current.filter(r => r.status === "error").length;
 
         if (successCount > 0 && errorCount === 0) {
-            toast.success("Batch complete! All articles saved to library.");
+            if (totalMissingImages > 0) {
+                toast.success(`Batch complete with ${totalMissingImages} missing images saved to library.`);
+            } else {
+                toast.success("Batch complete! All articles saved to library.");
+            }
         } else if (successCount > 0 && errorCount > 0) {
-            toast.success(`Batch partial success: ${successCount} saved, ${errorCount} failed.`);
+            toast.success(`Batch partial success: ${successCount} saved (${totalMissingImages} images missing), ${errorCount} failed.`);
         } else if (successCount === 0 && errorCount > 0) {
             toast.error(`Batch failed: ${errorCount} errors occurred. Check the status column.`);
         }
