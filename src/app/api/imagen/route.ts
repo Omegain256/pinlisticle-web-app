@@ -13,7 +13,7 @@ export async function POST(req: Request) {
         }
 
         // Best strategy for Pinterest realism: Anti-AI aesthetics. Force amateur smartphone photography, natural textures, and unedited looks.
-        const fortifiedPrompt = `${prompt}, highly realistic mirror selfie in a residential interior with plain white walls and wooden floors, true amateur smartphone photography, natural skin texture with visible pores, unpolished, unedited, authentic everyday life, slight grain, zero studio lighting, zero airbrushing, raw photo. CRITICAL: Frame the shot so hands are entirely OUT OF FRAME or hidden deep in pockets. No visible fingers.`;
+        const fortifiedPrompt = `${prompt}, FULL LENGTH BODY PORTRAIT, HEAD TO TOE, MUST BE WEARING SHOES OR BOOTS, NO BARE FEET, highly realistic mirror selfie in a residential interior, true amateur smartphone photography, natural skin texture, ENSURE EXACTLY TWO HANDS (hands hidden in pockets or at sides), unpolished, unedited, zero studio lighting, raw photo. CRITICAL: No hanging phones, no floating artifacts, no lanyards.`;
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`, {
             method: 'POST',
