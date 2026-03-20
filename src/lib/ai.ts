@@ -140,7 +140,11 @@ export async function generateContent(params: {
     // 2. Otherwise, look for stable IDs in this order: gemini-2.5-pro, gemini-2.1-pro...
     // 3. Fallback: hardcoded defaults
     let modelId = "";
-    const requestedId = MODELS_DEFAULT[modelPrefix as keyof typeof MODELS_DEFAULT] || MODELS_DEFAULT.pro;
+    let sanitizedPrefix = modelPrefix;
+    if (((modelPrefix as any) === "gemini-2.1-pro") || modelPrefix === "pro") sanitizedPrefix = "pro";
+    if (((modelPrefix as any) === "gemini-2.0-flash-lite") || modelPrefix === "lite") sanitizedPrefix = "lite";
+
+    const requestedId = MODELS_DEFAULT[sanitizedPrefix as keyof typeof MODELS_DEFAULT] || MODELS_DEFAULT.pro;
 
     if (cached.some(m => m.id === requestedId)) {
         modelId = requestedId;
@@ -322,7 +326,11 @@ export async function regenerateText(params: {
     const { topic, itemTitle, itemContent, apiKey, modelPrefix } = params;
     const cached = getCachedModels();
     let modelId = "";
-    const requestedId = MODELS_DEFAULT[modelPrefix as keyof typeof MODELS_DEFAULT] || MODELS_DEFAULT.pro;
+    let sanitizedPrefix = modelPrefix;
+    if (((modelPrefix as any) === "gemini-2.1-pro") || modelPrefix === "pro") sanitizedPrefix = "pro";
+    if (((modelPrefix as any) === "gemini-2.0-flash-lite") || modelPrefix === "lite") sanitizedPrefix = "lite";
+
+    const requestedId = MODELS_DEFAULT[sanitizedPrefix as keyof typeof MODELS_DEFAULT] || MODELS_DEFAULT.pro;
 
     if (cached.some(m => m.id === requestedId)) {
         modelId = requestedId;

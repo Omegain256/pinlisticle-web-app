@@ -8,17 +8,17 @@ import { fetchAvailableModels, getCachedModels, type DiscoveredModel } from "@/l
 const MODELS = [
     {
         id: "pro",
-        name: "Gemini 2.1 Pro",
+        name: "Gemini 1.5 Pro",
         badge: "Best Quality",
-        desc: "Highest quality output with advanced reasoning. Best for premium listicles. Slower but superior results.",
+        desc: "Highest quality output with advanced reasoning. Verified stable legacy standard.",
         color: "border-purple-400 bg-purple-50",
         badgeClass: "badge-primary",
     },
     {
         id: "lite",
-        name: "Gemini 2.0 Flash-Lite",
+        name: "Gemini 1.5 Flash",
         badge: "Fast & Bulk",
-        desc: "Lightweight and very fast. Best for large batch jobs where speed matters more than depth.",
+        desc: "Lightweight and exceptionally fast. Best for large batch jobs or quick drafts.",
         color: "border-blue-400 bg-blue-50",
         badgeClass: "badge-queued",
     },

@@ -25,7 +25,14 @@ export async function POST(req: Request) {
 
         // Select model — default to "pro" for best quality
         // Standard priority for No Assumptions: 2.5-pro > 2.0-flash
-        const modelId = modelPref || (modelPref === "lite" ? "gemini-2.0-flash" : "gemini-2.5-pro");
+        let modelId = "gemini-1.5-pro";
+        if (modelPref === "lite" || modelPref === "gemini-2.0-flash-lite") {
+            modelId = "gemini-2.0-flash";
+        } else if (modelPref === "pro" || modelPref === "gemini-2.1-pro" || modelPref === "gemini-2.5-pro") {
+            modelId = "gemini-1.5-pro";
+        } else if (modelPref && modelPref.includes("gemini")) {
+            modelId = modelPref; // Use specifically discovered model if passed
+        }
 
         const system_instruction_arr = [
             "You are an elite-level editorial writer for high-end publications like GQ, Vogue, and Harper's Bazaar.",
