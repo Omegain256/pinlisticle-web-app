@@ -253,7 +253,7 @@ export default function Settings() {
                                 <CheckCircle2 className="w-3 h-3 text-emerald-500" />
                             </div>
                             <div className="text-xs text-slate-700 flex flex-wrap gap-2">
-                                {["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash-lite", "gemini-2.0-flash-001"].map(m => (
+                                {["gemini-2.5-flash", "gemini-2.5-pro"].map(m => (
                                     <span key={m} className={`px-2 py-0.5 rounded-md border ${discovered.some(dm => dm.id === m) ? 'bg-white border-purple-200 text-purple-700 font-medium' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
                                         {m}
                                     </span>
