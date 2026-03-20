@@ -4,8 +4,8 @@
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 const MODELS_DEFAULT = {
-    pro: "gemini-2.5-pro",
-    lite: "gemini-2.0-flash",
+    pro: "gemini-1.5-pro",
+    lite: "gemini-1.5-flash",
 } as const;
 
 // These will be used as fallbacks if no dynamic models are discovered
@@ -145,7 +145,7 @@ export async function generateContent(params: {
     if (cached.some(m => m.id === requestedId)) {
         modelId = requestedId;
     } else {
-        const priorities = ["gemini-2.5-pro", "gemini-2.1-pro", "gemini-2.0-flash", "gemini-2.5-flash-lite", "gemini-1.5-pro"];
+        const priorities = ["gemini-1.5-pro", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-pro", "gemini-2.5-flash"];
         for (const p of priorities) {
             if (cached.some(m => m.id === p)) {
                 modelId = p;
@@ -327,7 +327,7 @@ export async function regenerateText(params: {
     if (cached.some(m => m.id === requestedId)) {
         modelId = requestedId;
     } else {
-        const priorities = ["gemini-2.5-pro", "gemini-2.1-pro", "gemini-2.0-flash", "gemini-2.5-flash-lite", "gemini-1.5-pro"];
+        const priorities = ["gemini-1.5-pro", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-pro", "gemini-2.5-flash"];
         for (const p of priorities) {
             if (cached.some(m => m.id === p)) {
                 modelId = p;
