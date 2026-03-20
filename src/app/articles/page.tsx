@@ -244,7 +244,8 @@ export default function ArticlesLibrary() {
         try {
             const rawImageBase64 = await generateImage({
                 prompt: item.image_prompt,
-                apiKey: settings.geminiKey
+                apiKey: settings.geminiKey,
+                preferredModel: settings.preferredImagenModel || "auto"
             });
 
             if (rawImageBase64) {

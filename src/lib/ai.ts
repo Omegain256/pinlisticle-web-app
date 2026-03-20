@@ -4,9 +4,17 @@
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 const MODELS = {
-    pro: "gemini-2.5-pro",
+    pro: "gemini-2.1-pro",
     lite: "gemini-2.0-flash-lite",
 } as const;
+
+const IMAGEN_MODELS = [
+    "imagen-4.0-ultra-generate-001",
+    "imagen-4.0-generate-001",
+    "imagen-4.0-fast-generate-001",
+    "imagen-3.0-generate-001",
+    "imagen-3.0-fast-generate-001",
+] as const;
 
 export type Tone = "Casual" | "Professional" | "Fun" | "Minimal";
 
@@ -158,34 +166,77 @@ export async function generateContent(params: {
     }
 }
 
-export async function generateImage(params: { prompt: string; apiKey: string }) {
-    const { prompt, apiKey } = params;
+export async function generateImage(params: { prompt: string; apiKey: string; preferredModel?: string }) {
+    const { prompt, apiKey, preferredModel } = params;
+
+    // Use preferred model if specified, otherwise rotate through all to maximize quota
+    const modelsToTry = preferredModel && preferredModel !== "auto" 
+        ? [preferredModel] 
+        : IMAGEN_MODELS;
 
     // Best strategy for Pinterest realism: Anti-AI aesthetics. Force amateur smartphone photography, natural textures, and unedited looks.
     const fortifiedPrompt = `WIDE ANGLE FULL LENGTH FULL BODY PORTRAIT, HEAD TO TOE VISIBLE, NO CROPPED FEET. The person MUST be standing ON THE FLOOR and WEARING DETAILED SHOES OR BOOTS. ${prompt}. highly realistic mirror selfie in a residential interior, true amateur smartphone photography, natural skin texture, ENSURE EXACTLY TWO HANDS (hands hidden in pockets or at sides), unpolished, unedited, zero studio lighting, raw photo. CRITICAL: No hanging phones, no floating artifacts.`;
 
-    const urlTemplate = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=API_KEY_PLACEHOLDER`;
-    const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            instances: [{ prompt: fortifiedPrompt }],
-            parameters: {
-                sampleCount: 1,
-                aspectRatio: "9:16",
-                outputOptions: { mimeType: "image/jpeg" }
-            }
-        })
-    });
+    const base64Image = await tryGenerateWithRotation(apiKey, fortifiedPrompt, modelsToTry);
+    return base64Image;
+}
 
-    const base64Image = data.predictions?.[0]?.bytesBase64Encoded;
-    if (!base64Image) {
-        console.error("Imagen API Error Payload:", data);
-        if (data.error) throw new Error(data.error.message);
-        throw new Error("Invalid image response format from Imagen (payload missing predictions).");
+/**
+ * Special rotation logic for Imagen sub-models (Standard, Fast, Ultra) 
+ * to pool their independent quotas on a single key before moving to next key.
+ */
+async function tryGenerateWithRotation(keysString: string, prompt: string, models: readonly string[]) {
+    const keys = parseApiKeys(keysString);
+    let lastError: any = null;
+
+    for (const key of keys) {
+        for (const modelId of models) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predict?key=${key}`;
+            
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        instances: [{ prompt }],
+                        parameters: {
+                            sampleCount: 1,
+                            aspectRatio: "9:16",
+                            outputOptions: { mimeType: "image/jpeg" }
+                        }
+                    })
+                });
+
+                const data = await res.json();
+                
+                if (res.ok) {
+                    const bytes = data.predictions?.[0]?.bytesBase64Encoded;
+                    if (bytes) return bytes;
+                }
+
+                // If it's a quota error (429), we just continue to the next model in the inner loop
+                const errorMsg = data.error?.message || "Unknown Imagen Error";
+                const isQuota = res.status === 429 || 
+                               errorMsg.toLowerCase().includes("quota") || 
+                               errorMsg.toLowerCase().includes("limit exceeded") ||
+                               data.error?.status === "RESOURCE_EXHAUSTED";
+
+                if (isQuota) {
+                    console.warn(`[Quota] Imagen Model ${modelId} hit limits on key ...${key.slice(-4)}. Error: ${errorMsg}. Trying next sub-model...`);
+                    lastError = new Error(errorMsg);
+                    continue; 
+                }
+
+                // If it's a safety filter (400) or other non-quota error, we throw immediately (rotation won't help)
+                throw new Error(errorMsg);
+
+            } catch (e: any) {
+                if (!e.message.toLowerCase().includes("quota") && !e.message.toLowerCase().includes("limit")) throw e;
+            }
+        }
     }
 
-    return base64Image;
+    throw lastError || new Error("All Imagen models on all API keys have exceeded their active quota limits.");
 }
 
 export async function regenerateText(params: {

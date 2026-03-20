@@ -7,7 +7,7 @@ import { Save, Key, Link as LinkIcon, Globe, Cpu, CheckCircle2, Plus, Trash2 } f
 const MODELS = [
     {
         id: "pro",
-        name: "Gemini 2.5 Pro",
+        name: "Gemini 2.1 Pro",
         badge: "Best Quality",
         desc: "Highest quality output with advanced reasoning. Best for premium listicles. Slower but superior results.",
         color: "border-purple-400 bg-purple-50",
@@ -23,6 +23,15 @@ const MODELS = [
     },
 ];
 
+const IMAGEN_MODELS = [
+    { id: "auto", name: "Auto-Rotate (Max Capacity)", badge: "Recommended", desc: "Cycles through ALL Imagen 4 & 3 models to maximize your daily quota.", color: "border-emerald-400 bg-emerald-50", badgeClass: "badge-success" },
+    { id: "imagen-4.0-ultra-generate-001", name: "Imagen 4 Ultra", badge: "Best Quality", desc: "Highest prompt adherence. Best for ultra-realistic textures.", color: "border-purple-200 bg-white", badgeClass: "badge-secondary" },
+    { id: "imagen-4.0-generate-001", name: "Imagen 4 Standard", badge: "Balanced", desc: "Great for general fashion. Reliable and high quality.", color: "border-slate-200 bg-white", badgeClass: "badge-primary" },
+    { id: "imagen-4.0-fast-generate-001", name: "Imagen 4 Fast", badge: "Fast", desc: "Low latency version of Imagen 4.", color: "border-amber-200 bg-white", badgeClass: "badge-queued" },
+    { id: "imagen-3.0-generate-001", name: "Imagen 3 Standard", badge: "Classic", desc: "High quality fallback with an independent quota.", color: "border-blue-200 bg-white", badgeClass: "badge-primary" },
+    { id: "imagen-3.0-fast-generate-001", name: "Imagen 3 Fast", badge: "Legacy Fast", desc: "Reliable high-speed fallback engine.", color: "border-slate-100 bg-white", badgeClass: "badge-queued" },
+];
+
 export default function Settings() {
     const [formData, setFormData] = useState({
         geminiKey: "",
@@ -31,6 +40,7 @@ export default function Settings() {
         internalLinks: "",
         wpSites: [] as { id: string; name: string; url: string; user: string; appPassword: string }[],
         preferredModel: "pro",
+        preferredImagenModel: "auto",
     });
     const [isLoaded, setIsLoaded] = useState(false);
     const [testingId, setTestingId] = useState<string | null>(null);
@@ -55,7 +65,7 @@ export default function Settings() {
                     delete parsed.wpAppPassword;
                 }
                 
-                setFormData({ preferredModel: "pro", wpSites: [], ...parsed });
+                setFormData({ preferredModel: "pro", preferredImagenModel: "auto", wpSites: [], ...parsed });
             } catch {
                 /* ignore */
             }
@@ -198,6 +208,41 @@ export default function Settings() {
                                     </div>
                                 </div>
                                 <p className="text-xs text-slate-500 leading-relaxed">{m.desc}</p>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* ── Imagen Model Preference ────────────────────────── */}
+                <div className="glass-panel p-5">
+                    <div className="flex items-center gap-2 mb-4 text-emerald-600">
+                        <Globe size={17} />
+                        <h2 className="text-sm font-semibold">Imagen Generation Tier</h2>
+                    </div>
+                    <p className="text-xs text-slate-500 mb-3">
+                        Select a specific generation engine or use <b>Auto-Rotate</b> to pool all three quotas into one (Max Capacity).
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {IMAGEN_MODELS.map((m) => (
+                            <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => setFormData((prev) => ({ ...prev, preferredImagenModel: m.id }))}
+                                className={`rounded-lg border-2 p-3 text-left transition-all ${formData.preferredImagenModel === m.id
+                                        ? m.color
+                                        : "border-slate-100 bg-white hover:border-slate-200"
+                                    }`}
+                            >
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <span className="text-sm font-semibold text-slate-800">{m.name}</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className={`badge ${m.badgeClass} text-[0.6rem]`}>{m.badge}</span>
+                                        {formData.preferredImagenModel === m.id && (
+                                            <CheckCircle2 size={14} className="text-emerald-600" />
+                                        )}
+                                    </div>
+                                </div>
+                                <p className="text-[0.7rem] text-slate-500 leading-tight">{m.desc}</p>
                             </button>
                         ))}
                     </div>

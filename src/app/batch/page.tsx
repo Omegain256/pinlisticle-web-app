@@ -507,6 +507,7 @@ export default function BatchPage() {
                             const rawImageBase64 = await generateImage({
                                 prompt: item.image_prompt,
                                 apiKey,
+                                preferredModel: settings.preferredImagenModel || "auto"
                             });
 
                             if (rawImageBase64) {
