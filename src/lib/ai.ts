@@ -3,18 +3,26 @@
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
-const MODELS = {
-    pro: "gemini-2.1-pro",
-    lite: "gemini-2.0-flash-lite",
+const MODELS_DEFAULT = {
+    pro: "gemini-2.5-pro",
+    lite: "gemini-2.0-flash",
 } as const;
 
-const IMAGEN_MODELS = [
+// These will be used as fallbacks if no dynamic models are discovered
+const IMAGEN_MODELS_DEFAULT = [
     "imagen-4.0-ultra-generate-001",
     "imagen-4.0-generate-001",
     "imagen-4.0-fast-generate-001",
     "imagen-3.0-generate-001",
     "imagen-3.0-fast-generate-001",
 ] as const;
+
+export interface DiscoveredModel {
+    id: string;
+    name: string;
+    description: string;
+    supportedGenerationMethods: string[];
+}
 
 export type Tone = "Casual" | "Professional" | "Fun" | "Minimal";
 
@@ -32,6 +40,33 @@ let currentKeyIndex = 0;
 export function parseApiKeys(keysString: string): string[] {
     if (!keysString) return [];
     return keysString.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+}
+
+export async function fetchAvailableModels(keysString: string): Promise<DiscoveredModel[]> {
+    const keys = parseApiKeys(keysString);
+    if (keys.length === 0) return [];
+    
+    try {
+        const res = await fetch("/api/models", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ apiKey: keys[0] })
+        });
+        const data = await res.json();
+        if (data.success) {
+            localStorage.setItem("pinlisticle_discovered_models", JSON.stringify(data.models));
+            return data.models;
+        }
+    } catch (e) {
+        console.error("Failed to sync models:", e);
+    }
+    return [];
+}
+
+export function getCachedModels(): DiscoveredModel[] {
+    if (typeof window === "undefined") return [];
+    const saved = localStorage.getItem("pinlisticle_discovered_models");
+    return saved ? JSON.parse(saved) : [];
 }
 
 async function fetchWithKeyRotation(
@@ -62,7 +97,9 @@ async function fetchWithKeyRotation(
             }
 
             const errorMsg = data.error?.message || "Unknown error";
-            const isQuotaError = res.status === 429 || errorMsg.toLowerCase().includes("quota");
+            const isQuotaError = res.status === 429 || 
+                               errorMsg.toLowerCase().includes("quota") || 
+                               errorMsg.toLowerCase().includes("limit exceeded");
 
             if (isQuotaError) {
                 console.warn(`API Key ending in ...${key.slice(-4)} hit quota limit. Rotating to next key if available.`);
@@ -96,7 +133,28 @@ export async function generateContent(params: {
     internalLinks?: string;
 }) {
     const { topic, keyword, tone, count, apiKey, modelPrefix, brandVoice, internalLinks } = params;
-    const modelId = MODELS[modelPrefix] || MODELS.pro;
+    const cached = getCachedModels();
+    
+    // Strategy: 
+    // 1. If modelPrefix (pro/lite) is and found in cache, use it.
+    // 2. Otherwise, look for stable IDs in this order: gemini-2.5-pro, gemini-2.1-pro...
+    // 3. Fallback: hardcoded defaults
+    let modelId = "";
+    const requestedId = MODELS_DEFAULT[modelPrefix as keyof typeof MODELS_DEFAULT] || MODELS_DEFAULT.pro;
+
+    if (cached.some(m => m.id === requestedId)) {
+        modelId = requestedId;
+    } else {
+        const priorities = ["gemini-2.5-pro", "gemini-2.1-pro", "gemini-2.0-flash", "gemini-2.5-flash-lite", "gemini-1.5-pro"];
+        for (const p of priorities) {
+            if (cached.some(m => m.id === p)) {
+                modelId = p;
+                break;
+            }
+        }
+    }
+
+    if (!modelId) modelId = requestedId;
 
     const system_instruction = [
         "You are an elite-level editorial writer for high-end publications like GQ, Vogue, and Harper's Bazaar.",
@@ -169,10 +227,25 @@ export async function generateContent(params: {
 export async function generateImage(params: { prompt: string; apiKey: string; preferredModel?: string }) {
     const { prompt, apiKey, preferredModel } = params;
 
-    // Use preferred model as the starting point, but always fallback to others to maximize success
-    const modelsToTry = preferredModel && preferredModel !== "auto" 
-        ? [preferredModel, ...IMAGEN_MODELS.filter(m => m !== preferredModel)] 
-        : IMAGEN_MODELS;
+    const cached = getCachedModels();
+    
+    // 1. Identify ALL models that support Image Generation (containing "imagen")
+    const discoveredImagen = cached
+        .filter(m => m.id.includes("imagen"))
+        .map(m => m.id);
+
+    // 2. Determine rotation pool
+    let modelsToTry: string[] = [];
+
+    if (preferredModel && preferredModel !== "auto") {
+        // Priority: preferred model then others
+        modelsToTry = [preferredModel, ...discoveredImagen.filter(m => m !== preferredModel)];
+        // Ensure the preferred model is at least in the pool if discovered is empty
+        if (modelsToTry.length === 0) modelsToTry = [preferredModel, ...IMAGEN_MODELS_DEFAULT];
+    } else {
+        // Full auto-rotation through all discovered models, falling back to defaults
+        modelsToTry = discoveredImagen.length > 0 ? discoveredImagen : [...IMAGEN_MODELS_DEFAULT];
+    }
 
     // Best strategy for Pinterest realism: Anti-AI aesthetics. Force amateur smartphone photography, natural textures, and unedited looks.
     const fortifiedPrompt = `WIDE ANGLE FULL LENGTH FULL BODY PORTRAIT, HEAD TO TOE VISIBLE, NO CROPPED FEET. The person MUST be standing ON THE FLOOR and WEARING DETAILED SHOES OR BOOTS. ${prompt}. highly realistic mirror selfie in a residential interior, true amateur smartphone photography, natural skin texture, ENSURE EXACTLY TWO HANDS (hands hidden in pockets or at sides), unpolished, unedited, zero studio lighting, raw photo. CRITICAL: No hanging phones, no floating artifacts.`;
@@ -247,7 +320,23 @@ export async function regenerateText(params: {
     modelPrefix: "pro" | "lite";
 }) {
     const { topic, itemTitle, itemContent, apiKey, modelPrefix } = params;
-    const modelId = MODELS[modelPrefix] || MODELS.pro;
+    const cached = getCachedModels();
+    let modelId = "";
+    const requestedId = MODELS_DEFAULT[modelPrefix as keyof typeof MODELS_DEFAULT] || MODELS_DEFAULT.pro;
+
+    if (cached.some(m => m.id === requestedId)) {
+        modelId = requestedId;
+    } else {
+        const priorities = ["gemini-2.5-pro", "gemini-2.1-pro", "gemini-2.0-flash", "gemini-2.5-flash-lite", "gemini-1.5-pro"];
+        for (const p of priorities) {
+            if (cached.some(m => m.id === p)) {
+                modelId = p;
+                break;
+            }
+        }
+    }
+
+    if (!modelId) modelId = requestedId;
 
     const system_instruction = [
         "You are an expert Pinterest content creator and editor.",

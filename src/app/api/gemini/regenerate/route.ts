@@ -17,7 +17,8 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "No Gemini API Key provided." }, { status: 401 });
         }
 
-        const modelId = MODELS[(modelPref as ModelKey) ?? "pro"] ?? MODELS.pro;
+        // Standard priority for No Assumptions: 2.5-pro > 2.0-flash
+        const modelId = modelPref || (modelPref === "lite" ? "gemini-2.0-flash" : "gemini-2.5-pro");
 
         const system_instruction = [
             "You are an expert Pinterest content creator and editor.",

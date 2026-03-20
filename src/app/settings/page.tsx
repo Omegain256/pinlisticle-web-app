@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { Save, Key, Link as LinkIcon, Globe, Cpu, CheckCircle2, Plus, Trash2 } from "lucide-react";
+import { Save, Key, Link as LinkIcon, Globe, Cpu, CheckCircle2, Plus, Trash2, RefreshCw } from "lucide-react";
+import { fetchAvailableModels, getCachedModels, type DiscoveredModel } from "@/lib/ai";
 
 const MODELS = [
     {
@@ -44,6 +45,17 @@ export default function Settings() {
     });
     const [isLoaded, setIsLoaded] = useState(false);
     const [testingId, setTestingId] = useState<string | null>(null);
+    const [discovered, setDiscovered] = useState<DiscoveredModel[]>([]);
+    const [isSyncing, setIsSyncing] = useState(false);
+    const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const performSync = async (key: string) => {
+        if (!key || isSyncing) return;
+        setIsSyncing(true);
+        const models = await fetchAvailableModels(key);
+        if (models.length > 0) setDiscovered(models);
+        setIsSyncing(false);
+    };
 
     useEffect(() => {
         const saved = localStorage.getItem("pinlisticle_settings");
@@ -70,8 +82,23 @@ export default function Settings() {
                 /* ignore */
             }
         }
+        setDiscovered(getCachedModels());
         setIsLoaded(true);
     }, []);
+
+    // Auto-sync when API key changes (debounced)
+    useEffect(() => {
+        if (!isLoaded) return;
+        if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+        
+        syncTimeoutRef.current = setTimeout(() => {
+            if (formData.geminiKey) performSync(formData.geminiKey);
+        }, 1500);
+
+        return () => {
+            if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+        };
+    }, [formData.geminiKey, isLoaded]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -188,26 +215,29 @@ export default function Settings() {
                         Choose the default model for listicle generation. Can be overridden per batch.
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {MODELS.map((m) => (
+                        {(discovered.length > 0 
+                            ? discovered.filter(m => m.id.includes("gemini"))
+                            : MODELS
+                        ).map((m) => (
                             <button
                                 key={m.id}
                                 type="button"
                                 onClick={() => setFormData((prev) => ({ ...prev, preferredModel: m.id }))}
                                 className={`rounded-lg border-2 p-4 text-left transition-all ${formData.preferredModel === m.id
-                                        ? m.color
+                                        ? (m as any).color || "border-purple-400 bg-purple-50"
                                         : "border-slate-200 bg-white hover:border-slate-300"
                                     }`}
                             >
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm font-semibold text-slate-800">{m.name}</span>
+                                    <span className="text-sm font-bold text-slate-800 tracking-tight">{(m as any).name || m.id}</span>
                                     <div className="flex items-center gap-1.5">
-                                        <span className={`badge ${m.badgeClass} text-[0.6rem]`}>{m.badge}</span>
+                                        <span className={`badge ${(m as any).badgeClass || "badge-primary"} text-[0.6rem]`}>{(m as any).badge || "Detected"}</span>
                                         {formData.preferredModel === m.id && (
                                             <CheckCircle2 size={14} className="text-purple-600" />
                                         )}
                                     </div>
                                 </div>
-                                <p className="text-xs text-slate-500 leading-relaxed">{m.desc}</p>
+                                <p className="text-xs text-slate-500 leading-relaxed font-medium">{(m as any).desc || (m as any).description || "Available for generation."}</p>
                             </button>
                         ))}
                     </div>
@@ -223,26 +253,50 @@ export default function Settings() {
                         Select a specific generation engine or use <b>Auto-Rotate</b> to pool all three quotas into one (Max Capacity).
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {IMAGEN_MODELS.map((m) => (
+                        {/* Always show Auto-Rotate first */}
+                        <button
+                            type="button"
+                            onClick={() => setFormData((prev) => ({ ...prev, preferredImagenModel: "auto" }))}
+                            className={`rounded-lg border-2 p-3 text-left transition-all ${formData.preferredImagenModel === "auto"
+                                    ? "border-emerald-400 bg-emerald-50"
+                                    : "border-slate-100 bg-white hover:border-slate-200"
+                                }`}
+                        >
+                            <div className="flex items-center justify-between mb-1.5">
+                                <span className="text-sm font-bold text-slate-800 tracking-tight italic">Auto-Rotate (Max Capacity)</span>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="badge badge-success text-[0.6rem]">Recommended</span>
+                                    {formData.preferredImagenModel === "auto" && (
+                                        <CheckCircle2 size={14} className="text-emerald-600" />
+                                    )}
+                                </div>
+                            </div>
+                            <p className="text-[0.7rem] text-slate-500 leading-tight font-medium">Cycles through ALL available Imagen models to maximize your daily quota.</p>
+                        </button>
+
+                        {(discovered.length > 0 
+                            ? discovered.filter(m => m.id.includes("imagen"))
+                            : IMAGEN_MODELS.filter(m => m.id !== "auto")
+                        ).map((m) => (
                             <button
                                 key={m.id}
                                 type="button"
                                 onClick={() => setFormData((prev) => ({ ...prev, preferredImagenModel: m.id }))}
                                 className={`rounded-lg border-2 p-3 text-left transition-all ${formData.preferredImagenModel === m.id
-                                        ? m.color
+                                        ? (m as any).color || "border-slate-400 bg-slate-50"
                                         : "border-slate-100 bg-white hover:border-slate-200"
                                     }`}
                             >
                                 <div className="flex items-center justify-between mb-1.5">
-                                    <span className="text-sm font-semibold text-slate-800">{m.name}</span>
+                                    <span className="text-sm font-semibold text-slate-800 tracking-tight">{(m as any).name || m.id}</span>
                                     <div className="flex items-center gap-1.5">
-                                        <span className={`badge ${m.badgeClass} text-[0.6rem]`}>{m.badge}</span>
+                                        <span className={`badge ${(m as any).badgeClass || "badge-primary"} text-[0.6rem]`}>{(m as any).badge || "Detected"}</span>
                                         {formData.preferredImagenModel === m.id && (
                                             <CheckCircle2 size={14} className="text-emerald-600" />
                                         )}
                                     </div>
                                 </div>
-                                <p className="text-[0.7rem] text-slate-500 leading-tight">{m.desc}</p>
+                                <p className="text-[0.7rem] text-slate-500 leading-tight font-medium">{(m as any).desc || (m as any).description || "High-quality image generation."}</p>
                             </button>
                         ))}
                     </div>

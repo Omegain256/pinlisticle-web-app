@@ -24,7 +24,8 @@ export async function POST(req: Request) {
         }
 
         // Select model — default to "pro" for best quality
-        const modelId = MODELS[(modelPref as ModelKey) ?? "pro"] ?? MODELS.pro;
+        // Standard priority for No Assumptions: 2.5-pro > 2.0-flash
+        const modelId = modelPref || (modelPref === "lite" ? "gemini-2.0-flash" : "gemini-2.5-pro");
 
         const system_instruction_arr = [
             "You are an elite-level editorial writer for high-end publications like GQ, Vogue, and Harper's Bazaar.",
