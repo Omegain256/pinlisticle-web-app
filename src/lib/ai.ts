@@ -268,9 +268,8 @@ export async function generateImage(params: { prompt: string; apiKey: string; pr
 
     if (preferredModel && preferredModel !== "auto") {
         // Priority: preferred model then others
-        modelsToTry = [preferredModel, ...discoveredImagen.filter(m => m !== preferredModel)];
-        // Ensure the preferred model is at least in the pool if discovered is empty
-        if (modelsToTry.length === 0) modelsToTry = [preferredModel, ...IMAGEN_MODELS_DEFAULT];
+        const fallbackPool = discoveredImagen.length > 0 ? discoveredImagen : IMAGEN_MODELS_DEFAULT;
+        modelsToTry = Array.from(new Set([preferredModel, ...fallbackPool]));
     } else {
         // Full auto-rotation through all discovered models, falling back to defaults
         modelsToTry = discoveredImagen.length > 0 ? discoveredImagen : [...IMAGEN_MODELS_DEFAULT];
@@ -339,7 +338,9 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
         }
     }
 
-    throw lastError || new Error("All Imagen models on all API keys have exceeded their active quota limits.");
+    const finalError = lastError || new Error("All Imagen models on all API keys have exceeded their active quota limits.");
+    finalError.name = "QuotaExceededError";
+    throw finalError;
 }
 
 export async function regenerateText(params: {
