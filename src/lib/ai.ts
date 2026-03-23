@@ -277,8 +277,8 @@ export async function generateImage(params: { prompt: string; apiKey: string; pr
     }
 
     // Best strategy for Pinterest realism: Candid lifestyle photography, natural lighting, and authentic textures.
-    // We explicitly exclude mirrors/phones and demand anatomical integrity (2 hands) and face visibility.
-    const fortifiedPrompt = `CANDID LIFESTYLE PHOTOGRAPHY, AUTHENTIC MOMENT, FULL BODY SHOT, HEAD TO TOE VISIBLE. The person MUST be standing ON THE FLOOR and WEARING DETAILED SHOES OR BOOTS. ${prompt}. Soft natural lighting, organic skin textures with pores and slight imperfections (NO AI SMOOTHNESS), visible face clearly showing features, UNPOSED FEEL. CRITICAL: EXACTLY TWO HANDS (no more, no less), NO MOBILE PHONES, NO CAMERAS, NO MIRRORS, NO FLOATING ARTIFACTS.`;
+    // We explicitly exclude mirrors/phones and demand anatomical integrity by specifying natural posture rather than counting hands.
+    const fortifiedPrompt = `CANDID LIFESTYLE PHOTOGRAPHY, AUTHENTIC MOMENT, FULL BODY SHOT, HEAD TO TOE VISIBLE. The person MUST be standing ON THE FLOOR and WEARING DETAILED SHOES OR BOOTS. ${prompt}. Soft natural lighting, organic skin textures with pores and slight imperfections (NO AI SMOOTHNESS), visible face clearly showing features, UNPOSED FEEL. FLAWLESS ANATOMY, PERFECT HUMAN PROPORTIONS. CRITICAL: Anatomically correct body, realistic natural hand posture (arms resting at sides or naturally posed), NO EXTRA LIMBS, NO MUTATED HANDS, NO EXTRA FINGERS. NO MOBILE PHONES, NO CAMERAS, NO MIRRORS, NO FLOATING ARTIFACTS.`;
 
     const base64Image = await tryGenerateWithRotation(apiKey, fortifiedPrompt, modelsToTry);
     return base64Image;
