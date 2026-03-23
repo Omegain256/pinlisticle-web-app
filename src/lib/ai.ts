@@ -224,7 +224,7 @@ export async function generateContent(params: {
     prompt += `  "listicle_items": [\n    {\n`;
     prompt += `      "title": "Very short, punchy, creative subtitle (max 4-5 words) using power words",\n`;
     prompt += `      "content": "Deeply researched, trendy, highly specific description. Exactly ~60 words. No generic info.",\n`;
-    prompt += `      "image_prompt": "Highly detailed photographic formula (e.g., 'Woman in butter yellow slip dress, bright vineyard garden, golden hour lighting, candid full body shot, 35mm lens, raw photo, highly realistic')",\n`;
+    prompt += `      "image_prompt": "Highly detailed photographic formula (e.g., 'Woman in butter yellow slip dress, bright vineyard garden, candid full body shot, 35mm lens'). CRITICAL RULE: NEVER write 'mirror selfie', NEVER include mobile phones, and ALWAYS specify 'clearly visible face' and 'natural relaxed arms at sides'.",\n`;
     prompt += `      "product_recommendations": [\n`;
     prompt += `        { "product_name": "Specific real-world brand/product name", "amazon_search_term": "precise search term for Amazon" }\n`;
     prompt += `      ] // Generate EXACTLY 3 product recommendations per listicle item.\n    }\n  ]\n}`;
