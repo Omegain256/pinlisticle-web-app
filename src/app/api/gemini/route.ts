@@ -45,9 +45,9 @@ export async function POST(req: Request) {
             "- CRITICAL TITLES: For 'seo_title', 'pinterest_title', your titles MUST start with the exact number of listicles. Example: '10 High-End Watches for Men'.",
             "- STRICT DEMOGRAPHIC ALIGNMENT: Ensure all content and image prompts strictly match the gender/demographic of the Target Topic.",
             "- THE INTRODUCTION: Must be exactly ~60 words. It should set a compelling, narrative scene (editorial style).",
-            "- LISTICLE ENTRIES: Each entry content MUST be exactly ~60 words. Don't just describe the item; explain WHY it's essential, the history/craftsmanship behind it, or how it fits into a modern lifestyle.",
+            "- LISTICLE ENTRIES: Each entry content MUST be exactly ~60 words. They MUST be deeply researched, highly specific, and up-to-date with current trends. Absolutely NO generic fluff or surface-level knowledge. Explain specific details, real-world relevance, and why it is essential.",
             "- SUBTITLES: Must be exceptionally punchy (max 4-5 words). Avoid generic labels. Use 'Hook' titles.",
-            "- image_prompt: Write a photographic formula for 100% human-like realism. Mandatory: FULL LENGTH FULL BODY PORTRAIT showing the person from HEAD TO TOE. The subject MUST be STANDING ON THE FLOOR and WEARING DETAILED SHOES (e.g., boots, heels, sneakers) that match the outfit. Absolutely NO bare feet, no socks-only, and no feet cropped-off. The crop must be wide enough to clearly see the shoes and the floor. [Subject description], mirror selfie in a residential interior, candid snapshot, shot on smartphone, amateur lighting, unpolished, raw photo.",
+            "- image_prompt: Write a photographic formula for 100% human-like realism. Mandatory: FULL LENGTH FULL BODY PORTRAIT showing the person from HEAD TO TOE. Make sure both the FEET/SHOES AND THE ENTIRE HEAD/HAIR are fully visible in the frame. NO CROPPED HEADS. The person MUST be STANDING ON THE FLOOR and WEARING DETAILED SHOES (e.g., boots, heels, sneakers). [Subject description], candid snapshot, shot on smartphone, amateur lighting, unpolished, raw photo.",
             "- IMPERFECT REALISM: Demand natural skin texture, visible pores, and mundane environments. ENSURE EXACTLY TWO HANDS. To avoid anatomical errors (like 'three hands'), explicitly frame hands in pockets or naturally at sides. Avoid any artifacts like 'hanging phones' or 'floating accessories'.",
             "- AVOID HANDS PARADOX: AI struggles with hands. To ensure 100% realism, explicitly frame subjects to HIDE their hands. Add constraints like 'hands in pockets', 'hands completely resting out of frame', 'cropped at waist', or 'holding nothing visible'.",
             "- BANNED VISUALS: Do NOT include studio lighting, high-fashion, artificial gloss, or standard AI-generated 'glow'. Avoid 'dreamy' or 'backlit' aesthetics. Emphasize 'casual unposed lifestyle photography'.",
@@ -92,7 +92,7 @@ export async function POST(req: Request) {
         prompt += `  "article_intro": "Engaging article introduction, exactly ~60 words, hooks the reader immediately",\n`;
         prompt += `  "listicle_items": [\n    {\n`;
         prompt += `      "title": "Very short, punchy, creative subtitle (max 4-5 words) using power words",\n`;
-        prompt += `      "content": "Deeply researched, trendy, highly specific description. Exactly ~60 words. No generic info.",\n`;
+        prompt += `      "content": "Deeply researched, trendy, highly specific and up-to-date description. Exactly ~60 words. No generic info.",\n`;
         prompt += `      "image_prompt": "Highly detailed photographic formula (e.g., 'Woman in butter yellow slip dress, bright vineyard garden, golden hour lighting, candid full body shot, 35mm lens, raw photo, highly realistic')",\n`;
         prompt += `      "product_recommendations": [\n`;
         prompt += `        { "product_name": "Specific real-world brand/product name", "amazon_search_term": "precise search term for Amazon" }\n`;

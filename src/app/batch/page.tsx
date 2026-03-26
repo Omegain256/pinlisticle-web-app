@@ -35,6 +35,7 @@ interface QueueRow {
     tone: Tone;
     count: number;
     seoKeyword: string;
+    amazonTag: string;
     status: "queued" | "processing" | "success" | "error";
     message?: string;
     articleId?: string;
@@ -120,10 +121,14 @@ function StatusBadge({ status, message }: { status: QueueRow["status"]; message?
 function Step1({
     value,
     onChange,
+    batchAmazonTag,
+    onBatchAmazonTagChange,
     onNext,
 }: {
     value: string;
     onChange: (v: string) => void;
+    batchAmazonTag: string;
+    onBatchAmazonTagChange: (v: string) => void;
     onNext: () => void;
 }) {
     const keywordCount = value.split("\n").filter((l) => l.trim().length > 0).length;
@@ -161,6 +166,25 @@ function Step1({
                     placeholder={"Best indoor plants for apartments\nEasy vegan dinner recipes\nFall fashion trends for 2025\nMinimalist home office setup ideas"}
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
+                />
+            </div>
+
+            {/* Amazon Tag input */}
+            <div className="glass-panel p-6">
+                <div className="flex items-center justify-between mb-1">
+                    <label className="text-sm font-semibold text-slate-800">
+                        Batch Amazon Affiliate Tag
+                    </label>
+                </div>
+                <p className="text-xs text-slate-500 mb-3">
+                    Applied to all articles in this batch. You can edit this per-article in the next step.
+                </p>
+                <input
+                    type="text"
+                    className="premium-input"
+                    placeholder="e.g. mystore-20"
+                    value={batchAmazonTag}
+                    onChange={(e) => onBatchAmazonTagChange(e.target.value)}
                 />
             </div>
 
@@ -211,6 +235,7 @@ function Step2({
                             <tr>
                                 <th>Keyword / Topic</th>
                                 <th>SEO Keyword</th>
+                                <th>Amazon Tag</th>
                                 <th>Tone</th>
                                 <th># Items</th>
                                 <th></th>
@@ -233,6 +258,14 @@ function Step2({
                                             onChange={(e) => onChange(row.id, "seoKeyword", e.target.value)}
                                             className="premium-input text-xs h-8"
                                             placeholder="Optional override"
+                                        />
+                                    </td>
+                                    <td className="min-w-[120px]">
+                                        <input
+                                            value={row.amazonTag}
+                                            onChange={(e) => onChange(row.id, "amazonTag", e.target.value)}
+                                            className="premium-input text-xs h-8"
+                                            placeholder="Tag"
                                         />
                                     </td>
                                     <td className="min-w-[120px]">
@@ -401,6 +434,7 @@ export default function BatchPage() {
 
     // Step 1 state
     const [keywordText, setKeywordText] = useState("");
+    const [batchAmazonTag, setBatchAmazonTag] = useState("");
     const [selectedModel, setSelectedModel] = useState<"pro" | "lite">("pro");
 
     // Step 2 state
@@ -414,6 +448,7 @@ export default function BatchPage() {
     useEffect(() => {
         const s = getSettings();
         if (s.preferredModel === "lite") setSelectedModel("lite");
+        if (s.amazonTag) setBatchAmazonTag(s.amazonTag);
     }, []);
 
     // Step 1 → 2
@@ -428,6 +463,7 @@ export default function BatchPage() {
             tone: "Casual",
             count: 1,
             seoKeyword: "",
+            amazonTag: batchAmazonTag,
             status: "queued",
         }));
 
@@ -461,7 +497,6 @@ export default function BatchPage() {
 
         const settings = getSettings();
         const apiKey = settings.geminiKey;
-        const amazonTag = settings.amazonTag || "";
         const modelToUse = selectedModel;
 
         let totalMissingImages = 0;
@@ -541,7 +576,7 @@ export default function BatchPage() {
                 totalMissingImages += articleMissingImages;
 
                 // 3. Build HTML
-                const html = buildArticleHtml(articleData, amazonTag);
+                const html = buildArticleHtml(articleData, current[i].amazonTag);
 
                 const article: GeneratedArticle = {
                     id: articleId,
@@ -630,6 +665,8 @@ export default function BatchPage() {
                 <Step1
                         value={keywordText}
                         onChange={setKeywordText}
+                        batchAmazonTag={batchAmazonTag}
+                        onBatchAmazonTagChange={setBatchAmazonTag}
                         onNext={handleKeywordsNext}
                     />
             )}

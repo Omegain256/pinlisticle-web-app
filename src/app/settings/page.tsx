@@ -425,7 +425,7 @@ export default function Settings() {
                         <h2 className="text-sm font-semibold">Affiliate Tracking</h2>
                     </div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
-                        Amazon Associate Tag
+                        Default Amazon Associate Tag
                     </label>
                     <input
                         type="text"
@@ -435,8 +435,8 @@ export default function Settings() {
                         placeholder="mystore-20"
                         className="premium-input"
                     />
-                    <p className="text-xs text-slate-400 mt-1.5">
-                        Appended to all product recommendation links automatically.
+                    <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                        This tag will be used as the default when generating articles. You can override it per-article on the Batch Generation page.
                     </p>
                 </div>
 
