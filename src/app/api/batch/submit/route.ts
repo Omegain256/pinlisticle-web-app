@@ -86,13 +86,17 @@ export async function POST(req: NextRequest) {
 
         // ── Stage 7: Images ───────────────────────────────────────────────────
         const image_results: string[] = [];
-        for (let i = 0; i < item_cards.length; i++) {
+        const imageSources = article_draft?.listicle_items || item_cards;
+        for (let i = 0; i < imageSources.length; i++) {
+            // Prefer the rich image_prompt written by the draft stage; fall back to item card seed
+            const draftItem = article_draft?.listicle_items?.[i];
             const card = item_cards[i];
-            const seed = card.image_prompt_seed;
-            if (!seed) { image_results.push(""); continue; }
+            const seed = card?.image_prompt_seed;
 
-            const safeStyle = style_dna?.realism_constraints?.join(", ") || "hyper-realistic";
-            const finalPrompt = `${seed.subject || ""}. ${seed.setting || ""}. ${seed.shot || "medium"} shot. ${seed.lighting || ""}. ${safeStyle}. Editorial photography.`.replace(/\s+/g, " ").trim();
+            const finalPrompt = draftItem?.image_prompt
+                || (seed ? `${seed.subject}. ${seed.setting}. ${seed.shot} shot. ${seed.lighting}. Hyper-realistic editorial photography.` : null);
+
+            if (!finalPrompt) { image_results.push(""); continue; }
 
             try {
                 const b64 = await generateImage({ prompt: finalPrompt, apiKey });

@@ -2,7 +2,6 @@ import {
     fetchWithKeyRotation,
     sanitizeModelId,
     MODELS_DEFAULT,
-    getCachedModels,
 } from "./ai";
 import {
     TopicClassificationSchema,
@@ -15,24 +14,11 @@ import {
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
+// Server-safe model resolution — does NOT rely on localStorage (which is client-only).
+// Uses MODELS_DEFAULT directly since the server always knows which models exist.
 function resolveModelId(modelPrefix: "pro" | "lite", forceFlash: boolean = false): string {
-    const cached = getCachedModels();
-    let sanitizedPrefix = forceFlash ? "lite" : modelPrefix;
-    if (((modelPrefix as any) === "gemini-2.1-pro") || modelPrefix === "pro") sanitizedPrefix = "pro";
-    if (((modelPrefix as any) === "gemini-2.0-flash-lite") || modelPrefix === "lite") sanitizedPrefix = "lite";
-
-    const requestedId = MODELS_DEFAULT[sanitizedPrefix as keyof typeof MODELS_DEFAULT] || MODELS_DEFAULT.pro;
-    let modelId: string = requestedId;
-
-    if (!cached.some(m => m.id === requestedId)) {
-        const priorities = [ "gemini-2.5-flash", "gemini-2.5-pro" ];
-        for (const p of priorities) {
-            if (cached.some(m => m.id === p)) {
-                modelId = p;
-                break;
-            }
-        }
-    }
+    const prefix = forceFlash ? "lite" : modelPrefix;
+    const modelId = MODELS_DEFAULT[prefix as keyof typeof MODELS_DEFAULT] || MODELS_DEFAULT.pro;
     return sanitizeModelId(modelId);
 }
 
@@ -166,16 +152,33 @@ export async function pipelineDraftArticle(keyword: string, tone: string, briefJ
     const modelId = resolveModelId(modelPrefix);
     const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
 
-    const systemInstruction = `You are an expert Pinterest editor writing a listicle strictly based on provided Item Evidence Cards. Do not invent items without a card. Tone: ${tone}.`;
+    const systemInstruction = `You are a senior Pinterest content editor. You write listicles that feel like genuine expert advice — specific, experience-backed, and immediately useful. 
+Tone: ${tone}. 
+STRICT RULES:
+- Each listicle item MUST come from the provided Item Cards. Do not invent new items.
+- Each item's content MUST reference the item's trend_support data and styling_notes from its card.
+- Each item's image_prompt MUST be a rich, detailed Imagen generation prompt (50-80 words) describing a real editorial photo of a real woman wearing/using the item. Be hyper-specific: include clothing colors, fabric, setting, lighting, camera angle.
+- The article must feel like it was written by someone with first-hand expertise, not generic SEO content.`;
+
+    const briefSummary = briefJson ? `
+TOPIC BRIEF:
+- Search intent: ${briefJson.search_intent || "mixed"}
+- Audience: ${briefJson.audience || "style-conscious women"}
+- Seasonal context: ${briefJson.seasonality_notes || "year-round"}
+- Archetype: ${briefJson.recommended_article_archetype || "wearable-ideas"}` : "";
+
     const prompt = `
 KEYWORD: "${keyword}"
-BRIEF:
-${JSON.stringify(briefJson, null, 2)}
+${briefSummary}
 
-CARDS:
+ITEM EVIDENCE CARDS (use ALL ${itemCardsJson.length} cards, in order):
 ${JSON.stringify(itemCardsJson, null, 2)}
 
-Write the full article.
+Write the full listicle. For each listicle_item:
+- "title": catchy, specific headline for the item
+- "content": 3-4 sentences of genuinely useful, specific advice referencing the card's why_it_works and styling_notes
+- "has_swap": true if the card has a budget/alternative swap
+- "image_prompt": detailed Imagen prompt for a hyper-realistic editorial photograph of this item
     `.trim();
 
     const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
@@ -187,7 +190,7 @@ Write the full article.
             generationConfig: {
                 responseMimeType: "application/json",
                 responseSchema: DraftArticleSchema,
-                temperature: 0.7, 
+                temperature: 0.8,
             },
         }),
     });

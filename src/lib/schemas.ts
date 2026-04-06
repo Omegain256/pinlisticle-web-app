@@ -85,9 +85,10 @@ export const DraftArticleSchema = {
         properties: {
           title: { type: "STRING" },
           content: { type: "STRING" },
-          has_swap: { type: "BOOLEAN" }
+          has_swap: { type: "BOOLEAN" },
+          image_prompt: { type: "STRING" }
         },
-        required: ["title", "content", "has_swap"]
+        required: ["title", "content", "has_swap", "image_prompt"]
       }
     }
   },
