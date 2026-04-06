@@ -148,37 +148,59 @@ Keep it editorial, realistic, and Pinterest-optimized.
 
 
 // Stage 4: Draft Article
-export async function pipelineDraftArticle(keyword: string, tone: string, briefJson: any, itemCardsJson: any[], apiKey: string, modelPrefix: "pro" | "lite") {
+export async function pipelineDraftArticle(keyword: string, tone: string, briefJson: any, itemCardsJson: any[], evidencePack: any, apiKey: string, modelPrefix: "pro" | "lite") {
     const modelId = resolveModelId(modelPrefix);
     const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
 
-    const systemInstruction = `You are a senior Pinterest content editor. You write listicles that feel like genuine expert advice — specific, experience-backed, and immediately useful. 
-Tone: ${tone}. 
-STRICT RULES:
-- Each listicle item MUST come from the provided Item Cards. Do not invent new items.
-- Each item's content MUST reference the item's trend_support data and styling_notes from its card.
-- Each item's image_prompt MUST be a rich, detailed Imagen generation prompt (50-80 words) describing a real editorial photo of a real woman wearing/using the item. Be hyper-specific: include clothing colors, fabric, setting, lighting, camera angle.
-- The article must feel like it was written by someone with first-hand expertise, not generic SEO content.`;
+    // Pick a random intro hook style to force variety across batch runs
+    const hookStyles = [
+        "Start with a surprising or counter-intuitive observation about this keyword.",
+        "Start with a specific statistic or trend from the evidence data.",
+        "Start with a direct, conversational question that speaks to the reader's exact frustration.",
+        "Start with a bold, specific style opinion that feels like genuine expertise.",
+        "Start by naming a specific season/moment that makes this keyword urgent right now.",
+    ];
+    const hookStyle = hookStyles[Math.floor(Math.random() * hookStyles.length)];
+
+    const systemInstruction = `You are a senior fashion and lifestyle editor writing for a Pinterest-first audience. Your tone is ${tone}.
+ABSOLUTE RULES — violating any of these makes the output unusable:
+1. NEVER open with "I've been styling clients for years" or any variation of it.
+2. NEVER use generic SEO filler phrases like "you've come to the right place", "look no further", "we've got you covered", "let's dive in", "without further ado".
+3. NEVER repeat the same sentence structure or opening across multiple articles.
+4. Every item's content MUST cite specific details from its evidence card (colors, fabrics, brand names, trend angles, styling notes).
+5. The intro (article_intro) MUST be unique to THIS specific keyword — not a generic style template.
+6. The outro (article_outro) must end with a specific, actionable takeaway or styling tip — not a generic "happy styling!" sign-off.
+7. Each image_prompt MUST be 60-80 words describing a hyper-realistic editorial photograph of a specific woman wearing/using the item. Include: exact garment description, colors, fabrics, body position, background setting, lighting quality, camera angle.`;
+
+    const evidenceSummary = evidencePack ? `
+LIVE RESEARCH DATA (use this to make the article feel current and specific):
+- Trending angles: ${(evidencePack.trending_angles || []).join("; ")}
+- Key statistics: ${(evidencePack.key_statistics || []).join("; ")}  
+- Seasonal context: ${evidencePack.seasonal_context || ""}
+- Audience pain points: ${(evidencePack.audience_pain_points || []).join("; ")}
+- Competitive gap (what others miss): ${evidencePack.competitive_gaps || ""}` : "";
 
     const briefSummary = briefJson ? `
-TOPIC BRIEF:
+CONTENT BRIEF:
 - Search intent: ${briefJson.search_intent || "mixed"}
-- Audience: ${briefJson.audience || "style-conscious women"}
-- Seasonal context: ${briefJson.seasonality_notes || "year-round"}
-- Archetype: ${briefJson.recommended_article_archetype || "wearable-ideas"}` : "";
+- Seasonal context: ${briefJson.seasonality_notes || ""}
+- Article archetype: ${briefJson.recommended_article_archetype || "wearable-ideas"}` : "";
 
     const prompt = `
 KEYWORD: "${keyword}"
 ${briefSummary}
+${evidenceSummary}
 
-ITEM EVIDENCE CARDS (use ALL ${itemCardsJson.length} cards, in order):
+INTRO HOOK INSTRUCTION: ${hookStyle}
+
+ITEM EVIDENCE CARDS — write exactly ${itemCardsJson.length} listicle items, one per card, in order:
 ${JSON.stringify(itemCardsJson, null, 2)}
 
-Write the full listicle. For each listicle_item:
-- "title": catchy, specific headline for the item
-- "content": 3-4 sentences of genuinely useful, specific advice referencing the card's why_it_works and styling_notes
-- "has_swap": true if the card has a budget/alternative swap
-- "image_prompt": detailed Imagen prompt for a hyper-realistic editorial photograph of this item
+OUTPUT REQUIREMENTS for each listicle_item:
+- "title": Specific, compelling headline (not generic — e.g. "The Oversized Blazer Method" not "Look 1: Blazer")
+- "content": 3-4 sentences. Reference specific colors, textures, accessories from the card's styling_notes. Cite at least one of the card's trend_support points.
+- "has_swap": true if the card has an optional_swap
+- "image_prompt": 60-80 word Imagen prompt for a hyper-realistic editorial photo. Must describe: exact outfit with colors and fabric, woman's pose/action, specific location (e.g. "cobblestone Paris side street"), natural window light, 35mm lens bokeh background.
     `.trim();
 
     const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
@@ -190,7 +212,7 @@ Write the full listicle. For each listicle_item:
             generationConfig: {
                 responseMimeType: "application/json",
                 responseSchema: DraftArticleSchema,
-                temperature: 0.8,
+                temperature: 0.9,
             },
         }),
     });

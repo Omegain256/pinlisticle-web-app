@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
         // ── Stage 5: Draft Article ────────────────────────────────────────────
         let article_draft: any;
         try {
-            article_draft = await pipelineDraftArticle(targetKeyword, tone || "conversational", brief, item_cards, apiKey, modelPrefix || "pro");
+            article_draft = await pipelineDraftArticle(targetKeyword, tone || "conversational", brief, item_cards, evidence_pack, apiKey, modelPrefix || "pro");
         } catch (e: any) {
             return NextResponse.json({ success: false, stage: "draft", error: e.message }, { status: 500 });
         }

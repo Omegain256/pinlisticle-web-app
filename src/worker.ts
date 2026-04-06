@@ -66,7 +66,7 @@ const worker = new Worker<PublishPipelineData>(
             // S5: Draft Article
             if (!state.article_draft) {
                 console.log(`[Job ${job.id}] S5: Drafting Article from Cards...`);
-                state.article_draft = await pipelineDraftArticle(targetToken, data.tone, state.brief, state.item_cards!, data.apiKey, data.modelPrefix);
+                state.article_draft = await pipelineDraftArticle(targetToken, data.tone, state.brief, state.item_cards!, state.evidence_pack, data.apiKey, data.modelPrefix);
                 await job.updateData(data);
             }
             await job.updateProgress(65);
