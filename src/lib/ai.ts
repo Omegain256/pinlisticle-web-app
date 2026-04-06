@@ -35,6 +35,7 @@ const IMAGEN_MODELS_DEFAULT = [
     "imagen-4.0-fast-generate-001",
     "imagen-3.0-generate-001",
     "imagen-3.0-fast-generate-001",
+    "nano-banana-2",
 ] as const;
 
 export interface DiscoveredModel {
