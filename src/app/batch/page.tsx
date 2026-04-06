@@ -498,14 +498,13 @@ export default function BatchPage() {
         const apiKey = settings.geminiKey;
         const modelToUse = selectedModel;
 
-        // 1. Dispatch jobs
         for (let i = 0; i < current.length; i++) {
             if (current[i].status !== "queued") continue;
-            
-            try {
-                current[i] = { ...current[i], status: "processing", message: "Dispatching..." };
-                setRows([...current]);
 
+            current[i] = { ...current[i], status: "processing", message: "Running pipeline…" };
+            setRows([...current]);
+
+            try {
                 const response = await fetch('/api/batch/submit', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -515,95 +514,46 @@ export default function BatchPage() {
                         tone: current[i].tone,
                         count: current[i].count,
                         apiKey,
-                        modelPrefix: modelToUse
+                        modelPrefix: modelToUse,
+                        amazonTag: current[i].amazonTag,
                     })
                 });
-                const data = await response.json();
-                
-                if (data.success) {
-                    current[i] = { ...current[i], jobId: data.jobId, message: "Queued..." };
-                } else {
-                    current[i] = { ...current[i], status: "error", message: data.error };
+
+                let data: any;
+                try {
+                    data = await response.json();
+                } catch {
+                    throw new Error(`Server error (HTTP ${response.status}) — check Render logs for details.`);
                 }
+
+                if (!data.success) {
+                    const stageInfo = data.stage ? ` [Stage: ${data.stage}]` : "";
+                    throw new Error((data.error || "Unknown pipeline error") + stageInfo);
+                }
+
+                const articleData = data.article;
+                if (!articleData) throw new Error("Pipeline returned no article data.");
+
+                const html = buildArticleHtml(articleData, current[i].amazonTag);
+                const articleId = `article-${Date.now()}-${i}`;
+                await saveArticle({
+                    id: articleId,
+                    topic: current[i].keyword,
+                    tone: current[i].tone,
+                    count: current[i].count,
+                    generatedAt: new Date().toISOString(),
+                    status: "success",
+                    data: articleData,
+                    html,
+                } as any);
+                current[i] = { ...current[i], status: "success", message: "Done ✓", articleId };
+
             } catch (e: any) {
                 current[i] = { ...current[i], status: "error", message: e.message };
             }
-        }
-        setRows([...current]);
 
-        // 2. Poll progress
-        let allDone = false;
-        while (!allDone) {
-            allDone = true;
-            let completed = 0;
-            
-            for (let i = 0; i < current.length; i++) {
-                const row = current[i];
-                if (row.status === "success" || row.status === "error") {
-                    completed++;
-                    continue;
-                }
-
-                if (!row.jobId) {
-                    current[i] = { ...current[i], status: "error", message: "No job ID attached" };
-                    completed++;
-                    continue;
-                }
-
-                allDone = false;
-
-                try {
-                    const res = await fetch(`/api/batch/status?jobId=${row.jobId}`);
-                    const data = await res.json();
-                    
-                    if (data.success) {
-                        if (data.status === 'completed') {
-                            const result = data.result;
-                            const articleData = result.pipeline_state.article_draft;
-                            
-                            if (articleData && result.pipeline_state.image_results) {
-                                for (let j = 0; j < articleData.listicle_items.length; j++) {
-                                    articleData.listicle_items[j].image_base64 = result.pipeline_state.image_results[j];
-                                }
-                                articleData.featured_image_base64 = result.pipeline_state.image_results[0];
-                            }
-
-                            const html = buildArticleHtml(articleData, row.amazonTag);
-                            const articleId = `article-${Date.now()}-${i}`;
-                            const article = {
-                                id: articleId,
-                                topic: row.keyword,
-                                tone: row.tone,
-                                count: row.count,
-                                generatedAt: new Date().toISOString(),
-                                status: "success",
-                                data: articleData,
-                                html,
-                            };
-                            await saveArticle(article as any);
-                            current[i] = { ...current[i], status: "success", message: "Done", articleId };
-                            completed++;
-                        } else if (data.status === 'failed') {
-                            const errMsg = data.failedReason 
-                                || (data.stacktrace ? data.stacktrace.split("\n")[0] : null)
-                                || `Job failed after ${data.attemptsMade || '?'} attempts`;
-                            current[i] = { ...current[i], status: "error", message: errMsg };
-                            completed++;
-                        } else {
-                            current[i] = { ...current[i], message: `Progress: ${data.progress || 0}%` };
-                        }
-                    }
-                } catch (e: any) {
-                    // Ignore poll network error and retry next tick
-                }
-            }
-            
+            setProgress(Math.round(((i + 1) / current.length) * 100));
             setRows([...current]);
-            setProgress(Math.round((completed / current.length) * 100));
-            
-            if (!allDone) {
-                await new Promise(r => setTimeout(r, 2000)); // poll every 2s
-            }
         }
 
         setIsProcessing(false);
@@ -612,8 +562,8 @@ export default function BatchPage() {
         const firstError = current.find(r => r.status === "error")?.message;
 
         if (successCount > 0 && errorCount === 0) toast.success("Batch complete! All articles saved to library.");
-        else if (successCount > 0 && errorCount > 0) toast.success(`Batch partial: ${successCount} saved, ${errorCount} failed. ${firstError ? `First error: ${firstError}` : ""}`);
-        else toast.error(`Batch failed. ${firstError || "Check status column for details."}`);
+        else if (successCount > 0 && errorCount > 0) toast.success(`Batch partial: ${successCount} saved, ${errorCount} failed. ${firstError ? `Error: ${firstError}` : ""}`);
+        else toast.error(`Batch failed. ${firstError || "Unknown error — check Render logs."}`);
     };
 
     // Retry a single failed item

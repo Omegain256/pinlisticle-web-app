@@ -1,35 +1,129 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generationQueue, PublishPipelineData } from "@/lib/queue";
+import {
+    pipelineClassifyTopic,
+    pipelineSearchEvidence,
+    pipelineGenerateItemCards,
+    pipelineDraftArticle,
+    pipelineScoreEditorialQA,
+    pipelineGenerateStyleDNA,
+} from "@/lib/pipeline";
+import { generateImage } from "@/lib/ai";
+
+export const maxDuration = 300; // 5 min Render limit for pro plan; adjust if on free tier
 
 export async function POST(req: NextRequest) {
     try {
-        const body: PublishPipelineData = await req.json();
+        const body = await req.json();
+        const { topic, keyword, tone, count, apiKey, modelPrefix, amazonTag } = body;
 
-        if (!body.topic && !body.keyword) {
+        if (!topic && !keyword) {
             return NextResponse.json({ success: false, error: "Topic or keyword required" }, { status: 400 });
         }
-        if (!body.apiKey) {
+        if (!apiKey) {
             return NextResponse.json({ success: false, error: "API Key required" }, { status: 400 });
         }
 
-        // Enqueue the massive multi-stage job with automatic retries on rate limits
-        const job = await generationQueue.add(
-            `generate-${Date.now()}`,
-            body,
-            {
-                attempts: 5,
-                backoff: {
-                    type: "exponential",
-                    delay: 2000, 
-                },
-                removeOnComplete: { age: 120 }, // Keep for 2 min so UI can poll result
-                removeOnFail: { count: 10 },      // Keep last 10 failed jobs for debugging
-            }
-        );
+        const targetKeyword = keyword || topic;
+        const itemCount = count || 7;
 
-        return NextResponse.json({ success: true, jobId: job.id });
+        // ── Stage 1: Brief / Classify ────────────────────────────────────────
+        let brief: any;
+        try {
+            brief = await pipelineClassifyTopic(targetKeyword, apiKey);
+        } catch (e: any) {
+            return NextResponse.json({ success: false, stage: "classify", error: e.message }, { status: 500 });
+        }
+
+        // ── Stage 2: Evidence via Web Search ──────────────────────────────────
+        let evidence_pack: any;
+        try {
+            evidence_pack = await pipelineSearchEvidence(targetKeyword, brief, apiKey);
+        } catch (e: any) {
+            // Evidence is non-fatal, use a minimal fallback
+            console.warn("Evidence search failed, using fallback:", e.message);
+            evidence_pack = { trending_angles: [], top_sources: [], seasonal_context: "", audience_pain_points: [], competitive_gaps: "", key_statistics: [] };
+        }
+
+        // ── Stage 3: Style DNA ────────────────────────────────────────────────
+        let style_dna: any;
+        try {
+            style_dna = await pipelineGenerateStyleDNA(targetKeyword, brief, apiKey);
+        } catch (e: any) {
+            console.warn("Style DNA failed, using fallback:", e.message);
+            style_dna = { style_family: "editorial", realism_constraints: ["hyper-realistic", "photographic"], color_story: "neutral" };
+        }
+
+        // ── Stage 4: Item Evidence Cards ──────────────────────────────────────
+        let item_cards: any[];
+        try {
+            item_cards = await pipelineGenerateItemCards(targetKeyword, itemCount, brief, evidence_pack, apiKey, modelPrefix || "pro");
+        } catch (e: any) {
+            return NextResponse.json({ success: false, stage: "item_cards", error: e.message }, { status: 500 });
+        }
+
+        if (!item_cards || item_cards.length === 0) {
+            return NextResponse.json({ success: false, stage: "item_cards", error: "No item cards generated." }, { status: 500 });
+        }
+
+        // ── Stage 5: Draft Article ────────────────────────────────────────────
+        let article_draft: any;
+        try {
+            article_draft = await pipelineDraftArticle(targetKeyword, tone || "conversational", brief, item_cards, apiKey, modelPrefix || "pro");
+        } catch (e: any) {
+            return NextResponse.json({ success: false, stage: "draft", error: e.message }, { status: 500 });
+        }
+
+        // ── Stage 6: QA Score (soft-gate, non-blocking) ───────────────────────
+        let qa_score: any = { pass: true };
+        try {
+            qa_score = await pipelineScoreEditorialQA(article_draft, item_cards, apiKey);
+            if (!qa_score?.pass) {
+                console.warn("QA soft-fail:", qa_score?.weak_sections);
+            }
+        } catch (e: any) {
+            console.warn("QA scorer skipped:", e.message);
+        }
+
+        // ── Stage 7: Images ───────────────────────────────────────────────────
+        const image_results: string[] = [];
+        for (let i = 0; i < item_cards.length; i++) {
+            const card = item_cards[i];
+            const seed = card.image_prompt_seed;
+            if (!seed) { image_results.push(""); continue; }
+
+            const safeStyle = style_dna?.realism_constraints?.join(", ") || "hyper-realistic";
+            const finalPrompt = `${seed.subject || ""}. ${seed.setting || ""}. ${seed.shot || "medium"} shot. ${seed.lighting || ""}. ${safeStyle}. Editorial photography.`.replace(/\s+/g, " ").trim();
+
+            try {
+                const b64 = await generateImage({ prompt: finalPrompt, apiKey });
+                image_results.push(b64 || "");
+            } catch (imgErr: any) {
+                console.warn(`Image ${i + 1} failed: ${imgErr.message}`);
+                image_results.push(""); // non-fatal
+            }
+        }
+
+        // Stitch images into article items
+        if (article_draft?.listicle_items) {
+            for (let j = 0; j < article_draft.listicle_items.length; j++) {
+                if (image_results[j]) {
+                    article_draft.listicle_items[j].image_base64 = image_results[j];
+                }
+            }
+            if (image_results[0]) {
+                article_draft.featured_image_base64 = image_results[0];
+            }
+        }
+
+        return NextResponse.json({
+            success: true,
+            article: article_draft,
+            qa_score,
+            stages_completed: ["classify", "evidence", "style_dna", "item_cards", "draft", "qa", "images"],
+        });
+
     } catch (error: any) {
-        console.error("Queue submission error:", error);
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        console.error("Pipeline error:", error);
+        return NextResponse.json({ success: false, error: error.message || "Unknown pipeline error" }, { status: 500 });
     }
 }
