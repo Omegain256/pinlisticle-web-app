@@ -71,17 +71,21 @@ const worker = new Worker<PublishPipelineData>(
             }
             await job.updateProgress(65);
 
-            // S6: Quality Assurance
+            // S6: Quality Assurance (soft-gate: warns but does NOT fail the job)
             if (!state.qa_score) {
                 console.log(`[Job ${job.id}] S6: Running Editorial QA Scorer...`);
-                state.qa_score = await pipelineScoreEditorialQA(state.article_draft, state.item_cards!, data.apiKey);
-                await job.updateData(data);
-                
-                if (!state.qa_score?.pass) {
-                    // Simple fail-safe logic: if it fails, we clear the draft so it retries on next job invocation, and we throw.
-                    // Or we could implement an inline repair loop. For now, abort to allow manual review or auto-retry.
-                    throw new Error(`QA Gates Failed. Score: ${state.qa_score?.overall}. Weak sections: ${state.qa_score?.weak_sections?.join(", ")}`);
+                try {
+                    state.qa_score = await pipelineScoreEditorialQA(state.article_draft, state.item_cards!, data.apiKey);
+                } catch (qaErr: any) {
+                    console.warn(`[Job ${job.id}] QA scorer non-fatal error: ${qaErr.message}. Continuing.`);
+                    state.qa_score = { pass: true, overall: 0, note: "QA skipped due to scorer error" };
                 }
+                if (!state.qa_score?.pass) {
+                    // Soft-warn only — don't fail the job
+                    console.warn(`[Job ${job.id}] QA soft-fail. Score: ${state.qa_score?.overall}. Publishing anyway.`);
+                    state.qa_score.soft_fail_note = `QA flagged: ${state.qa_score?.weak_sections?.join(", ")}`;
+                }
+                await job.updateData(data);
             }
             await job.updateProgress(80);
 

@@ -606,10 +606,11 @@ export default function BatchPage() {
         setIsProcessing(false);
         const successCount = current.filter(r => r.status === "success").length;
         const errorCount = current.filter(r => r.status === "error").length;
+        const firstError = current.find(r => r.status === "error")?.message;
 
         if (successCount > 0 && errorCount === 0) toast.success("Batch complete! All articles saved to library.");
-        else if (successCount > 0 && errorCount > 0) toast.success(`Batch partial success: ${successCount} saved, ${errorCount} failed.`);
-        else toast.error(`Batch failed: ${errorCount} errors occurred.`);
+        else if (successCount > 0 && errorCount > 0) toast.success(`Batch partial: ${successCount} saved, ${errorCount} failed. ${firstError ? `First error: ${firstError}` : ""}`);
+        else toast.error(`Batch failed. ${firstError || "Check status column for details."}`);
     };
 
     // Retry a single failed item

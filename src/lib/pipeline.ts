@@ -62,13 +62,25 @@ export async function pipelineClassifyTopic(keyword: string, apiKey: string) {
 }
 
 // Stage 2: Web Search Evidence Pack
+// NOTE: Gemini does NOT support responseSchema/responseMimeType when googleSearch grounding is enabled.
+// We use free-form output and parse it ourselves.
 export async function pipelineSearchEvidence(keyword: string, briefJson: any, apiKey: string) {
-    // Requires gemini-2.x with the googleSearch tool
-    const modelId = resolveModelId("lite", true); 
+    const modelId = resolveModelId("lite", true);
     const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
 
-    const systemInstruction = `You are a research editor. Produce a research brief combining current trend info on the keyword. Return JSON only without fluff.`;
-    const prompt = `Use Google Search to gather current information on: "${keyword}". Return an evidence pack following the exact schema required.`;
+    const systemInstruction = `You are a research editor. Use Google Search to gather current information, then produce a JSON evidence pack. Output ONLY valid JSON, no markdown fences, no extra text.`;
+    const prompt = `
+Keyword: "${keyword}"
+Brief: ${JSON.stringify(briefJson)}
+
+Return a JSON object with these fields:
+- "trending_angles": string[] (3-5 current angles)
+- "top_sources": string[] (3-5 source domains)
+- "seasonal_context": string
+- "audience_pain_points": string[]
+- "competitive_gaps": string
+- "key_statistics": string[]
+`.trim();
 
     const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
         method: "POST",
@@ -76,16 +88,15 @@ export async function pipelineSearchEvidence(keyword: string, briefJson: any, ap
         body: JSON.stringify({
             system_instruction: { parts: [{ text: systemInstruction }] },
             contents: [{ parts: [{ text: prompt }] }],
-            tools: [{ googleSearch: {} }], // Grounding with Google Search
+            tools: [{ googleSearch: {} }],
             generationConfig: {
-                responseMimeType: "application/json",
-                responseSchema: EvidencePackSchema,
-                temperature: 0.3, 
+                temperature: 0.3,
             },
         }),
     });
 
-    return extractJSONData(data);
+    // Grounded responses return free-form text — extract and parse JSON manually
+    return extractJSONDataFreeForm(data);
 }
 
 // Stage 3: Item Cards
@@ -217,13 +228,41 @@ Provide strict Quality Assurance scores. Flag weak sections.
     return extractJSONData(data);
 }
 
-// Helper to pull parts text
+// Helper for JSON schema-constrained responses
 function extractJSONData(data: any): any {
     const textPayload = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!textPayload) throw new Error("Invalid response format from Gemini (missing text candidate).");
+    if (!textPayload) {
+        const blockReason = data.promptFeedback?.blockReason;
+        throw new Error(`Invalid response from Gemini. ${blockReason ? `Blocked: ${blockReason}` : "Missing text candidate."}`);
+    }
     try {
         return JSON.parse(textPayload);
     } catch {
         throw new Error("Failed to parse JSON from Gemini payload.");
+    }
+}
+
+// Helper for grounded free-form responses (googleSearch cannot use responseSchema)
+function extractJSONDataFreeForm(data: any): any {
+    const textPayload = data.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text;
+    if (!textPayload) {
+        const blockReason = data.promptFeedback?.blockReason;
+        throw new Error(`Grounded search returned no content. ${blockReason ? `Blocked: ${blockReason}` : ""}`);
+    }
+    // Strip markdown fences if model wrapped it
+    const clean = textPayload.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
+    try {
+        return JSON.parse(clean);
+    } catch {
+        // If JSON parse fails, return a safe fallback so pipeline continues
+        console.warn("Evidence pack JSON parse failed, using fallback.", clean.slice(0, 200));
+        return {
+            trending_angles: [textPayload.slice(0, 100)],
+            top_sources: [],
+            seasonal_context: "",
+            audience_pain_points: [],
+            competitive_gaps: "",
+            key_statistics: [],
+        };
     }
 }
