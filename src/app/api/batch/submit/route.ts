@@ -22,8 +22,8 @@ export async function POST(req: NextRequest) {
                     type: "exponential",
                     delay: 2000, 
                 },
-                removeOnComplete: true, // Keep redis clean
-                removeOnFail: false,    // Keep for debugging
+                removeOnComplete: { age: 120 }, // Keep for 2 min so UI can poll result
+                removeOnFail: { count: 10 },      // Keep last 10 failed jobs for debugging
             }
         );
 

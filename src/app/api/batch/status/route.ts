@@ -15,14 +15,18 @@ export async function GET(req: NextRequest) {
 
         const state = await job.getState();
         const progress = job.progress;
-        const failedReason = job.failedReason;
+        const failedReason = job.failedReason || "(no reason stored)";
+        const stacktrace = job.stacktrace?.[0] || null;
         const returnvalue = job.returnvalue;
+        const attemptsMade = job.attemptsMade;
 
         return NextResponse.json({
             success: true,
-            status: state, // 'waiting' | 'active' | 'completed' | 'failed' | 'delayed'
+            status: state,
             progress,
             failedReason,
+            stacktrace,
+            attemptsMade,
             result: returnvalue
         });
 

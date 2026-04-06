@@ -584,7 +584,10 @@ export default function BatchPage() {
                             current[i] = { ...current[i], status: "success", message: "Done", articleId };
                             completed++;
                         } else if (data.status === 'failed') {
-                            current[i] = { ...current[i], status: "error", message: data.failedReason };
+                            const errMsg = data.failedReason 
+                                || (data.stacktrace ? data.stacktrace.split("\n")[0] : null)
+                                || `Job failed after ${data.attemptsMade || '?'} attempts`;
+                            current[i] = { ...current[i], status: "error", message: errMsg };
                             completed++;
                         } else {
                             current[i] = { ...current[i], message: `Progress: ${data.progress || 0}%` };
