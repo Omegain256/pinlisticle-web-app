@@ -14,8 +14,12 @@ import {
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
+// Current date injected into every prompt so Gemini knows it's 2026, not 2024.
+function getNow(): string {
+    return new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+}
+
 // Server-safe model resolution — does NOT rely on localStorage (which is client-only).
-// Uses MODELS_DEFAULT directly since the server always knows which models exist.
 function resolveModelId(modelPrefix: "pro" | "lite", forceFlash: boolean = false): string {
     const prefix = forceFlash ? "lite" : modelPrefix;
     const modelId = MODELS_DEFAULT[prefix as keyof typeof MODELS_DEFAULT] || MODELS_DEFAULT.pro;
@@ -49,23 +53,25 @@ export async function pipelineClassifyTopic(keyword: string, apiKey: string) {
 
 // Stage 2: Web Search Evidence Pack
 // NOTE: Gemini does NOT support responseSchema/responseMimeType when googleSearch grounding is enabled.
-// We use free-form output and parse it ourselves.
 export async function pipelineSearchEvidence(keyword: string, briefJson: any, apiKey: string) {
     const modelId = resolveModelId("lite", true);
     const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
+    const now = getNow();
 
-    const systemInstruction = `You are a research editor. Use Google Search to gather current information, then produce a JSON evidence pack. Output ONLY valid JSON, no markdown fences, no extra text.`;
+    const systemInstruction = `You are a research editor working in ${now}. Use Google Search to find the MOST CURRENT information available — prioritise results from 2025 and 2026. Do NOT reference articles or trends from 2024 or earlier unless they are still actively relevant today. Output ONLY valid JSON, no markdown fences, no extra text.`;
     const prompt = `
+Today's date: ${now}
 Keyword: "${keyword}"
 Brief: ${JSON.stringify(briefJson)}
 
+Search Google for the very latest 2025-2026 trends, statistics, and angles for this keyword.
 Return a JSON object with these fields:
-- "trending_angles": string[] (3-5 current angles)
-- "top_sources": string[] (3-5 source domains)
-- "seasonal_context": string
-- "audience_pain_points": string[]
-- "competitive_gaps": string
-- "key_statistics": string[]
+- "trending_angles": string[] (3-5 current 2026 angles — be specific, e.g. "quiet luxury trench coats trending on TikTok Spring 2026")
+- "top_sources": string[] (3-5 source domains found)
+- "seasonal_context": string (specific to current season: ${now})
+- "audience_pain_points": string[] (what readers are actually struggling with right now)
+- "competitive_gaps": string (what most articles on this topic are missing in 2026)
+- "key_statistics": string[] (specific numbers or data points — include the year/source)
 `.trim();
 
     const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
@@ -75,13 +81,10 @@ Return a JSON object with these fields:
             system_instruction: { parts: [{ text: systemInstruction }] },
             contents: [{ parts: [{ text: prompt }] }],
             tools: [{ googleSearch: {} }],
-            generationConfig: {
-                temperature: 0.3,
-            },
+            generationConfig: { temperature: 0.3 },
         }),
     });
 
-    // Grounded responses return free-form text — extract and parse JSON manually
     return extractJSONDataFreeForm(data);
 }
 
@@ -151,31 +154,48 @@ Keep it editorial, realistic, and Pinterest-optimized.
 export async function pipelineDraftArticle(keyword: string, tone: string, briefJson: any, itemCardsJson: any[], evidencePack: any, apiKey: string, modelPrefix: "pro" | "lite") {
     const modelId = resolveModelId(modelPrefix);
     const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
+    const now = getNow();
 
     // Pick a random intro hook style to force variety across batch runs
     const hookStyles = [
-        "Start with a surprising or counter-intuitive observation about this keyword.",
-        "Start with a specific statistic or trend from the evidence data.",
-        "Start with a direct, conversational question that speaks to the reader's exact frustration.",
-        "Start with a bold, specific style opinion that feels like genuine expertise.",
-        "Start by naming a specific season/moment that makes this keyword urgent right now.",
+        "Start with a surprising or counter-intuitive observation about this keyword that most people get wrong.",
+        "Start with a specific 2026 trend statistic or data point from the evidence data.",
+        "Start with a direct, punchy question that names the reader's exact frustration.",
+        "Start with a bold, specific style opinion that signals genuine expertise — no hedging.",
+        `Start by naming the exact season (it is currently ${now}) and why this keyword is urgent right now.`,
     ];
     const hookStyle = hookStyles[Math.floor(Math.random() * hookStyles.length)];
 
-    const systemInstruction = `You are a senior fashion and lifestyle editor writing for a Pinterest-first audience. Your tone is ${tone}.
-ABSOLUTE RULES — violating any of these makes the output unusable:
-1. NEVER open with "I've been styling clients for years" or any variation of it.
-2. NEVER use generic SEO filler phrases like "you've come to the right place", "look no further", "we've got you covered", "let's dive in", "without further ado".
-3. NEVER repeat the same sentence structure or opening across multiple articles.
-4. Every item's content MUST cite specific details from its evidence card (colors, fabrics, brand names, trend angles, styling notes).
-5. The intro (article_intro) MUST be unique to THIS specific keyword — not a generic style template.
-6. The outro (article_outro) must end with a specific, actionable takeaway or styling tip — not a generic "happy styling!" sign-off.
-7. Each image_prompt MUST be 60-80 words describing a hyper-realistic editorial photograph of a specific woman wearing/using the item. Include: exact garment description, colors, fabrics, body position, background setting, lighting quality, camera angle.`;
+    const systemInstruction = `You are a senior fashion and lifestyle editor writing for a Pinterest-first audience. Today's date is ${now}. Your tone is ${tone}.
+
+TEMPORAL RULES (critical):
+- Today is ${now}. You are writing for a 2026 audience.
+- NEVER reference "2024" as a current year. If you cite something from 2024, frame it as "last year" or skip it entirely.
+- Seasonal references must match the CURRENT month: ${now}. Spring 2026, not "this winter" or any past season.
+- All trend references must be anchored to 2025-2026 data from the evidence pack.
+
+ABSOLUTE CONTENT RULES:
+1. NEVER open with "I've been styling clients for years" or any variation.
+2. NEVER use: "you've come to the right place", "look no further", "let's dive in", "without further ado", "in conclusion".
+3. Every item MUST cite specific details from its evidence card (colors, fabrics, brand names, trend angles).
+4. The intro MUST be specific to THIS keyword — not a generic style template.
+5. The outro must give ONE specific actionable takeaway.
+
+READABILITY RULES (non-negotiable for Pinterest SEO):
+- Maximum sentence length: 20 words. Break longer thoughts into two sentences.
+- Each item's "content" field: exactly 3 SHORT sentences. No sentence crosses 20 words. Aim for 60-80 words total per item.
+- The article_intro: maximum 3 sentences. Punchy. Under 60 words total.
+- The article_outro: maximum 2 sentences. Under 40 words.
+- NO chunky paragraphs. Every sentence must earn its place.
+- Use conversational, active voice. Avoid passive constructions.
+
+IMAGE RULES:
+- Each image_prompt: 60-80 words, hyper-realistic editorial photo, real woman, specific outfit details, specific location, lighting quality, camera angle.`;
 
     const evidenceSummary = evidencePack ? `
-LIVE RESEARCH DATA (use this to make the article feel current and specific):
+LIVE RESEARCH DATA — current as of ${now} (prioritise this over your training data):
 - Trending angles: ${(evidencePack.trending_angles || []).join("; ")}
-- Key statistics: ${(evidencePack.key_statistics || []).join("; ")}  
+- Key statistics: ${(evidencePack.key_statistics || []).join("; ")}
 - Seasonal context: ${evidencePack.seasonal_context || ""}
 - Audience pain points: ${(evidencePack.audience_pain_points || []).join("; ")}
 - Competitive gap (what others miss): ${evidencePack.competitive_gaps || ""}` : "";
@@ -187,6 +207,7 @@ CONTENT BRIEF:
 - Article archetype: ${briefJson.recommended_article_archetype || "wearable-ideas"}` : "";
 
     const prompt = `
+TODAY'S DATE: ${now}
 KEYWORD: "${keyword}"
 ${briefSummary}
 ${evidenceSummary}
@@ -196,11 +217,11 @@ INTRO HOOK INSTRUCTION: ${hookStyle}
 ITEM EVIDENCE CARDS — write exactly ${itemCardsJson.length} listicle items, one per card, in order:
 ${JSON.stringify(itemCardsJson, null, 2)}
 
-OUTPUT REQUIREMENTS for each listicle_item:
-- "title": Specific, compelling headline (not generic — e.g. "The Oversized Blazer Method" not "Look 1: Blazer")
-- "content": 3-4 sentences. Reference specific colors, textures, accessories from the card's styling_notes. Cite at least one of the card's trend_support points.
-- "has_swap": true if the card has an optional_swap
-- "image_prompt": 60-80 word Imagen prompt for a hyper-realistic editorial photo. Must describe: exact outfit with colors and fabric, woman's pose/action, specific location (e.g. "cobblestone Paris side street"), natural window light, 35mm lens bokeh background.
+OUTPUT REQUIREMENTS per listicle_item:
+- "title": Specific, compelling headline (e.g. "The Oversized Blazer Method" not "Look 1: Blazer")
+- "content": Exactly 3 SHORT sentences (max 20 words each, 60-80 words total). Reference colors, textures, accessories from styling_notes. Cite one trend_support point.
+- "has_swap": true if card has optional_swap
+- "image_prompt": 60-80 word Imagen prompt — exact outfit, colors, fabric, woman's pose, specific location, lighting, 35mm lens bokeh.
     `.trim();
 
     const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
