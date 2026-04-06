@@ -6,6 +6,14 @@ const redisConnection: ConnectionOptions = {
     username: process.env.REDIS_USERNAME || "default",
     password: process.env.REDIS_PASSWORD || "",
     tls: process.env.REDIS_TLS === "true" ? {} : undefined,
+    maxRetriesPerRequest: null,
+    retryStrategy(times) {
+        if (times > 3) {
+            console.error("Redis connection failed. Max retries reached.");
+            return null; // Stop retrying and throw error
+        }
+        return Math.min(times * 500, 2000);
+    }
 };
 
 // Fallback to REDIS_URL if provided (common on Render)
