@@ -4,7 +4,7 @@
 // All currently available models are 2.x series, which use v1beta.
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
-const MODELS_DEFAULT = {
+export const MODELS_DEFAULT = {
     pro: "gemini-2.5-pro",
     lite: "gemini-2.5-flash",
 } as const;
@@ -89,7 +89,7 @@ export function getCachedModels(): DiscoveredModel[] {
     return saved ? JSON.parse(saved) : [];
 }
 
-async function fetchWithKeyRotation(
+export async function fetchWithKeyRotation(
     keysString: string,
     urlTemplate: string,
     options: any

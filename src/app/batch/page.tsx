@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { generateContent, generateImage } from "@/lib/ai";
 import { toast } from "sonner";
 import {
     PlayCircle,
@@ -39,6 +38,7 @@ interface QueueRow {
     status: "queued" | "processing" | "success" | "error";
     message?: string;
     articleId?: string;
+    jobId?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -491,7 +491,6 @@ export default function BatchPage() {
 
     const processQueue = async (items: QueueRow[]) => {
         setIsProcessing(true);
-        let completed = 0;
         const current: QueueRow[] = items.map((r) => ({ ...r, status: "queued" as QueueRow["status"] }));
         setRows([...current]);
 
@@ -499,138 +498,118 @@ export default function BatchPage() {
         const apiKey = settings.geminiKey;
         const modelToUse = selectedModel;
 
-        let totalMissingImages = 0;
-
+        // 1. Dispatch jobs
         for (let i = 0; i < current.length; i++) {
             if (current[i].status !== "queued") continue;
             
-            let articleMissingImages = 0;
-
-            current[i] = { ...current[i], status: "processing", message: "Generating…" };
-            setRows([...current]);
-
             try {
-                let articleId = current[i].articleId || `article-${Date.now()}-${i}`;
-                let articleData: GeneratedArticle["data"] | undefined;
-                
-                // Attempt to recover existing data if this is a retry
-                if (current[i].articleId) {
-                    const existing = await getArticle(current[i].articleId as string);
-                    if (existing?.data) {
-                        articleData = existing.data;
-                    }
-                }
+                current[i] = { ...current[i], status: "processing", message: "Dispatching..." };
+                setRows([...current]);
 
-                // 1. Generate text (skip if recovered)
-                if (!articleData) {
-                    articleData = await generateContent({
+                const response = await fetch('/api/batch/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
                         topic: current[i].keyword,
                         keyword: current[i].seoKeyword || current[i].keyword,
                         tone: current[i].tone,
                         count: current[i].count,
                         apiKey,
-                        modelPrefix: modelToUse,
-                        brandVoice: settings.brandVoice,
-                        internalLinks: settings.internalLinks,
-                    });
+                        modelPrefix: modelToUse
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    current[i] = { ...current[i], jobId: data.jobId, message: "Queued..." };
+                } else {
+                    current[i] = { ...current[i], status: "error", message: data.error };
+                }
+            } catch (e: any) {
+                current[i] = { ...current[i], status: "error", message: e.message };
+            }
+        }
+        setRows([...current]);
+
+        // 2. Poll progress
+        let allDone = false;
+        while (!allDone) {
+            allDone = true;
+            let completed = 0;
+            
+            for (let i = 0; i < current.length; i++) {
+                const row = current[i];
+                if (row.status === "success" || row.status === "error") {
+                    completed++;
+                    continue;
                 }
 
-                if (!articleData) throw new Error("Failed to generate article data structure.");
+                if (!row.jobId) {
+                    current[i] = { ...current[i], status: "error", message: "No job ID attached" };
+                    completed++;
+                    continue;
+                }
 
-                // 2. Generate images for EVERY listicle item
-                for (let j = 0; j < articleData.listicle_items.length; j++) {
-                    const item = articleData.listicle_items[j];
+                allDone = false;
+
+                try {
+                    const res = await fetch(`/api/batch/status?jobId=${row.jobId}`);
+                    const data = await res.json();
                     
-                    if (item.image_prompt && !item.image_base64) {
-                        current[i].message = `Generating image ${j + 1}/${articleData.listicle_items.length}…`;
-                        setRows([...current]);
-                        try {
-                            const rawImageBase64 = await generateImage({
-                                prompt: item.image_prompt,
-                                apiKey,
-                                preferredModel: settings.preferredImagenModel || "auto"
-                            });
-
-                            if (rawImageBase64) {
-                                current[i].message = `Compressing image ${j + 1}…`;
-                                setRows([...current]);
-                                
-                                const compressedBase64 = await compressImageBase64(rawImageBase64);
-
-                                // Save the image directly to the item object
-                                item.image_base64 = compressedBase64;
-
-                                // Set the first generated image as the featured image
-                                if (!articleData.featured_image_base64) {
-                                    articleData.featured_image_base64 = compressedBase64;
+                    if (data.success) {
+                        if (data.status === 'completed') {
+                            const result = data.result;
+                            const articleData = result.pipeline_state.article_draft;
+                            
+                            if (articleData && result.pipeline_state.image_results) {
+                                for (let j = 0; j < articleData.listicle_items.length; j++) {
+                                    articleData.listicle_items[j].image_base64 = result.pipeline_state.image_results[j];
                                 }
+                                articleData.featured_image_base64 = result.pipeline_state.image_results[0];
                             }
-                        } catch (e: any) {
-                            if (e.name === "QuotaExceededError") throw e;
-                            // Single image failure is non-fatal; continue to next item
-                            articleMissingImages++;
+
+                            const html = buildArticleHtml(articleData, row.amazonTag);
+                            const articleId = `article-${Date.now()}-${i}`;
+                            const article = {
+                                id: articleId,
+                                topic: row.keyword,
+                                tone: row.tone,
+                                count: row.count,
+                                generatedAt: new Date().toISOString(),
+                                status: "success",
+                                data: articleData,
+                                html,
+                            };
+                            await saveArticle(article as any);
+                            current[i] = { ...current[i], status: "success", message: "Done", articleId };
+                            completed++;
+                        } else if (data.status === 'failed') {
+                            current[i] = { ...current[i], status: "error", message: data.failedReason };
+                            completed++;
+                        } else {
+                            current[i] = { ...current[i], message: `Progress: ${data.progress || 0}%` };
                         }
                     }
-                }
-
-                totalMissingImages += articleMissingImages;
-
-                // 3. Build HTML
-                const html = buildArticleHtml(articleData, current[i].amazonTag);
-
-                const article: GeneratedArticle = {
-                    id: articleId,
-                    topic: current[i].keyword,
-                    tone: current[i].tone,
-                    count: current[i].count,
-                    generatedAt: new Date().toISOString(),
-                    status: "success",
-                    data: articleData,
-                    html,
-                };
-                await saveArticle(article);
-
-                current[i] = { ...current[i], status: "success", message: "Done", articleId };
-            } catch (e: any) {
-                const errArticle: GeneratedArticle = {
-                    id: `article-err-${Date.now()}-${i}`,
-                    topic: current[i].keyword,
-                    generatedAt: new Date().toISOString(),
-                    status: "error",
-                    errorMessage: e.message,
-                };
-                saveArticle(errArticle);
-                current[i] = { ...current[i], status: "error", message: e.message };
-
-                if (e.name === "QuotaExceededError") {
-                    toast.error("Quota Exceeded: Halting remaining batch articles to save credits.");
-                    setRows([...current]);
-                    setIsProcessing(false);
-                    return;
+                } catch (e: any) {
+                    // Ignore poll network error and retry next tick
                 }
             }
-
-            completed++;
-            setProgress(Math.round((completed / current.length) * 100));
+            
             setRows([...current]);
+            setProgress(Math.round((completed / current.length) * 100));
+            
+            if (!allDone) {
+                await new Promise(r => setTimeout(r, 2000)); // poll every 2s
+            }
         }
 
         setIsProcessing(false);
-        
         const successCount = current.filter(r => r.status === "success").length;
         const errorCount = current.filter(r => r.status === "error").length;
 
-        if (successCount > 0 && errorCount === 0) {
-            if (totalMissingImages > 0) {
-                toast.success(`Batch complete with ${totalMissingImages} missing images saved to library.`);
-            } else {
-                toast.success("Batch complete! All articles saved to library.");
-            }
-        } else if (successCount > 0 && errorCount > 0) {
-            toast.success(`Batch partial success: ${successCount} saved (${totalMissingImages} images missing), ${errorCount} failed.`);
-        } else if (successCount === 0 && errorCount > 0) {
-            toast.error(`Batch failed: ${errorCount} errors occurred. Check the status column.`);
-        }
+        if (successCount > 0 && errorCount === 0) toast.success("Batch complete! All articles saved to library.");
+        else if (successCount > 0 && errorCount > 0) toast.success(`Batch partial success: ${successCount} saved, ${errorCount} failed.`);
+        else toast.error(`Batch failed: ${errorCount} errors occurred.`);
     };
 
     // Retry a single failed item

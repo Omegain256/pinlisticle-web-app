@@ -6,12 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "worker": "tsx src/worker.ts",
     "lint": "eslint"
   },
   "dependencies": {
+    "bullmq": "^5.73.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "idb-keyval": "^6.2.2",
+    "ioredis": "^5.10.1",
     "lucide-react": "^0.576.0",
     "next": "16.1.6",
     "react": "19.2.3",
@@ -27,6 +30,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }
