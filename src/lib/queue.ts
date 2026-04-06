@@ -62,6 +62,12 @@ export const generationQueue = new Queue<PublishPipelineData>(GENERATION_QUEUE_N
     connection: redisConnection,
 });
 
+// VERY IMPORTANT: Catch background Redis errors so Node doesn't trigger an Unhandled Exception crash
+// which causes Next.js to return the 500 HTML `<DOCTYPE...` page instead of our JSON.
+generationQueue.on('error', (error) => {
+    console.error("BullMQ generationQueue background error:", error.message);
+});
+
 /**
  * Helper to dispatch a full generation pipeline as a single parent job,
  * or we use BullMQ flows if we want to separate them.
