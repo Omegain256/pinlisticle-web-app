@@ -296,58 +296,64 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
 
     for (const key of keys) {
         for (const modelId of models) {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predict?key=${key}`;
-            
+            // nano-banana-2 uses generateContent endpoint, not predict
+            const isNanoBanana = modelId === "nano-banana-2";
+            const url = isNanoBanana
+                ? `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${key}`
+                : `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predict?key=${key}`;
+
             try {
+                const body = isNanoBanana
+                    ? JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { responseModalities: ["IMAGE", "TEXT"] }
+                    })
+                    : JSON.stringify({
+                        instances: [{ prompt }],
+                        parameters: { sampleCount: 1, aspectRatio: "9:16", outputOptions: { mimeType: "image/jpeg" } }
+                    });
+
                 const res = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        instances: [{ prompt }],
-                        parameters: {
-                            sampleCount: 1,
-                            aspectRatio: "9:16",
-                            outputOptions: { mimeType: "image/jpeg" }
-                        }
-                    })
+                    body
                 });
 
                 const data = await res.json();
-                
+
                 if (res.ok) {
+                    // nano-banana-2 returns inlineData in candidates
+                    if (isNanoBanana) {
+                        const parts = data.candidates?.[0]?.content?.parts || [];
+                        const imgPart = parts.find((p: any) => p.inlineData?.mimeType?.startsWith("image"));
+                        if (imgPart?.inlineData?.data) return imgPart.inlineData.data;
+                        // no image part — fall through to next model
+                        lastError = new Error("nano-banana-2 returned no image part");
+                        continue;
+                    }
                     const bytes = data.predictions?.[0]?.bytesBase64Encoded;
                     if (bytes) return bytes;
-                    
                     const isBlocked = data.predictions?.[0]?.safetyAttributes?.blocked;
-                    if (isBlocked) {
-                        throw new Error("Google API Safety Filter blocked this image generation.");
-                    }
-                    throw new Error(`No image returned. API Response: ${JSON.stringify(data.predictions?.[0] || data)}`);
+                    if (isBlocked) throw new Error("Safety filter blocked image generation.");
+                    lastError = new Error(`No image returned from ${modelId}`);
+                    continue;
                 }
 
-                // If it's a quota error (429), we just continue to the next model in the inner loop
-                const errorMsg = data.error?.message || "Unknown Imagen Error";
-                const isQuota = res.status === 429 || 
-                               errorMsg.toLowerCase().includes("quota") || 
-                               errorMsg.toLowerCase().includes("limit exceeded") ||
-                               data.error?.status === "RESOURCE_EXHAUSTED";
-
-                if (isQuota) {
-                    console.warn(`[Quota] Imagen Model ${modelId} hit limits on key ...${key.slice(-4)}. Error: ${errorMsg}. Trying next sub-model...`);
-                    lastError = new Error(errorMsg);
-                    continue; 
-                }
-
-                // If it's a safety filter (400) or other non-quota error, we throw immediately (rotation won't help)
-                throw new Error(errorMsg);
+                // Any non-OK response: log and try next model (never throw here)
+                const errorMsg = data.error?.message || `HTTP ${res.status} from ${modelId}`;
+                console.warn(`[Image] ${modelId} on key ...${key.slice(-4)} failed: ${errorMsg}. Trying next model...`);
+                lastError = new Error(errorMsg);
+                // continue to next model
 
             } catch (e: any) {
-                if (!e.message.toLowerCase().includes("quota") && !e.message.toLowerCase().includes("limit")) throw e;
+                // Network-level errors — log and try next model
+                console.warn(`[Image] ${modelId} threw: ${e.message}. Trying next model...`);
+                lastError = e;
             }
         }
     }
 
-    const finalError = lastError || new Error("All Imagen models on all API keys have exceeded their active quota limits.");
+    const finalError = lastError || new Error("All image models exhausted.");
     finalError.name = "QuotaExceededError";
     throw finalError;
 }
