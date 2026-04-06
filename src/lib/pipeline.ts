@@ -22,7 +22,7 @@ function resolveModelId(modelPrefix: "pro" | "lite", forceFlash: boolean = false
     if (((modelPrefix as any) === "gemini-2.0-flash-lite") || modelPrefix === "lite") sanitizedPrefix = "lite";
 
     const requestedId = MODELS_DEFAULT[sanitizedPrefix as keyof typeof MODELS_DEFAULT] || MODELS_DEFAULT.pro;
-    let modelId = requestedId;
+    let modelId: string = requestedId;
 
     if (!cached.some(m => m.id === requestedId)) {
         const priorities = [ "gemini-2.5-flash", "gemini-2.5-pro" ];
