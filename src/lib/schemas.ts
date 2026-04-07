@@ -86,9 +86,20 @@ export const DraftArticleSchema = {
           title: { type: "STRING" },
           content: { type: "STRING" },
           has_swap: { type: "BOOLEAN" },
-          image_prompt: { type: "STRING" }
+          image_prompt: { type: "STRING" },
+          product_recommendations: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                product_name: { type: "STRING" },
+                amazon_search_term: { type: "STRING" }
+              },
+              required: ["product_name", "amazon_search_term"]
+            }
+          }
         },
-        required: ["title", "content", "has_swap", "image_prompt"]
+        required: ["title", "content", "has_swap", "image_prompt", "product_recommendations"]
       }
     }
   },

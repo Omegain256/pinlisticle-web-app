@@ -235,6 +235,7 @@ OUTPUT REQUIREMENTS per listicle_item:
 - "content": Exactly 3 SHORT sentences (max 20 words each, 60-80 words total). Reference colors, textures, accessories from styling_notes. Cite one trend_support point.
 - "has_swap": true if card has optional_swap
 - "image_prompt": 60-80 word Imagen prompt — exact outfit, colors, fabric, woman's pose, specific location, lighting, 35mm lens bokeh.
+- "product_recommendations": EXACTLY 3 items — the specific pieces that recreate the outfit shown in the image_prompt (e.g., the top, the bottom, the shoes). Each must have: "product_name" (specific real-world item name) and "amazon_search_term" (precise Amazon search query for that item).
     `.trim();
 
     const data = await fetchWithKeyRotation(apiKey, urlTemplate, {

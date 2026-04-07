@@ -106,7 +106,7 @@ export function buildArticleHtml(data: GeneratedArticle["data"], amazonTag?: str
             // Output pure, unadulterated HTML wrapped in a Gutenberg Custom HTML block with inline CSS
             html += `<!-- wp:html -->\n`;
             html += `<div style="margin: 2.5rem 0; padding: 2rem; background: #fafaf9; border: 1px solid #f0efed; border-radius: 12px;">\n`;
-            html += `  <h3 style="font-size: 1rem; font-weight: 800; letter-spacing: 0.15em; color: #111; margin-bottom: 1.5rem; text-transform: uppercase;">RECREATE THIS LOOK</h3>\n`;
+            html += `  <h3 style="font-size: 1rem; font-weight: 800; letter-spacing: 0.15em; color: #111; margin-bottom: 1.5rem; text-transform: uppercase;">SHOP THIS LOOK</h3>\n`;
             html += `  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem;">\n`;
 
             products.forEach(prod => {
