@@ -534,7 +534,7 @@ export default function BatchPage() {
                 const articleData = data.article;
                 if (!articleData) throw new Error("Pipeline returned no article data.");
 
-                const html = buildArticleHtml(articleData, current[i].amazonTag);
+                const html = buildArticleHtml(articleData, current[i].amazonTag, settings.internalLinks);
                 const articleId = `article-${Date.now()}-${i}`;
                 await saveArticle({
                     id: articleId,

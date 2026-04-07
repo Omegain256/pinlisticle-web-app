@@ -75,23 +75,36 @@ export async function deleteArticle(id: string): Promise<void> {
     await set(STORE_KEY, updated);
 }
 
-export function buildArticleHtml(data: GeneratedArticle["data"], amazonTag?: string): string {
+export function buildArticleHtml(data: GeneratedArticle["data"], amazonTag?: string, internalLinks?: string): string {
     if (!data) return "";
     let html = `<!-- wp:paragraph {"dropCap":true} -->\n<p class="has-drop-cap">${data.article_intro}</p>\n<!-- /wp:paragraph -->\n\n`;
+
+    // Parse internal links once — format expected: one URL per line (optional label after space)
+    const parsedLinks: { url: string; label: string }[] = [];
+    if (internalLinks) {
+        internalLinks.split("\n").forEach(line => {
+            const trimmed = line.trim();
+            if (!trimmed) return;
+            const [url, ...rest] = trimmed.split(" ");
+            parsedLinks.push({ url, label: rest.join(" ") || url });
+        });
+    }
+
+    // "Keep Exploring" block will be injected after the 2nd item (index === 1)
+    // If there's only 1 item, inject after the 3rd instead (index 2) if it exists
+    const keepExploringIndex = data.listicle_items.length > 2 ? 1 : 2;
 
     data.listicle_items.forEach((item, index) => {
         // Wrap everything in a standard block group
         html += `<!-- wp:group {"className":"pinlisticle-item-row"} -->\n<div class="wp-block-group pinlisticle-item-row">\n`;
 
-        // 1. H2 Title (Uppercase handled in CSS or via text-transform mapping, but usually kept native to the string)
+        // 1. H2 Title
         html += `<!-- wp:heading -->\n<h2 class="wp-block-heading" style="text-transform: uppercase;">${index + 1}. ${item.title}</h2>\n<!-- /wp:heading -->\n\n`;
 
-        // 2. Image (Moved here: below heading, above content)
+        // 2. Image
         if (item.wp_attachment_id && item.wp_source_url) {
-            // WordPress context (use attachment ID block)
             html += `<!-- wp:image {"id":${item.wp_attachment_id},"sizeSlug":"large","linkDestination":"none","className":"pinlisticle-item-img"} -->\n<figure class="wp-block-image size-large pinlisticle-item-img"><img src="${item.wp_source_url}" alt="${item.title}" class="wp-image-${item.wp_attachment_id}"/></figure>\n<!-- /wp:image -->\n`;
         } else if (item.image_base64) {
-            // Local fallback
             html += `<!-- wp:image {"className":"pinlisticle-item-img"} -->\n<figure class="wp-block-image pinlisticle-item-img"><img src="data:image/jpeg;base64,${item.image_base64}" alt="${item.title}"/></figure>\n<!-- /wp:image -->\n`;
         }
 
@@ -100,15 +113,13 @@ export function buildArticleHtml(data: GeneratedArticle["data"], amazonTag?: str
 
         html += `</div>\n<!-- /wp:group -->\n\n`;
 
+        // 4. Shop This Look (after each item if amazonTag present)
         if (item.product_recommendations && item.product_recommendations.length > 0 && amazonTag) {
             const products = item.product_recommendations.slice(0, 3);
-
-            // Output pure, unadulterated HTML wrapped in a Gutenberg Custom HTML block with inline CSS
             html += `<!-- wp:html -->\n`;
             html += `<div style="margin: 2.5rem 0; padding: 2rem; background: #fafaf9; border: 1px solid #f0efed; border-radius: 12px;">\n`;
             html += `  <h3 style="font-size: 1rem; font-weight: 800; letter-spacing: 0.15em; color: #111; margin-bottom: 1.5rem; text-transform: uppercase;">SHOP THIS LOOK</h3>\n`;
             html += `  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem;">\n`;
-
             products.forEach(prod => {
                 const searchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(prod.amazon_search_term)}&tag=${amazonTag}`;
                 html += `    <div style="background: #fff; border: 1px solid #eae8e4; border-radius: 8px; padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between; gap: 1.25rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">\n`;
@@ -116,9 +127,22 @@ export function buildArticleHtml(data: GeneratedArticle["data"], amazonTag?: str
                 html += `      <a href="${searchUrl}" target="_blank" rel="nofollow" style="display: block; text-align: center; background: #000; color: #fff; font-size: 0.8rem; font-weight: 700; text-decoration: none; padding: 0.75rem 1rem; border-radius: 6px; letter-spacing: 0.5px; text-transform: uppercase; margin-top: auto;">SHOP ITEM &rarr;</a>\n`;
                 html += `    </div>\n`;
             });
-
             html += `  </div>\n`;
             html += `  <p style="font-size: 0.65rem; color: #888; margin-top: 1rem; text-transform: uppercase;">*AS AN AMAZON ASSOCIATE, WE EARN FROM QUALIFYING PURCHASES.</p>\n`;
+            html += `</div>\n`;
+            html += `<!-- /wp:html -->\n\n`;
+        }
+
+        // 5. "Keep Exploring" internal link block — injected after the 2nd item (index 1), never after item 0
+        if (index === keepExploringIndex && parsedLinks.length > 0) {
+            html += `<!-- wp:html -->\n`;
+            html += `<div style="margin: 2rem 0; padding: 1.5rem 2rem; background: #f5f3ff; border-left: 4px solid #7c3aed; border-radius: 0 8px 8px 0;">\n`;
+            html += `  <p style="font-size: 0.75rem; font-weight: 800; letter-spacing: 0.12em; color: #7c3aed; text-transform: uppercase; margin-bottom: 0.75rem;">Keep Exploring</p>\n`;
+            html += `  <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem;">\n`;
+            parsedLinks.forEach(link => {
+                html += `    <li><a href="${link.url}" style="color: #1e1b4b; font-size: 0.9rem; font-weight: 600; text-decoration: none;">${link.label}</a></li>\n`;
+            });
+            html += `  </ul>\n`;
             html += `</div>\n`;
             html += `<!-- /wp:html -->\n\n`;
         }
@@ -126,3 +150,4 @@ export function buildArticleHtml(data: GeneratedArticle["data"], amazonTag?: str
 
     return html;
 }
+

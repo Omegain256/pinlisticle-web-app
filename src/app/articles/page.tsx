@@ -152,7 +152,7 @@ export default function ArticlesLibrary() {
             if (hasNewUploads) {
                 toast.loading(`Rebuilding HTML payload…`, { id: loadingId });
                 const settings = JSON.parse(localStorage.getItem("pinlisticle_settings") || "{}");
-                updatedArticle.html = buildArticleHtml(updatedArticle.data!, settings.amazonTag);
+                updatedArticle.html = buildArticleHtml(updatedArticle.data!, settings.amazonTag, settings.internalLinks);
                 await saveArticle(updatedArticle);
                 if (selected?.id === updatedArticle.id) setSelected(updatedArticle);
             }
@@ -220,7 +220,7 @@ export default function ArticlesLibrary() {
             if (newArticle.data) {
                 newArticle.data.listicle_items[idx].title = articleData.title;
                 newArticle.data.listicle_items[idx].content = articleData.content;
-                newArticle.html = buildArticleHtml(newArticle.data, settings.amazonTag);
+                    newArticle.html = buildArticleHtml(newArticle.data, settings.amazonTag, settings.internalLinks);
                 await saveArticle(newArticle);
                 setSelected(newArticle);
                 toast.success("Text regenerated successfully!");
@@ -255,7 +255,7 @@ export default function ArticlesLibrary() {
                     newArticle.data.listicle_items[idx].image_base64 = compressedBase64;
                     delete newArticle.data.listicle_items[idx].wp_attachment_id;
                     delete newArticle.data.listicle_items[idx].wp_source_url;
-                    newArticle.html = buildArticleHtml(newArticle.data, settings.amazonTag);
+                        newArticle.html = buildArticleHtml(newArticle.data, settings.amazonTag, settings.internalLinks);
                     await saveArticle(newArticle);
                     setSelected(newArticle);
                     toast.success("Image regenerated successfully!");

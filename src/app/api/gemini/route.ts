@@ -61,7 +61,7 @@ export async function POST(req: Request) {
         }
 
         if (internalLinks) {
-            system_instruction_arr.push("- INTERNAL LINKING: The user has provided a list of their own website URLs. You must forcefully map 1 to 2 of these URLs into the sub-item `content` fields naturally using valid HTML `<a href=\"...\">keyword</a>` anchors. Ensure they blend perfectly into the sentence. Do NOT put links in the intro.");
+            system_instruction_arr.push("- INTERNAL LINKING: The user has provided a list of their own website URLs. Inject 1-2 of these URLs as valid HTML `<a href=\"...\">keyword</a>` anchors into the `content` field of the SECOND or THIRD listicle item only (index 1 or 2, never index 0). They must blend naturally into the sentence. Do NOT put links in the intro, the first item, or the last item.");
         }
 
         const system_instruction = system_instruction_arr.join(" ");
