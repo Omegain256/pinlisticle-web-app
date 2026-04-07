@@ -82,6 +82,20 @@ export async function POST(req: Request) {
 
     } catch (error: any) {
         console.error("WordPress Route Error:", error);
+
+        // TypeError: fetch failed = network unreachable (bad URL, DNS failure, SSL cert, firewall)
+        if (error instanceof TypeError && error.message === "fetch failed") {
+            const cause = (error as any).cause;
+            const detail = cause?.code === "DEPTH_ZERO_SELF_SIGNED_CERT"
+                ? "SSL certificate error (self-signed cert). Try using https:// or disable SSL in WordPress."
+                : cause?.code === "ECONNREFUSED"
+                ? "Connection refused — the server is down or the URL/port is wrong."
+                : cause?.code === "ENOTFOUND"
+                ? "DNS lookup failed — the domain doesn't exist or isn't reachable."
+                : cause?.message || "Cannot connect to the WordPress server. Check the URL.";
+            return NextResponse.json({ error: detail }, { status: 503 });
+        }
+
         return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
     }
 }

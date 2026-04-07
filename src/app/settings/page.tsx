@@ -166,15 +166,19 @@ export default function Settings() {
                     payload: {},
                 }),
             });
+            const data = await res.json();
             if (res.ok) {
-                toast.success(`Connection to ${site.name} looks good!`);
+                toast.success(`✅ Connected to ${site.name} as "${data.data?.name || data.data?.slug || site.user}"`);
+            } else if (res.status === 503) {
+                // Network/DNS/SSL error reaching WordPress
+                toast.error(`❌ Cannot reach ${site.url} — ${data.error || "Check the URL and try again."}`, { duration: 8000 });
+            } else if (res.status === 401 || res.status === 403) {
+                toast.error(`🔐 Auth Failed: Wrong username or application password for ${site.name}.`, { duration: 8000 });
             } else {
-                const data = await res.json();
-                const errMsg = data.error || data.wp_message || "Invalid credentials";
-                toast.error(`Auth Failed: ${errMsg}`);
+                toast.error(`❌ ${data.error || `HTTP ${res.status} from WordPress`}`, { duration: 8000 });
             }
         } catch {
-            toast.error(`Could not reach ${site.name}. Check the URL.`);
+            toast.error(`❌ Could not reach the app server. Check your network.`);
         } finally {
             setTestingId(null);
         }
