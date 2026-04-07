@@ -5,24 +5,22 @@
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 export const MODELS_DEFAULT = {
-    pro: "gemini-3.1-pro",
-    lite: "gemini-3.1-flash-lite",
+    pro: "gemini-2.5-pro",
+    lite: "gemini-2.5-flash",
 } as const;
 
 // ─── Deprecated Model Blocklist ───────────────────────────────────────────
 // Maps ANY deprecated/unavailable model ID to a confirmed-working replacement.
 // This catches stale values from localStorage, old Settings selections, etc.
 const DEPRECATED_MODEL_MAP: Record<string, string> = {
-    "gemini-2.0-flash": "gemini-3.1-flash-lite",
-    "gemini-2.0-flash-lite": "gemini-3.1-flash-lite",
-    "gemini-2.0-flash-exp": "gemini-3.1-flash-lite",
-    "gemini-1.5-pro": "gemini-3.1-pro",
-    "gemini-1.5-pro-002": "gemini-3.1-pro",
-    "gemini-1.5-flash": "gemini-3.1-flash-lite",
-    "gemini-1.5-flash-002": "gemini-3.1-flash-lite",
-    "gemini-2.1-pro": "gemini-3.1-pro",
-    "gemini-2.5-pro": "gemini-3.1-pro",
-    "gemini-2.5-flash": "gemini-3.1-flash-lite",
+    "gemini-2.0-flash": "gemini-2.5-flash",
+    "gemini-2.0-flash-lite": "gemini-2.5-flash",
+    "gemini-2.0-flash-exp": "gemini-2.5-flash",
+    "gemini-1.5-pro": "gemini-2.5-pro",
+    "gemini-1.5-pro-002": "gemini-2.5-pro",
+    "gemini-1.5-flash": "gemini-2.5-flash",
+    "gemini-1.5-flash-002": "gemini-2.5-flash",
+    "gemini-2.1-pro": "gemini-2.5-pro",
 };
 
 /** Sanitize any model ID — if it's deprecated, return the safe replacement. */
@@ -210,8 +208,8 @@ export async function generateContent(params: {
     } else {
         // ONLY dashboard-confirmed models. Order: best capacity first.
         const priorities = [
-            "gemini-3.1-flash-lite",
-            "gemini-3.1-pro",
+            "gemini-2.5-flash",
+            "gemini-2.5-pro",
         ];
         for (const p of priorities) {
             if (cached.some(m => m.id === p)) {
@@ -421,8 +419,8 @@ export async function regenerateText(params: {
     } else {
         // ONLY dashboard-confirmed models. Order: best capacity first.
         const priorities = [
-            "gemini-3.1-flash-lite",
-            "gemini-3.1-pro",
+            "gemini-2.5-flash",
+            "gemini-2.5-pro",
         ];
         for (const p of priorities) {
             if (cached.some(m => m.id === p)) {
