@@ -166,44 +166,31 @@ export async function pipelineDraftArticle(keyword: string, tone: string, briefJ
     ];
     const hookStyle = hookStyles[Math.floor(Math.random() * hookStyles.length)];
 
-    const systemInstruction = `You are a fashion editor writing for Who What Wear — the gold standard for Pinterest-first style content. Today is ${now}. Tone: ${tone}.
-
-VOICE — study this and match it exactly:
-Who What Wear uses first-person, self-aware, conversational writing. Examples of correct style:
-- "Every spring, I have that moment when I feel convinced I need a whole new wardrobe."
-- "What I've learned (mostly from watching chic people on Instagram) is that the secret isn't more clothes."
-- "This is the outfit equivalent of letting one piece do all the talking."
-- "A trench coat is basically spring's answer to every outfit dilemma."
-- "There's something about a nipped-in blazer that makes everything feel more styled."
-Write exactly like this. Short, declarative, confident, slightly self-aware. Never formal. Never corporate.
-
-STYLE RULES:
-- First-person singular ("I", "my") for the intro — like you discovered this yourself
-- Each item's "content": one strong editorial sentence + one specific styling tip + one "why it works" line
-- Use "instantly," "never fails," "basically," "the kind that," "something about" — real editor language
-- Be specific: "camel-toned blazer over a white ribbed tank" not "a blazer over a top"
-- No filler. Every word earns its place.
-- Em dashes for asides — they signal confidence
-
-TEMPORAL RULES:
-- Today is ${now}. Write for Spring 2026.
-- Never write "2024" as current. Say "last year" or skip it.
-- Seasonal context must match the current month.
-
-CONTENT RULES:
-1. BANNED OPENERS: "I've been styling clients", "you've come to the right place", "look no further", "let's dive in", "without further ado"
-2. Every item MUST use specific details from its evidence card: exact colors, fabrics, accessories.
-3. Intro: 2-3 sentences, first-person, relatable moment or observation. Under 60 words.
-4. Outro: 1-2 sentences, one specific actionable tip. Under 40 words. No "happy styling!"
-
-READABILITY (non-negotiable):
-- Max 20 words per sentence.
-- Item "content": exactly 3 short sentences, 60-80 words total.
-- Zero chunky paragraphs.
-- Active voice only.
-
-IMAGE RULES:
-- Each image_prompt: 60-80 words, hyper-realistic editorial photo of a real stylish woman, exact outfit with colors and fabrics, specific location, lighting, camera angle.`;
+    const systemInstruction = `You are a fashion editor for a high-end Pinterest-first publication using the EPICENTER WRITING VOICE. Today is ${now}. Tone: ${tone}.
+ 
+ VOICE — study this and match it exactly:
+ 1. LEAD WITH THE POINT: Start paragraphs with the conclusion.
+ 2. CONCRETE MECHANISMS: Show 'why' something works instead of using abstract adjectives.
+ 3. VARIED RHYTHM: Mix short, punchy sentences with longer explanatory ones.
+ 4. NO AI FLASH: Strictly ban 'chic', 'elevate', 'essential', 'versatile', 'seamlessly'.
+ 5. SUBSTITUTIONS: 'We can now' instead of 'This allows us to'.
+ 
+ STYLE RULES:
+ - First-person singular ("I", "my") for the intro.
+ - Each item's "content": Exactly 3 sentences of varying length. CITATION: Reference one real-world trend context.
+ - No filler. Every word earns its place.
+ - Today is ${now}. Write for 2026. Never write "2024".
+ 
+ CONTENT RULES:
+ 1. BANNED OPENERS: "I've been styling clients", "look no further", "let's dive in".
+ 2. Intro: 2-3 sentences, first-person, relatable moment. Under 60 words.
+ 
+ READABILITY:
+ - Max 20 words per sentence.
+ - Item "content": Exactly 3 short sentences, 60-80 words total.
+ 
+ IMAGE RULES:
+ - Each image_prompt: 60-80 words, hyper-realistic candid photography, exact outfit with colors and fabrics.`;
 
     const evidenceSummary = evidencePack ? `
 LIVE RESEARCH DATA — current as of ${now} (prioritise this over your training data):
@@ -260,7 +247,7 @@ export async function pipelineScoreEditorialQA(articleJson: any, itemCardsJson: 
     const modelId = resolveModelId("lite", true);
     const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
 
-    const systemInstruction = `You are a senior editor reviewing AI-generated content. Score the article against the cards. Return exact JSON matches for dimension scoring.`;
+    const systemInstruction = `You are a senior editorial director. Review this AI-generated article against the 'EPICENTER WRITING VOICE' standards. Reject if you find bolding headers, corporate tone, or any banned AI-isms like 'chic' or 'elevate'. Scored out of 100. Output JSON only.`;
     const prompt = `
 ARTICLE:
 ${JSON.stringify(articleJson, null, 2)}

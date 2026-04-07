@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "writing-voice": {
+      "source": "epicenterhq/epicenter",
+      "sourceType": "github",
+      "computedHash": "4303c8cb1a7104b2b9d6bbf6e85b9a0e4d0d52e9809d3c1749c56b2b52bb4f0c"
+    }
+  }
+}
