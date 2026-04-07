@@ -155,7 +155,44 @@ export default function Settings() {
             return;
         }
         setTestingId(site.id);
+        
+        const safeUser = site.user.trim();
+        const safePass = site.appPassword.trim().replace(/\s+/g, '');
+        const authHeader = `Basic ${btoa(`${safeUser}:${safePass}`)}`;
+        const baseUrl = site.url.replace(/\/$/, '');
+        const testEndpoint = `${baseUrl}/wp-json/wp/v2/users/me`;
+
         try {
+            // 1. Try DIRECT browser-side fetch first (Permanent Solution for Local/SSL issues)
+            // This bypasses the server-side network layer entirely.
+            try {
+                const directRes = await fetch(testEndpoint, {
+                    method: "GET",
+                    headers: {
+                        'Authorization': authHeader,
+                    },
+                    mode: 'cors', // Try CORS
+                });
+
+                if (directRes.ok) {
+                    const data = await directRes.json();
+                    toast.success(`✅ Direct Connection Success! Connected to ${site.name} as "${data.name || data.slug || site.user}"`);
+                    setTestingId(null);
+                    return;
+                }
+                
+                // If 401/403, the credentials are wrong (even on direct connection)
+                if (directRes.status === 401 || directRes.status === 403) {
+                    toast.error(`🔐 Auth Failed: Wrong username or application password for ${site.name}.`, { duration: 8000 });
+                    setTestingId(null);
+                    return;
+                }
+            } catch (corsErr) {
+                // CORS or network error on direct fetch - fall through to server-side proxy
+                console.log("Direct fetch failed or blocked by CORS, falling back to proxy...", corsErr);
+            }
+
+            // 2. Fallback to Server-Side Proxy
             const res = await fetch("/api/wordpress", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -168,19 +205,19 @@ export default function Settings() {
                     payload: {},
                 }),
             });
+
             const data = await res.json();
             if (res.ok) {
                 toast.success(`✅ Connected to ${site.name} as "${data.data?.name || data.data?.slug || site.user}"`);
-            } else if (res.status === 503) {
-                // Network/DNS/SSL error reaching WordPress
-                toast.error(`❌ Cannot reach ${site.url} — ${data.error || "Check the URL and try again."}`, { duration: 8000 });
+            } else if (res.status === 502 || res.status === 503) {
+                toast.error(`❌ Connection Failed: ${data.error || "The app server cannot reach your WordPress site."}`, { duration: 8000 });
             } else if (res.status === 401 || res.status === 403) {
                 toast.error(`🔐 Auth Failed: Wrong username or application password for ${site.name}.`, { duration: 8000 });
             } else {
-                toast.error(`❌ ${data.error || `HTTP ${res.status} from WordPress`}`, { duration: 8000 });
+                toast.error(`❌ ${data.error || `Error ${res.status} from WordPress`}`, { duration: 8000 });
             }
-        } catch {
-            toast.error(`❌ Could not reach the app server. Check your network.`);
+        } catch (error: any) {
+            toast.error(`❌ App Error: ${error.message || "Unknown error during connection test."}`);
         } finally {
             setTestingId(null);
         }
