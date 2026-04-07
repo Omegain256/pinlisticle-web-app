@@ -5,22 +5,24 @@
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 export const MODELS_DEFAULT = {
-    pro: "gemini-2.5-pro",
-    lite: "gemini-2.5-flash",
+    pro: "gemini-3.1-pro",
+    lite: "gemini-3.1-flash-lite",
 } as const;
 
 // ─── Deprecated Model Blocklist ───────────────────────────────────────────
 // Maps ANY deprecated/unavailable model ID to a confirmed-working replacement.
 // This catches stale values from localStorage, old Settings selections, etc.
 const DEPRECATED_MODEL_MAP: Record<string, string> = {
-    "gemini-2.0-flash": "gemini-2.5-flash",
-    "gemini-2.0-flash-lite": "gemini-2.5-flash",
-    "gemini-2.0-flash-exp": "gemini-2.5-flash",
-    "gemini-1.5-pro": "gemini-2.5-pro",
-    "gemini-1.5-pro-002": "gemini-2.5-pro",
-    "gemini-1.5-flash": "gemini-2.5-flash",
-    "gemini-1.5-flash-002": "gemini-2.5-flash",
-    "gemini-2.1-pro": "gemini-2.5-pro",
+    "gemini-2.0-flash": "gemini-3.1-flash-lite",
+    "gemini-2.0-flash-lite": "gemini-3.1-flash-lite",
+    "gemini-2.0-flash-exp": "gemini-3.1-flash-lite",
+    "gemini-1.5-pro": "gemini-3.1-pro",
+    "gemini-1.5-pro-002": "gemini-3.1-pro",
+    "gemini-1.5-flash": "gemini-3.1-flash-lite",
+    "gemini-1.5-flash-002": "gemini-3.1-flash-lite",
+    "gemini-2.1-pro": "gemini-3.1-pro",
+    "gemini-2.5-pro": "gemini-3.1-pro",
+    "gemini-2.5-flash": "gemini-3.1-flash-lite",
 };
 
 /** Sanitize any model ID — if it's deprecated, return the safe replacement. */
@@ -54,6 +56,17 @@ export class QuotaExceededError extends Error {
         super(message);
         this.name = "QuotaExceededError";
     }
+}
+
+export class ModelOverloadedError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "ModelOverloadedError";
+    }
+}
+
+async function sleep(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 let currentKeyIndex = 0;
@@ -109,36 +122,63 @@ export async function fetchWithKeyRotation(
 
         const finalUrl = urlTemplate.replace("API_KEY_PLACEHOLDER", key);
 
-        try {
-            const res = await fetch(finalUrl, options);
-            const data = await res.json();
-            
-            if (res.ok) {
-                return data;
-            }
+        let retryAttempt = 0;
+        const maxRetriesPerKey = 2; // Retry on 503 before rotating
 
-            const errorMsg = data.error?.message || "Unknown error";
-            const isQuotaError = res.status === 429 || 
-                               errorMsg.toLowerCase().includes("quota") || 
-                               errorMsg.toLowerCase().includes("limit exceeded");
+        while (retryAttempt <= maxRetriesPerKey) {
+            try {
+                const res = await fetch(finalUrl, options);
+                const data = await res.json();
+                
+                if (res.ok) {
+                    return data;
+                }
 
-            if (isQuotaError) {
-                console.warn(`API Key ending in ...${key.slice(-4)} hit quota limit. Rotating to next key if available.`);
-                lastResponseData = data;
-                continue; // Try next key
-            } else {
-                // Not a quota error, immediately throw a normal error
-                throw new Error(errorMsg);
-            }
-        } catch (e: any) {
-            // For true network failures or the error we just threw above
-            if (e.message !== "fetch failed" && !e?.message?.toLowerCase().includes("quota")) {
-                throw e; 
+                const errorMsg = data.error?.message || "Unknown error";
+                const isQuotaError = res.status === 429 || 
+                                   errorMsg.toLowerCase().includes("quota") || 
+                                   errorMsg.toLowerCase().includes("limit exceeded");
+
+                const isOverloadError = res.status === 503 || 
+                                      errorMsg.toLowerCase().includes("high demand") || 
+                                      errorMsg.toLowerCase().includes("overloaded");
+
+                if (isQuotaError) {
+                    console.warn(`API Key ending in ...${key.slice(-4)} hit quota limit. Rotating to next key.`);
+                    lastResponseData = data;
+                    break; // break retry loop to rotate key
+                } else if (isOverloadError) {
+                    if (retryAttempt < maxRetriesPerKey) {
+                        const waitTime = (retryAttempt + 1) * 2000;
+                        console.warn(`[Resilience] Model overloaded on key ...${key.slice(-4)}. Retrying in ${waitTime}ms... (Attempt ${retryAttempt + 1}/${maxRetriesPerKey})`);
+                        await sleep(waitTime);
+                        retryAttempt++;
+                        continue; // try again with same key
+                    } else {
+                        console.warn(`[Resilience] Model still overloaded on key ...${key.slice(-4)} after ${maxRetriesPerKey} retries. Rotating key.`);
+                        lastResponseData = data;
+                        break; // break retry loop to rotate key
+                    }
+                } else {
+                    // Not a quota or overload error, immediately throw a normal error
+                    throw new Error(errorMsg);
+                }
+            } catch (e: any) {
+                // For true network failures
+                if (e.message !== "fetch failed") {
+                    throw e; 
+                }
+                // If fetch failed, rotate key
+                break;
             }
         }
     }
 
-    throw new QuotaExceededError(lastResponseData?.error?.message || "All provided API keys have exceeded their active quota limits.");
+    const finalErrorMsg = lastResponseData?.error?.message || "All provided API keys exhausted.";
+    if (finalErrorMsg.toLowerCase().includes("high demand") || finalErrorMsg.toLowerCase().includes("overloaded")) {
+        throw new ModelOverloadedError(finalErrorMsg);
+    }
+    throw new QuotaExceededError(finalErrorMsg);
 }
 
 // ─── Generation Utilities ──────────────────────────────────────────────────
@@ -170,8 +210,8 @@ export async function generateContent(params: {
     } else {
         // ONLY dashboard-confirmed models. Order: best capacity first.
         const priorities = [
-            "gemini-2.5-flash",
-            "gemini-2.5-pro",
+            "gemini-3.1-flash-lite",
+            "gemini-3.1-pro",
         ];
         for (const p of priorities) {
             if (cached.some(m => m.id === p)) {
@@ -381,8 +421,8 @@ export async function regenerateText(params: {
     } else {
         // ONLY dashboard-confirmed models. Order: best capacity first.
         const priorities = [
-            "gemini-2.5-flash",
-            "gemini-2.5-pro",
+            "gemini-3.1-flash-lite",
+            "gemini-3.1-pro",
         ];
         for (const p of priorities) {
             if (cached.some(m => m.id === p)) {

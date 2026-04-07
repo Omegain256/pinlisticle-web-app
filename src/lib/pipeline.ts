@@ -2,6 +2,7 @@ import {
     fetchWithKeyRotation,
     sanitizeModelId,
     MODELS_DEFAULT,
+    ModelOverloadedError
 } from "./ai";
 import {
     TopicClassificationSchema,
@@ -105,21 +106,29 @@ ${JSON.stringify(evidencePackJson, null, 2)}
 Generate exactly ${count} item evidence cards based strictly on the research, ignoring generic fluff.
     `.trim();
 
-    const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            system_instruction: { parts: [{ text: systemInstruction }] },
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-                responseMimeType: "application/json",
-                responseSchema: ItemCardsSchema,
-                temperature: 0.7, 
-            },
-        }),
-    });
+    try {
+        const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemInstruction }] },
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: ItemCardsSchema,
+                    temperature: 0.7, 
+                },
+            }),
+        });
 
-    return extractJSONData(data);
+        return extractJSONData(data);
+    } catch (err: any) {
+        if (err instanceof ModelOverloadedError && modelPrefix === "pro") {
+            console.warn(`[Resilience] Gemini Pro overloaded during item_cards. Falling back to Gemini Flash.`);
+            return pipelineGenerateItemCards(keyword, count, briefJson, evidencePackJson, apiKey, "lite");
+        }
+        throw err;
+    }
 }
 
 // Stage 3.5: Style DNA
@@ -225,21 +234,29 @@ OUTPUT REQUIREMENTS per listicle_item:
 - "product_recommendations": EXACTLY 3 items — the specific pieces that recreate the outfit shown in the image_prompt (e.g., the top, the bottom, the shoes). Each must have: "product_name" (specific real-world item name) and "amazon_search_term" (precise Amazon search query for that item).
     `.trim();
 
-    const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            system_instruction: { parts: [{ text: systemInstruction }] },
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-                responseMimeType: "application/json",
-                responseSchema: DraftArticleSchema,
-                temperature: 0.9,
-            },
-        }),
-    });
+    try {
+        const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemInstruction }] },
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: DraftArticleSchema,
+                    temperature: 0.9,
+                },
+            }),
+        });
 
-    return extractJSONData(data);
+        return extractJSONData(data);
+    } catch (err: any) {
+        if (err instanceof ModelOverloadedError && modelPrefix === "pro") {
+            console.warn(`[Resilience] Gemini Pro overloaded during article drafting. Falling back to Gemini Flash.`);
+            return pipelineDraftArticle(keyword, tone, briefJson, itemCardsJson, evidencePack, apiKey, "lite");
+        }
+        throw err;
+    }
 }
 
 // Stage 5: Editorial QA

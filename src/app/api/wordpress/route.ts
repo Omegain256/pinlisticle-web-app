@@ -10,18 +10,30 @@ import { request as httpRequest } from "http";
  * 
  * This is the 'Master Fix' for WordPress hostname mismatches and SSL errors.
  */
-async function wpRequest(url: string, options: { method: string; headers: any; skipSsl?: boolean }, body?: any): Promise<any> {
+async function wpRequest(
+    url: string, 
+    options: { method: string; headers: any; skipSsl?: boolean }, 
+    body?: any,
+    redirectCount = 0
+): Promise<any> {
+    const MAX_REDIRECTS = 3;
+
     return new Promise((resolve, reject) => {
         try {
             const parsedUrl = new URL(url);
             const isHttps = parsedUrl.protocol === 'https:';
             const requestFn = isHttps ? httpsRequest : httpRequest;
             
+            // Explicitly set the Host header to the target domain.
+            // This is critical for sites behind Cloudflare/WAFs like hairmusings.com.
+            const headers = { ...options.headers };
+            headers['Host'] = parsedUrl.hostname;
+
             const reqOptions = {
                 hostname: parsedUrl.hostname,
                 path: parsedUrl.pathname + parsedUrl.search,
                 method: options.method,
-                headers: options.headers,
+                headers: headers,
                 // THE MASTER SSL BYPASS KEY:
                 rejectUnauthorized: options.skipSsl !== true,
                 port: parsedUrl.port || (isHttps ? 443 : 80),
@@ -29,6 +41,18 @@ async function wpRequest(url: string, options: { method: string; headers: any; s
             };
 
             const req = requestFn(reqOptions, (res) => {
+                // HANDLE REDIRECTS (Found on sites like hairmusings.com)
+                if ([301, 302, 307, 308].includes(res.statusCode || 0) && res.headers.location) {
+                    if (redirectCount >= MAX_REDIRECTS) {
+                        return reject(new Error("Too many redirects from WordPress server. Check your site settings."));
+                    }
+                    console.log(`[WP Proxy] Redirecting (${res.statusCode}) to: ${res.headers.location}`);
+                    
+                    // Resolve relative URLs
+                    const nextUrl = new URL(res.headers.location, url).toString();
+                    return resolve(wpRequest(nextUrl, options, body, redirectCount + 1));
+                }
+
                 let data = Buffer.alloc(0);
                 res.on('data', (chunk) => {
                     data = Buffer.concat([data, chunk]);
@@ -47,10 +71,14 @@ async function wpRequest(url: string, options: { method: string; headers: any; s
                 });
             });
 
-            req.on('error', (e) => reject(e));
+            req.on('error', (e) => {
+                console.error(`[WP Proxy] Request Error for ${url}:`, e);
+                reject(e);
+            });
+            
             req.on('timeout', () => {
                 req.destroy();
-                reject(new Error("The WordPress server took too long to respond (Timeout)."));
+                reject(new Error(`The WordPress server at ${parsedUrl.hostname} took too long to respond (Timeout).`));
             });
 
             if (body) {
