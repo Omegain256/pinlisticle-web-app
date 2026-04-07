@@ -124,6 +124,7 @@ export default function ArticlesLibrary() {
                             wpUrl: targetSite.url,
                             wpUser: targetSite.user,
                             wpAppPassword: targetSite.appPassword,
+                            skipSsl: targetSite.skipSsl,
                             payload: { base64: item.image_base64, filename: `generated-${Date.now()}-${i}.jpg` },
                         }),
                     });
@@ -183,6 +184,7 @@ export default function ArticlesLibrary() {
                     wpUrl: targetSite.url,
                     wpUser: targetSite.user,
                     wpAppPassword: targetSite.appPassword,
+                    skipSsl: targetSite.skipSsl,
                     payload,
                 }),
             });

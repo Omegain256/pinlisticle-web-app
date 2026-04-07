@@ -1,8 +1,55 @@
 import { NextResponse } from "next/server";
+import { request } from "https";
+
+/**
+ * A simple wrapper around Node's https.request to support rejectUnauthorized: false
+ * since the global fetch API in Node.js 18+ (undici) doesn't allow it easily.
+ */
+function httpsRequest(url: string, options: any, body?: any): Promise<any> {
+    return new Promise((resolve, reject) => {
+        const parsedUrl = new URL(url);
+        const reqOptions = {
+            hostname: parsedUrl.hostname,
+            path: parsedUrl.pathname + parsedUrl.search,
+            method: options.method || 'GET',
+            headers: options.headers || {},
+            rejectUnauthorized: options.rejectUnauthorized !== false,
+            port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
+            timeout: 15000,
+        };
+
+        const req = request(reqOptions, (res) => {
+            let data = '';
+            res.on('data', (chunk) => data += chunk);
+            res.on('end', () => {
+                resolve({
+                    ok: res.statusCode ? res.statusCode >= 200 && res.statusCode < 300 : false,
+                    status: res.statusCode,
+                    text: () => Promise.resolve(data),
+                    json: () => {
+                        try { return Promise.resolve(JSON.parse(data)); }
+                        catch (e) { return Promise.reject(new Error("Invalid JSON response")); }
+                    }
+                });
+            });
+        });
+
+        req.on('error', (e) => reject(e));
+        req.on('timeout', () => {
+            req.destroy();
+            reject(new Error("Connection timed out"));
+        });
+
+        if (body) {
+            req.write(body);
+        }
+        req.end();
+    });
+}
 
 export async function POST(req: Request) {
     try {
-        const { action, wpUrl, wpUser, wpAppPassword, payload } = await req.json();
+        const { action, wpUrl, wpUser, wpAppPassword, payload, skipSsl } = await req.json();
 
         if (!wpUrl || !wpUser || !wpAppPassword) {
             return NextResponse.json({ error: "Missing WordPress credentials." }, { status: 401 });
@@ -16,52 +63,59 @@ export async function POST(req: Request) {
 
         // Clean credentials to prevent invisible copy/paste space errors
         const safeUser = wpUser.trim();
-        // WordPress app passwords often copy with spaces (e.g. "aaaa bbbb"), we strip them before encoding
         const safePass = wpAppPassword.trim().replace(/\s+/g, '');
 
         const auth = Buffer.from(`${safeUser}:${safePass}`).toString('base64');
         const headers: Record<string, string> = {
             'Authorization': `Basic ${auth}`,
-            'X-WP-Auth': `Basic ${auth}`, // Custom header to heavily bypass LiteSpeed stripping
+            'X-WP-Auth': `Basic ${auth}`, 
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Referer': secureUrl,
+            'Origin': secureUrl
         };
 
         let endpoint = "";
-        let options: RequestInit = { method: 'POST', headers };
+        let method = 'POST';
+        let body: any = null;
 
         if (action === 'create_post') {
             endpoint = `${secureUrl.replace(/\/$/, '')}/wp-json/wp/v2/posts?pin_u=${encodeURIComponent(safeUser)}&pin_p=${encodeURIComponent(safePass)}`;
-            options.body = JSON.stringify(payload);
+            body = JSON.stringify(payload);
         }
         else if (action === 'upload_media') {
             endpoint = `${secureUrl.replace(/\/$/, '')}/wp-json/wp/v2/media?pin_u=${encodeURIComponent(safeUser)}&pin_p=${encodeURIComponent(safePass)}`;
-
-            // Convert base64 back to binary for WP
-            const imageBuffer = Buffer.from(payload.base64, 'base64');
-            
-            options.headers = {
-                // Keep headers as fallback
-                'Authorization': `Basic ${auth}`,
-                'X-WP-Auth': `Basic ${auth}`,
-                'Content-Type': 'image/jpeg',
-                'Content-Disposition': `attachment; filename="${payload.filename}"`,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-            };
-
-            options.body = imageBuffer;
+            body = Buffer.from(payload.base64, 'base64');
+            headers['Content-Type'] = 'image/jpeg';
+            headers['Content-Disposition'] = `attachment; filename="${payload.filename}"`;
         }
         else if (action === 'test_connection') {
             endpoint = `${secureUrl.replace(/\/$/, '')}/wp-json/wp/v2/users/me?pin_u=${encodeURIComponent(safeUser)}&pin_p=${encodeURIComponent(safePass)}`;
-            options.method = 'GET';
-            delete options.body;
+            method = 'GET';
         }
         else {
             return NextResponse.json({ error: "Invalid action." }, { status: 400 });
         }
 
-        const response = await fetch(endpoint, options);
+        let response;
+        if (skipSsl) {
+            // Use fallback with SSL bypass
+            response = await httpsRequest(endpoint, { method, headers, rejectUnauthorized: false }, body);
+        } else {
+            // Try standard fetch first
+            try {
+                response = await fetch(endpoint, { method, headers, body });
+            } catch (err: any) {
+                // If it's a hostname mismatch error and we are testing, try one more time with fallback
+                if (action === 'test_connection') {
+                     response = await httpsRequest(endpoint, { method, headers, rejectUnauthorized: false }, body);
+                } else {
+                    throw err; // Re-throw to catch block
+                }
+            }
+        }
+
         let data;
         const textResponse = await response.text();
         try {
@@ -81,19 +135,35 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, data });
 
     } catch (error: any) {
-        console.error("WordPress Route Error:", error);
+        console.error("❌ WordPress Route Error:", error);
+        
+        if (error.cause) {
+            console.error("  -> Cause:", error.cause);
+        }
 
         // TypeError: fetch failed = network unreachable (bad URL, DNS failure, SSL cert, firewall)
         if (error instanceof TypeError && error.message === "fetch failed") {
             const cause = (error as any).cause;
-            const detail = cause?.code === "DEPTH_ZERO_SELF_SIGNED_CERT"
-                ? "SSL certificate error (self-signed cert). Try using https:// or disable SSL in WordPress."
-                : cause?.code === "ECONNREFUSED"
-                ? "Connection refused — the server is down or the URL/port is wrong."
-                : cause?.code === "ENOTFOUND"
-                ? "DNS lookup failed — the domain doesn't exist or isn't reachable."
-                : cause?.message || "Cannot connect to the WordPress server. Check the URL.";
-            return NextResponse.json({ error: detail }, { status: 503 });
+            const code = cause?.code;
+            
+            let detail = "Cannot connect to the WordPress server. Check the URL.";
+            
+            if (code === "DEPTH_ZERO_SELF_SIGNED_CERT" || code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" || code === "CERT_HAS_EXPIRED") {
+                detail = `SSL Error (${code}). Your WordPress site has an invalid or expired SSL certificate. Try using http:// (if supported) or fix your SSL.`;
+            } else if (code === "ECONNREFUSED") {
+                detail = "Connection refused. The server is down or blocking this app's IP.";
+            } else if (code === "ENOTFOUND") {
+                detail = "DNS lookup failed. The domain name is incorrect or not resolving.";
+            } else if (code === "ETIMEDOUT") {
+                detail = "Connection timed out. The server took too long to respond.";
+            } else if (cause?.message) {
+                detail = `Network Error: ${cause.message}`;
+            }
+
+            return NextResponse.json({ 
+                error: detail, 
+                debug: { code, message: cause?.message, url: error.message } 
+            }, { status: 503 });
         }
 
         return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });

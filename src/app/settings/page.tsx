@@ -39,7 +39,7 @@ export default function Settings() {
         amazonTag: "",
         brandVoice: "",
         internalLinks: "",
-        wpSites: [] as { id: string; name: string; url: string; user: string; appPassword: string }[],
+        wpSites: [] as { id: string; name: string; url: string; user: string; appPassword: string; skipSsl?: boolean }[],
         preferredModel: "pro",
         preferredImagenModel: "auto",
     });
@@ -70,7 +70,8 @@ export default function Settings() {
                         name: "My Website",
                         url: parsed.wpUrl,
                         user: parsed.wpUser,
-                        appPassword: parsed.wpAppPassword
+                        appPassword: parsed.wpAppPassword,
+                        skipSsl: false
                     }];
                     delete parsed.wpUrl;
                     delete parsed.wpUser;
@@ -121,7 +122,7 @@ export default function Settings() {
         setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
-    const handleSiteChange = (id: string, field: string, value: string) => {
+    const handleSiteChange = (id: string, field: string, value: any) => {
         setFormData(prev => ({
             ...prev,
             wpSites: prev.wpSites.map(site => site.id === id ? { ...site, [field]: value } : site)
@@ -131,7 +132,7 @@ export default function Settings() {
     const addSite = () => {
         setFormData(prev => ({
             ...prev,
-            wpSites: [...prev.wpSites, { id: Date.now().toString(), name: "New Site", url: "", user: "", appPassword: "" }]
+            wpSites: [...prev.wpSites, { id: Date.now().toString(), name: "New Site", url: "", user: "", appPassword: "", skipSsl: false }]
         }));
     };
 
@@ -163,6 +164,7 @@ export default function Settings() {
                     wpUrl: site.url,
                     wpUser: site.user,
                     wpAppPassword: site.appPassword,
+                    skipSsl: site.skipSsl,
                     payload: {},
                 }),
             });
@@ -482,6 +484,18 @@ export default function Settings() {
                                         <div>
                                             <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">Application Password</label>
                                             <input type="password" value={site.appPassword} onChange={(e) => handleSiteChange(site.id, 'appPassword', e.target.value)} placeholder="xxxx xxxx xxxx xxxx" className="premium-input font-mono" />
+                                        </div>
+                                        <div className="md:col-span-2 flex items-center gap-2 pt-1">
+                                            <input 
+                                                type="checkbox" 
+                                                id={`skipSsl-${site.id}`}
+                                                checked={site.skipSsl || false} 
+                                                onChange={(e) => handleSiteChange(site.id, 'skipSsl', e.target.checked)}
+                                                className="w-3.5 h-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                            <label htmlFor={`skipSsl-${site.id}`} className="text-xs font-medium text-slate-500 cursor-pointer select-none">
+                                                Bypass SSL Verification (Enable for "fetch failed" or hostname mismatch errors)
+                                            </label>
                                         </div>
                                     </div>
                                     <div className="flex justify-end pt-2 border-t border-slate-200">
