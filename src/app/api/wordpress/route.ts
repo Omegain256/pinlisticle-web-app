@@ -130,6 +130,7 @@ export async function POST(req: Request) {
             endpoint = `${baseUrl}/wp-json/wp/v2/posts`;
             headers['Content-Type'] = 'application/json';
             fetchBody = JSON.stringify(payload);
+            headers['Content-Length'] = Buffer.byteLength(fetchBody, 'utf8').toString();
         }
         else if (action === 'upload_media') {
             endpoint = `${baseUrl}/wp-json/wp/v2/media`;
@@ -178,8 +179,16 @@ export async function POST(req: Request) {
     } catch (error: any) {
         console.error(`❌ [WP Proxy] Error at stage [${stage}]:`, error);
         
-        const message = error.message || "An unexpected error occurred in the proxy.";
-        const code = error.cause?.code || error.code || 'RUNTIME_ERROR';
+        let message = error?.message;
+        if (!message) {
+            try { message = JSON.stringify(error); } 
+            catch(err) { message = String(error); }
+        }
+        if (!message || message === '{}') {
+            message = "An unexpected error occurred in the proxy (No error message provided).";
+        }
+
+        const code = error?.cause?.code || error?.code || 'RUNTIME_ERROR';
 
         // Specific handling for SSL/Network errors to guide the user
         let detail = message;
@@ -193,7 +202,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ 
             error: `Connection Failed at stage [${stage}]: ${detail}`,
-            debug: { code, stage, message }
+            debug: { code, stage, message, rawError: error ? String(error) : 'null' }
         }, { status: 500 });
     }
 }
