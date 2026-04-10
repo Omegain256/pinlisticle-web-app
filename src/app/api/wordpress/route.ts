@@ -91,6 +91,9 @@ async function wpRequest(
     });
 }
 
+export const maxDuration = 300; // 5 minutes
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
     let stage = "initialization";
     try {
@@ -138,6 +141,7 @@ export async function POST(req: Request) {
             headers['Content-Disposition'] = `attachment; filename="${payload.filename || 'upload.jpg'}"`;
             fetchBody = Buffer.from(payload.base64, 'base64');
             headers['Content-Length'] = fetchBody.length.toString();
+            console.log(`[WP Proxy] Uploading media: ${payload.filename} (${fetchBody.length} bytes)`);
         }
         else if (action === 'test_connection') {
             endpoint = `${baseUrl}/wp-json/wp/v2/users/me`;

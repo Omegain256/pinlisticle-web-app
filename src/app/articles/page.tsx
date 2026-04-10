@@ -36,6 +36,9 @@ function copyHtml(article: GeneratedArticle) {
 }
 
 async function compressImageBase64(base64: string, maxWidth = 800, quality = 0.8): Promise<string> {
+    // Strip prefix if present
+    const cleanBase64 = base64.includes(",") ? base64.split(",")[1] : base64;
+    
     return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
@@ -49,12 +52,12 @@ async function compressImageBase64(base64: string, maxWidth = 800, quality = 0.8
             canvas.width = width;
             canvas.height = height;
             const ctx = canvas.getContext("2d");
-            if (!ctx) return resolve(base64);
+            if (!ctx) return resolve(cleanBase64);
             ctx.drawImage(img, 0, 0, width, height);
             resolve(canvas.toDataURL("image/jpeg", quality).split(",")[1]);
         };
-        img.onerror = () => resolve(base64);
-        img.src = `data:image/jpeg;base64,${base64}`;
+        img.onerror = () => resolve(cleanBase64);
+        img.src = `data:image/jpeg;base64,${cleanBase64}`;
     });
 }
 
@@ -114,6 +117,10 @@ export default function ArticlesLibrary() {
             for (let i = 0; i < updatedArticle.data!.listicle_items.length; i++) {
                 const item = updatedArticle.data!.listicle_items[i];
                 if (item.image_base64 && !item.wp_attachment_id) {
+                    // CRITICAL FIX: Compress image before sending to proxy to avoid request size limits
+                    toast.loading(`Compressing image ${i + 1}…`, { id: loadingId });
+                    const compressed = await compressImageBase64(item.image_base64);
+
                     toast.loading(`Uploading image ${i + 1} to WordPress…`, { id: loadingId });
                     
                     const uploadRes = await fetch("/api/wordpress", {
@@ -125,7 +132,7 @@ export default function ArticlesLibrary() {
                             wpUser: targetSite.user,
                             wpAppPassword: targetSite.appPassword,
                             skipSsl: targetSite.skipSsl,
-                            payload: { base64: item.image_base64, filename: `generated-${Date.now()}-${i}.jpg` },
+                            payload: { base64: compressed, filename: `generated-${Date.now()}-${i}.jpg` },
                         }),
                     });
 
@@ -133,7 +140,9 @@ export default function ArticlesLibrary() {
                     try {
                         uploadJson = await uploadRes.json();
                     } catch (e) {
-                        throw new Error(`Failed to upload Image ${i + 1}.`);
+                        const errorText = await uploadRes.text().catch(() => "Unknown error");
+                        console.error("WordPress Upload JSON Parse Error:", errorText);
+                        throw new Error(`Failed to upload Image ${i + 1} (HTTP ${uploadRes.status}). The server returned a non-JSON response.`);
                     }
 
                     if (uploadJson.success) {
