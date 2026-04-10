@@ -90,9 +90,6 @@ export function buildArticleHtml(data: GeneratedArticle["data"], amazonTag?: str
         });
     }
 
-    // "Keep Exploring" block will be injected after the 2nd item (index === 1)
-    // If there's only 1 item, inject after the 3rd instead (index 2) if it exists
-    const keepExploringIndex = data.listicle_items.length > 2 ? 1 : 2;
 
     data.listicle_items.forEach((item, index) => {
         // Wrap everything in a standard block group
@@ -133,8 +130,9 @@ export function buildArticleHtml(data: GeneratedArticle["data"], amazonTag?: str
             html += `<!-- /wp:html -->\n\n`;
         }
 
-        // 5. "Keep Exploring" internal link block — injected after the 2nd item (index 1), never after item 0
-        if (index === keepExploringIndex && parsedLinks.length > 0) {
+        // 5. "Keep Exploring" internal link block — injected after the 3rd item (index 2) and 9th item (index 8)
+        const showKeepExploring = (index === 2 || index === 8) && parsedLinks.length > 0;
+        if (showKeepExploring) {
             html += `<!-- wp:html -->\n`;
             html += `<div style="margin: 2rem 0; padding: 1.5rem 2rem; background: #f5f3ff; border-left: 4px solid #7c3aed; border-radius: 0 8px 8px 0;">\n`;
             html += `  <p style="font-size: 0.75rem; font-weight: 800; letter-spacing: 0.12em; color: #7c3aed; text-transform: uppercase; margin-bottom: 0.75rem;">Keep Exploring</p>\n`;
