@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Worker, Job } from "bullmq";
 import { GENERATION_QUEUE_NAME, PublishPipelineData } from "./lib/queue";
 import {

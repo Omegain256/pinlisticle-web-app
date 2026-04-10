@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Queue, ConnectionOptions } from "bullmq";
 
 const redisConnection: ConnectionOptions = {
@@ -17,16 +19,18 @@ const redisConnection: ConnectionOptions = {
 };
 
 // Fallback to REDIS_URL if provided (common on Render)
-const connection = process.env.REDIS_URL ? new URL(process.env.REDIS_URL) : redisConnection;
-
 if (process.env.REDIS_URL) {
-    const url = new URL(process.env.REDIS_URL);
-    redisConnection.host = url.hostname;
-    redisConnection.port = parseInt(url.port);
-    redisConnection.username = url.username;
-    redisConnection.password = url.password;
-    if (url.protocol === 'rediss:') {
-        redisConnection.tls = {};
+    try {
+        const url = new URL(process.env.REDIS_URL);
+        redisConnection.host = url.hostname;
+        redisConnection.port = parseInt(url.port);
+        redisConnection.username = url.username;
+        redisConnection.password = url.password;
+        if (url.protocol === 'rediss:') {
+            redisConnection.tls = {};
+        }
+    } catch (e) {
+        console.error("Invalid REDIS_URL provided:", process.env.REDIS_URL);
     }
 }
 

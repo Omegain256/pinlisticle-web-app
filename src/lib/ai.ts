@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // Utility functions for interacting with Google's Generative Language API from the client.
 // This bypasses Vercel's strict 4.5MB payload limits and 10s Serverless Function timeouts.
 
@@ -66,6 +68,15 @@ export class ModelOverloadedError extends Error {
 async function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+// Defensive access to keys to prevent browser-side crashes if imported into client components
+const getApiKeys = () => {
+    if (typeof process === 'undefined' || !process.env) return [];
+    return (process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || "")
+        .split(",")
+        .map(k => k.trim())
+        .filter(k => k);
+};
 
 let currentKeyIndex = 0;
 

@@ -24,16 +24,24 @@ export default function Dashboard() {
 
   useEffect(() => {
     async function initStats() {
-      const articles = await listArticles();
-      setArticleCount(articles.length);
-      setSuccessCount(articles.filter((a) => a.status === "success").length);
+      try {
+        const articles = await listArticles();
+        setArticleCount(articles.length);
+        setSuccessCount(articles.filter((a) => a.status === "success").length);
+      } catch (err) {
+        console.error("Failed to load articles:", err);
+      }
     }
     initStats();
 
-    const config = localStorage.getItem("pinlisticle_settings");
-    if (config) {
-      const p = JSON.parse(config);
-      setHasWPConfig(!!(p.geminiKey && p.wpUrl && p.wpUser && p.wpAppPassword));
+    try {
+      const config = localStorage.getItem("pinlisticle_settings");
+      if (config) {
+        const p = JSON.parse(config);
+        setHasWPConfig(!!(p.geminiKey && p.wpUrl && p.wpUser && p.wpAppPassword));
+      }
+    } catch (err) {
+      console.warn("Settings found but could not be parsed:", err);
     }
 
     const bannerDismissed = sessionStorage.getItem("banner_dismissed");
