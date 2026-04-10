@@ -13,6 +13,13 @@ export default function Error({
   useEffect(() => {
     // Log the error to the console so the user can see it in DevTools
     console.error('Root Error Boundary caught an error:', error);
+
+    // Automatically reload the page if it's a chunk loading error (happens after a new deployment)
+    const errMessage = error.message ? error.message.toLowerCase() : '';
+    if (errMessage.includes('failed to load chunk') || errMessage.includes('chunkloaderror')) {
+      console.log('Chunk load error detected, forcing hard reload...');
+      window.location.reload();
+    }
   }, [error]);
 
   return (
