@@ -91,24 +91,19 @@ const worker = new Worker<PublishPipelineData>(
 
             // S7: Images Generation
             if (!state.image_results) {
-                console.log(`[Job ${job.id}] S7: Expanding image seeds using Imagen 3...`);
+                console.log(`[Job ${job.id}] S7: Generating images using Master Structure...`);
                 state.image_results = [];
-                // Generate images sequentially to respect quotas (or wrap in Promise.all if high tier)
-                for (let i = 0; i < state.item_cards!.length; i++) {
-                    const card = state.item_cards![i];
-                    // Compile the final prompt from the DNA + Seed
-                    const seed = card.image_prompt_seed;
-                    const style = state.style_dna;
-
-                    const finalPrompt = `
-${seed.subject}. ${seed.setting}. ${seed.shot} shot.
-${seed.lighting}. ${seed.camera}.
-${style.realism_constraints.join(", ")}.
-Editorial street-style photography.
-Base family: ${style.style_family}.
-                    `.trim().replace(/\s+/g, ' ');
-
-                    const b64 = await generateImage({ prompt: finalPrompt, apiKey: data.apiKey });
+                const items = state.article_draft?.listicle_items || [];
+                
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    console.log(`[Job ${job.id}] Generating image ${i + 1}/${items.length}...`);
+                    
+                    // Use the image_prompt directly from the drafted article (Master Structure)
+                    const b64 = await generateImage({ 
+                        prompt: item.image_prompt, 
+                        apiKey: data.apiKey 
+                    });
                     state.image_results.push(b64);
                 }
                 await job.updateData(data);

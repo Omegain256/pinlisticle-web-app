@@ -239,7 +239,7 @@ export async function generateContent(params: {
         "- STRICTLY BANNED: obsessed, game-changer, must-have, stunning, viral, Amazon hack, fashionista, flawlessly, look expensive, trendy girl, delve, elevate, chic, essential.",
         "WRITING FORMULA per listicle_item:",
         "Each section must move through these 4 layers in EXACTLY 3-4 short sentences (max 20 words each):",
-        "1. HOOK: Start with a punchy question about a real-life wardrobe problem (e.g., 'Is your satin skirt feeling too formal for everyday?').",
+        "1. HOOK: Start with a sharp editorial hook that names a real wardrobe problem or tension.",
         "2. MEANING: Explain the style logic (why it works aesthetically/functionally).",
         "3. UTILITY: Tell the reader exactly what to do.",
         "4. DIRECTION: specific branding/styling advice.",

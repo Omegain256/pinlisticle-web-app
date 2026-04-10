@@ -183,21 +183,67 @@ Return a JSON object matching StyleDNASchema.
 }
 
 
-// Stage 4: Draft Article
+// Stage 4: Draft Article (with Batching support for high-count listicles)
 export async function pipelineDraftArticle(keyword: string, tone: string, briefJson: any, itemCardsJson: any[], evidencePack: any, apiKey: string, modelPrefix: "pro" | "lite") {
+    const totalItems = itemCardsJson.length;
+    const batchSize = 5; // Process 5 items at a time to guarantee quality and avoid truncation
+    const chunks: any[][] = [];
+    for (let i = 0; i < totalItems; i += batchSize) {
+        chunks.push(itemCardsJson.slice(i, i + batchSize));
+    }
+
+    let fullArticle: any = null;
+
+    for (let i = 0; i < chunks.length; i++) {
+        const isFirst = i === 0;
+        const isLast = i === chunks.length - 1;
+        const batch = chunks[i];
+
+        const batchResult = await executeDraftBatch({
+            keyword,
+            tone,
+            briefJson,
+            batch,
+            evidencePack,
+            apiKey,
+            modelPrefix,
+            isFirst,
+            isLast,
+            totalItems,
+            styleDNA: (briefJson as any).styleDNA || null // Optional if passed through
+        });
+
+        if (isFirst) {
+            fullArticle = batchResult;
+        } else {
+            fullArticle.listicle_items = [...fullArticle.listicle_items, ...batchResult.listicle_items];
+            if (isLast && batchResult.article_outro) {
+                fullArticle.article_outro = batchResult.article_outro;
+            }
+        }
+    }
+
+    return fullArticle;
+}
+
+// Internal helper for batched drafting
+async function executeDraftBatch(params: {
+    keyword: string;
+    tone: string;
+    briefJson: any;
+    batch: any[];
+    evidencePack: any;
+    apiKey: string;
+    modelPrefix: "pro" | "lite";
+    isFirst: boolean;
+    isLast: boolean;
+    totalItems: number;
+    styleDNA: any;
+}) {
+    const { keyword, tone, briefJson, batch, evidencePack, apiKey, modelPrefix, isFirst, isLast, totalItems, styleDNA } = params;
     const modelId = resolveModelId(modelPrefix);
     const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
     const now = getNow();
-
-    // Hook strategies focused on naming a "Real Wardrobe Problem"
-    const hookStyles = [
-        "Is your [item] feeling too formal for everyday? (Question Hook)",
-        "Concerned that [trend] isn't for your actual lifestyle? (Question Hook)",
-        "Why does [outfit] feel polished on others but flat on you? (Question Hook)",
-        "Struggling to translate [inspiration] into a real morning? (Question Hook)",
-        "Name a common wardrobe tension this keyword creates (e.g., 'Looking polished while staying comfortable')."
-    ];
-    const hookStyle = hookStyles[Math.floor(Math.random() * hookStyles.length)];
 
     const systemInstruction = `You are a SHARP WARDROBE EDITOR. Your target audience is women (26-44) seeking style advice for real life.
     
@@ -215,69 +261,57 @@ export async function pipelineDraftArticle(keyword: string, tone: string, briefJ
     Assemble each "image_prompt" strictly following this formula:
     [SHOT_TYPE] of [SUBJECT] wearing [OUTFIT]. [LOCATION]. [LIGHTING_AND_WEATHER]. [CAMERA_AND_AESTHETIC]. [TEXTURE_AND_FINISH].
 
-    - SHOT_TYPE: Must ALWAYS be 'Full-length frame showing shoes to crown, mid-stride'. The feet and shoes MUST be visible in every single image.
-    - SUBJECT: Use the consistent "subject_definition" from Style DNA.
-    - OUTFIT: Use the "outfit_description" from the item card styling notes.
-    - LOCATION: Use the "location_definition" from Style DNA.
-    - LIGHTING_AND_WEATHER: Use "lighting_and_weather" from Style DNA.
-    - CAMERA_AND_AESTHETIC: Use "camera_and_aesthetic" from Style DNA.
-    - TEXTURE_AND_FINISH: Use "texture_and_finish" from Style DNA.
+    - SHOT_TYPE: Must ALWAYS be 'Full-length frame showing shoes to crown, mid-stride'. The feet and shoes MUST be visible.
+    - SUBJECT: ${styleDNA?.subject_definition || "A woman (26-44) with a modern, unforced personal style"}
+    - OUTFIT: Focus on fabrics and material drape.
+    - LOCATION: Ensure high variety. Choose settings like [Minimalist loft, cobblestone street, sun-drenched cafe, architectural library, flower market, art gallery, brutalist courtyard, moonlit garden]. Mix these throughout the list.
+    - LIGHTING: ${styleDNA?.lighting_and_weather || "Natural cinematic lighting"}
+    - CAMERA: ${styleDNA?.camera_and_aesthetic || "Shot on 35mm film"}
+    - TEXTURE: ${styleDNA?.texture_and_finish || "Visible skin texture, authentic film grain"}
 
-    AESTHETIC: 100% human, unposed, realistic skin texture, candid photography, influencer-style (street or mirror).
+    AESTHETIC: 100% human, unposed, realistic skin texture, candid photography.
     
-    EDITORIAL BANNED ACTIONS (STRICTLY PROHIBITED):
-    - DO NOT drift into influencer tone ("I'm obsessed", "You guys need this").
-    - DO NOT over-explain trends without providing utility/logic.
-    - DO NOT write long intros (Keep under 60 words).
-    - DO NOT create list items that repeat styling advice or items from previous cards.
-    - DO NOT mix different image locations within one article (Keep location consistent).
-    - DO NOT promise personal wear-tests or claim you've worn the items unless verified in research.
-    - DO NOT INCLUDE ANY NUMBERING IN THE "title" FIELD (e.g., No "1.", No "Item 1").
+    EDITORIAL BANNED ACTIONS:
+    - DO NOT drift into influencer tone.
+    - DO NOT over-explain trends without utility.
+    - DO NOT write long intros.
+    - DO NOT promise wear-tests unless verified.
+    - DO NOT INCLUDE ANY NUMBERING IN THE "title" FIELD.
     `;
 
-    const evidenceSummary = evidencePack ? `
-LIVE RESEARCH DATA — current as of ${now} (prioritise this over your training data):
-- Trending angles: ${(evidencePack.trending_angles || []).join("; ")}
-- Audience pain points: ${(evidencePack.audience_pain_points || []).join("; ")}` : "";
+    const instructions = isFirst ? `You are drafting the START of a ${totalItems}-item listicle. Generate the SEO metadata, Introduction, and the first ${batch.length} items.`
+        : isLast ? `You are drafting the END of a ${totalItems}-item listicle. Generate the final ${batch.length} items and the Outro.`
+        : `You are drafting a MIDDLE section of a ${totalItems}-item listicle. Generate content for ${batch.length} items.`;
 
     const prompt = `
+${instructions}
 KEYWORD: "${keyword}"
-${evidenceSummary}
+EVIDENCE: ${JSON.stringify(evidencePack)}
+BATCH ITEMS: ${JSON.stringify(batch, null, 2)}
 
-ITEM EVIDENCE CARDS:
-${JSON.stringify(itemCardsJson, null, 2)}
-
-OUTPUT REQUIREMENTS per listicle_item:
+OUTPUT REQUIREMENTS:
 - "title": Specific, compelling headline. NO NUMBERS.
-- "content": Exactly 3 SHORT sentences. FORMULA: Hook (Problem-based question) → Meaning (logic) → Utility (action) → Direction (branding).
-- "has_swap": true if card has optional_swap.
-- "image_prompt": ASSEMBLE the prompt using the MASTER STRUCTURE described in system instructions.
-- "product_recommendations": 3 specific real-world items (top, bottom, shoes) matching the image_prompt.
+- "content": Exactly 3 SHORT sentences. FORMULA: Hook (tension/problem) → Meaning (logic) → Utility (action) → Direction (branding).
+- "image_prompt": ASSEMBLE the prompt using the MASTER STRUCTURE. 
+
+Return a JSON matching the appropriate schema parts.
     `.trim();
 
-    try {
-        const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                system_instruction: { parts: [{ text: systemInstruction }] },
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: DraftArticleSchema,
-                    temperature: 0.9,
-                },
-            }),
-        });
+    const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemInstruction }] },
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+                responseMimeType: "application/json",
+                responseSchema: DraftArticleSchema, // Schema is flexible enough to handle partials if structured right, or we just extract what we need
+                temperature: 0.9,
+            },
+        }),
+    });
 
-        return extractJSONData(data);
-    } catch (err: any) {
-        if (err instanceof ModelOverloadedError && modelPrefix === "pro") {
-            console.warn(`[Resilience] Gemini Pro overloaded during article drafting. Falling back to Gemini Flash.`);
-            return pipelineDraftArticle(keyword, tone, briefJson, itemCardsJson, evidencePack, apiKey, "lite");
-        }
-        throw err;
-    }
+    return extractJSONData(data);
 }
 
 // Stage 5: Editorial QA
