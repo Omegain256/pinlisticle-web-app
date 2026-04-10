@@ -21,6 +21,8 @@ function getNow(): string {
     return new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 }
 
+const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+
 // Server-safe model resolution — does NOT rely on localStorage (which is client-only).
 function resolveModelId(modelPrefix: "pro" | "lite", forceFlash: boolean = false): string {
     const prefix = forceFlash ? "lite" : modelPrefix;
@@ -276,6 +278,11 @@ export async function pipelineDraftArticle(
                 fullArticle.article_outro = (batchResult as DraftBatchResult).article_outro;
             }
         }
+
+        // Pacing delay to avoid concurrent limit spikes on rapid batch calls
+        if (i < chunks.length - 1) {
+            await sleep(1000);
+        }
     }
 
     return fullArticle;
@@ -296,8 +303,13 @@ async function executeDraftBatch(params: {
     styleDNA: StyleDNA | null;
 }) {
     const { keyword, batch, evidencePack, apiKey, modelPrefix, isFirst, isLast, totalItems, styleDNA } = params;
-    const modelId = resolveModelId(modelPrefix);
-    const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
+    
+    const primaryModelId = resolveModelId(modelPrefix);
+    const secondaryPrefix = modelPrefix === "lite" ? "pro" : "lite";
+    const secondaryModelId = resolveModelId(secondaryPrefix);
+
+    const urlTemplate = `${GEMINI_BASE}/${primaryModelId}:generateContent?key=API_KEY_PLACEHOLDER`;
+    const alternativeUrlTemplate = `${GEMINI_BASE}/${secondaryModelId}:generateContent?key=API_KEY_PLACEHOLDER`;
 
     const systemInstruction = `You are a SHARP WARDROBE EDITOR. Your target audience is women (26-44) seeking style advice for real life.
     
@@ -363,7 +375,7 @@ Return a JSON matching the appropriate schema parts.
                 temperature: 0.9,
             },
         }),
-    })) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+    }, alternativeUrlTemplate)) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
 
     return extractJSONData(data);
 }

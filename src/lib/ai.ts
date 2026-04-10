@@ -104,75 +104,86 @@ export function getCachedModels(): DiscoveredModel[] {
 export async function fetchWithKeyRotation(
     keysString: string,
     urlTemplate: string,
-    options: any
+    options: any,
+    alternativeUrlTemplate?: string
 ): Promise<any> {
     const keys = parseApiKeys(keysString);
     if (keys.length === 0) throw new Error("No API keys provided. Please add them in Settings.");
 
-    let attempts = 0;
-    const maxAttempts = keys.length;
-    let lastResponseData: any = null;
+    const tryModels = alternativeUrlTemplate 
+        ? [{ url: urlTemplate, label: "Primary" }, { url: alternativeUrlTemplate, label: "Alternative" }]
+        : [{ url: urlTemplate, label: "Primary" }];
 
-    while (attempts < maxAttempts) {
-        const key = keys[currentKeyIndex % keys.length];
-        currentKeyIndex++; // Rotate for the next call
-        attempts++;
+    let lastError: any = null;
 
-        const finalUrl = urlTemplate.replace("API_KEY_PLACEHOLDER", key);
+    for (const modelConfig of tryModels) {
+        let attempts = 0;
+        const maxKeys = keys.length;
 
-        let retryAttempt = 0;
-        const maxRetriesPerKey = 2; // Retry on 503 before rotating
+        while (attempts < maxKeys) {
+            const key = keys[currentKeyIndex % keys.length];
+            currentKeyIndex++; // Rotate for the next call
+            attempts++;
 
-        while (retryAttempt <= maxRetriesPerKey) {
-            try {
-                const res = await fetch(finalUrl, options);
-                const data = await res.json();
-                
-                if (res.ok) {
-                    return data;
-                }
+            const finalUrl = modelConfig.url.replace("API_KEY_PLACEHOLDER", key);
 
-                const errorMsg = data.error?.message || "Unknown error";
-                const isQuotaError = res.status === 429 || 
-                                   errorMsg.toLowerCase().includes("quota") || 
-                                   errorMsg.toLowerCase().includes("limit exceeded");
+            let retryAttempt = 0;
+            const maxRetriesPerKey = 3; // Increased retries for transient failures
 
-                const isOverloadError = res.status === 503 || 
-                                      errorMsg.toLowerCase().includes("high demand") || 
-                                      errorMsg.toLowerCase().includes("overloaded");
-
-                if (isQuotaError) {
-                    console.warn(`API Key ending in ...${key.slice(-4)} hit quota limit. Rotating to next key.`);
-                    lastResponseData = data;
-                    break; // break retry loop to rotate key
-                } else if (isOverloadError) {
-                    if (retryAttempt < maxRetriesPerKey) {
-                        const waitTime = (retryAttempt + 1) * 2000;
-                        console.warn(`[Resilience] Model overloaded on key ...${key.slice(-4)}. Retrying in ${waitTime}ms... (Attempt ${retryAttempt + 1}/${maxRetriesPerKey})`);
-                        await sleep(waitTime);
-                        retryAttempt++;
-                        continue; // try again with same key
-                    } else {
-                        console.warn(`[Resilience] Model still overloaded on key ...${key.slice(-4)} after ${maxRetriesPerKey} retries. Rotating key.`);
-                        lastResponseData = data;
-                        break; // break retry loop to rotate key
+            while (retryAttempt <= maxRetriesPerKey) {
+                try {
+                    const res = await fetch(finalUrl, options);
+                    const data = await res.json();
+                    
+                    if (res.ok) {
+                        return data;
                     }
-                } else {
-                    // Not a quota or overload error, immediately throw a normal error
-                    throw new Error(errorMsg);
-                }
-            } catch (e: any) {
-                // For true network failures
-                if (e.message !== "fetch failed") {
+
+                    const errorMsg = data.error?.message || "Unknown error";
+                    const isQuotaError = res.status === 429 || 
+                                       errorMsg.toLowerCase().includes("quota") || 
+                                       errorMsg.toLowerCase().includes("limit exceeded");
+
+                    const isOverloadError = res.status === 503 || 
+                                          res.status === 500 || // Sometimes internal errors are transient spikes
+                                          errorMsg.toLowerCase().includes("high demand") || 
+                                          errorMsg.toLowerCase().includes("overloaded");
+
+                    if (isQuotaError) {
+                        console.warn(`[Quota] Key ...${key.slice(-4)} exhausted. Rotating.`);
+                        lastError = data.error;
+                        break; // rotate key
+                    } else if (isOverloadError) {
+                        if (retryAttempt < maxRetriesPerKey) {
+                            // Exponential backoff: 2s, 4s, 8s...
+                            const waitTime = Math.pow(2, retryAttempt + 1) * 1000 + (Math.random() * 500);
+                            console.warn(`[Demand] ${modelConfig.label} overloaded on key ...${key.slice(-4)}. Retrying in ${Math.round(waitTime)}ms... (${retryAttempt + 1}/${maxRetriesPerKey})`);
+                            await sleep(waitTime);
+                            retryAttempt++;
+                            continue; // retry same key
+                        } else {
+                            console.warn(`[Demand] ${modelConfig.label} failed after retries on key ...${key.slice(-4)}. Rotating.`);
+                            lastError = data.error;
+                            break; // rotate key
+                        }
+                    } else {
+                        throw new Error(errorMsg); // Fatal error (syntax, auth, etc.)
+                    }
+                } catch (e: any) {
+                    if (e.name === "AbortError" || e.message.includes("fetch failed")) {
+                        break; // rotate key on network failure
+                    }
                     throw e; 
                 }
-                // If fetch failed, rotate key
-                break;
             }
+        }
+        
+        if (tryModels.length > 1 && modelConfig.label === "Primary") {
+            console.warn(`[TierSwap] Primary model overloaded across ALL keys. Attempting Tier-Swap to Alternative model...`);
         }
     }
 
-    const finalErrorMsg = lastResponseData?.error?.message || "All provided API keys exhausted.";
+    const finalErrorMsg = lastError?.message || "All provided API keys and model tiers exhausted.";
     if (finalErrorMsg.toLowerCase().includes("high demand") || finalErrorMsg.toLowerCase().includes("overloaded")) {
         throw new ModelOverloadedError(finalErrorMsg);
     }
@@ -224,7 +235,12 @@ export async function generateContent(params: {
     // PERMANENT FIX: Always sanitize before API call — catches stale localStorage values
     modelId = sanitizeModelId(modelId);
 
-    const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
+    const primaryModelId = modelId;
+    const secondaryPrefix = sanitizedPrefix === "lite" ? "pro" : "lite";
+    const secondaryModelId = sanitizeModelId(MODELS_DEFAULT[secondaryPrefix as keyof typeof MODELS_DEFAULT] || MODELS_DEFAULT.pro);
+
+    const urlTemplate = `${GEMINI_BASE}/${primaryModelId}:generateContent?key=API_KEY_PLACEHOLDER`;
+    const alternativeUrlTemplate = `${GEMINI_BASE}/${secondaryModelId}:generateContent?key=API_KEY_PLACEHOLDER`;
 
     const system_instruction = [
         "You are a SHARP WARDROBE EDITOR. Your target audience is women (26-44) seeking style advice for real life.",
@@ -286,7 +302,7 @@ export async function generateContent(params: {
                 topK: 40,
             },
         }),
-    });
+    }, alternativeUrlTemplate);
 
     const textPayload = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!textPayload) throw new Error("Invalid response format from Gemini (missing text candidate).");
