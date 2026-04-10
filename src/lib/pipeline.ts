@@ -158,7 +158,7 @@ BRIEF: ${JSON.stringify(briefJson)}
 VOICE & AESTHETIC GOAL: 
 Create a cohesive "Visual Identity" for this article. Select ONE consistent vibe from these categories as inspiration:
 1. SUBJECT: Define the person (Age, Ethnicity, unique feature like 'sharp bob' or 'visible laugh lines').
-2. LOCATION: Define the specific setting (e.g. 'produce aisle of a grocery store', 'minimalist brutalist concrete loft').
+2. LOCATION: Select a specific setting. PRIORITISE variety across articles. Pool: [minimalist brutalist concrete loft, candlelit Italian bistro, sun-drenched conservatory with floor-to-ceiling glass, mid-century modern library, produce aisle of a boutique grocery, grand marble museum hallway, cluttered artist studio, high-ceilinged converted warehouse, penthouse rooftop at dusk].
 3. LIGHTING/WEATHER: Define the light (e.g. 'overcast winter afternoon', 'harsh direct on-camera flash', 'warm golden hour').
 4. CAMERA/AESTHETIC: Define the tech vibe (e.g. 'Shot on iPhone 16 Pro', 'Shot on Contax T2 35mm film', 'Shot on Sony A7RV 85mm f/1.4'). Reference a specific editorial photographer.
 5. TEXTURE & FINISH: Define the skin/film texture (e.g. 'Visible pores, honest skin', 'Heavy 35mm film grain, subtle halation').
@@ -174,7 +174,7 @@ Return a JSON object matching StyleDNASchema.
             generationConfig: {
                 responseMimeType: "application/json",
                 responseSchema: StyleDNASchema,
-                temperature: 0.7, 
+                temperature: 0.8, 
             },
         }),
     });
@@ -191,11 +191,11 @@ export async function pipelineDraftArticle(keyword: string, tone: string, briefJ
 
     // Hook strategies focused on naming a "Real Wardrobe Problem"
     const hookStyles = [
-        "Name a common wardrobe tension this keyword creates (e.g., 'Looking polished while staying comfortable').",
-        "Point out a specific style error people make with this topic and how to fix it with logic.",
-        "Ask a punchy question about the functional reality of this wardrobe piece in a busy morning.",
-        "Identify a counter-intuitive observation that validates the reader's private style struggle.",
-        "Bridge the gap between a high-fashion inspiration and the practical reality of a 26-44 lifestyle."
+        "Is your [item] feeling too formal for everyday? (Question Hook)",
+        "Concerned that [trend] isn't for your actual lifestyle? (Question Hook)",
+        "Why does [outfit] feel polished on others but flat on you? (Question Hook)",
+        "Struggling to translate [inspiration] into a real morning? (Question Hook)",
+        "Name a common wardrobe tension this keyword creates (e.g., 'Looking polished while staying comfortable')."
     ];
     const hookStyle = hookStyles[Math.floor(Math.random() * hookStyles.length)];
 
@@ -232,6 +232,7 @@ export async function pipelineDraftArticle(keyword: string, tone: string, briefJ
     - DO NOT create list items that repeat styling advice or items from previous cards.
     - DO NOT mix different image locations within one article (Keep location consistent).
     - DO NOT promise personal wear-tests or claim you've worn the items unless verified in research.
+    - DO NOT INCLUDE ANY NUMBERING IN THE "title" FIELD (e.g., No "1.", No "Item 1").
     `;
 
     const evidenceSummary = evidencePack ? `
@@ -247,8 +248,8 @@ ITEM EVIDENCE CARDS:
 ${JSON.stringify(itemCardsJson, null, 2)}
 
 OUTPUT REQUIREMENTS per listicle_item:
-- "title": Specific, compelling headline.
-- "content": Exactly 3 SHORT sentences. Formula: Hook (tension) → Meaning (logic) → Utility (action) → Direction (branding).
+- "title": Specific, compelling headline. NO NUMBERS.
+- "content": Exactly 3 SHORT sentences. FORMULA: Hook (Problem-based question) → Meaning (logic) → Utility (action) → Direction (branding).
 - "has_swap": true if card has optional_swap.
 - "image_prompt": ASSEMBLE the prompt using the MASTER STRUCTURE described in system instructions.
 - "product_recommendations": 3 specific real-world items (top, bottom, shoes) matching the image_prompt.
