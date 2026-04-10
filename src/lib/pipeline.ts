@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
     fetchWithKeyRotation,
     sanitizeModelId,
@@ -183,16 +184,70 @@ Return a JSON object matching StyleDNASchema.
 }
 
 
+
+interface ItemCard {
+    item_index: number;
+    item_name: string;
+    why_it_works: string[];
+    trend_support: string[];
+    styling_notes: {
+        colors: string[];
+        fabrics: string[];
+        accessories: string[];
+        optional_swap: string;
+    };
+    reader_value: string;
+    freshness_signal: string;
+    image_prompt_seed: {
+        shot_type: string;
+        outfit_description: string;
+        pose_instruction: string;
+    };
+}
+
+interface DraftBatchResult {
+    seo_title?: string;
+    seo_desc?: string;
+    pinterest_title?: string;
+    article_intro?: string;
+    article_outro?: string;
+    listicle_items: Array<{
+        title: string;
+        content: string;
+        has_swap: boolean;
+        image_prompt: string;
+        product_recommendations: Array<{
+            product_name: string;
+            amazon_search_term: string;
+        }>;
+    }>;
+}
+
+interface StyleDNA {
+    subject_definition: string;
+    lighting_and_weather: string;
+    camera_and_aesthetic: string;
+    texture_and_finish: string;
+}
+
 // Stage 4: Draft Article (with Batching support for high-count listicles)
-export async function pipelineDraftArticle(keyword: string, tone: string, briefJson: any, itemCardsJson: any[], evidencePack: any, apiKey: string, modelPrefix: "pro" | "lite") {
+export async function pipelineDraftArticle(
+    keyword: string, 
+    tone: string, 
+    briefJson: unknown, 
+    itemCardsJson: ItemCard[], 
+    evidencePack: unknown, 
+    apiKey: string, 
+    modelPrefix: "pro" | "lite"
+) {
     const totalItems = itemCardsJson.length;
     const batchSize = 5; // Process 5 items at a time to guarantee quality and avoid truncation
-    const chunks: any[][] = [];
+    const chunks: ItemCard[][] = [];
     for (let i = 0; i < totalItems; i += batchSize) {
         chunks.push(itemCardsJson.slice(i, i + batchSize));
     }
 
-    let fullArticle: any = null;
+    let fullArticle: DraftBatchResult | null = null;
 
     for (let i = 0; i < chunks.length; i++) {
         const isFirst = i === 0;
@@ -210,15 +265,15 @@ export async function pipelineDraftArticle(keyword: string, tone: string, briefJ
             isFirst,
             isLast,
             totalItems,
-            styleDNA: (briefJson as any).styleDNA || null // Optional if passed through
+            styleDNA: (briefJson as { styleDNA?: StyleDNA })?.styleDNA || null
         });
 
         if (isFirst) {
-            fullArticle = batchResult;
-        } else {
-            fullArticle.listicle_items = [...fullArticle.listicle_items, ...batchResult.listicle_items];
-            if (isLast && batchResult.article_outro) {
-                fullArticle.article_outro = batchResult.article_outro;
+            fullArticle = batchResult as DraftBatchResult;
+        } else if (fullArticle) {
+            fullArticle.listicle_items = [...fullArticle.listicle_items, ...(batchResult as DraftBatchResult).listicle_items];
+            if (isLast && (batchResult as DraftBatchResult).article_outro) {
+                fullArticle.article_outro = (batchResult as DraftBatchResult).article_outro;
             }
         }
     }
@@ -230,20 +285,19 @@ export async function pipelineDraftArticle(keyword: string, tone: string, briefJ
 async function executeDraftBatch(params: {
     keyword: string;
     tone: string;
-    briefJson: any;
-    batch: any[];
-    evidencePack: any;
+    briefJson: unknown;
+    batch: ItemCard[];
+    evidencePack: unknown;
     apiKey: string;
     modelPrefix: "pro" | "lite";
     isFirst: boolean;
     isLast: boolean;
     totalItems: number;
-    styleDNA: any;
+    styleDNA: StyleDNA | null;
 }) {
-    const { keyword, tone, briefJson, batch, evidencePack, apiKey, modelPrefix, isFirst, isLast, totalItems, styleDNA } = params;
+    const { keyword, batch, evidencePack, apiKey, modelPrefix, isFirst, isLast, totalItems, styleDNA } = params;
     const modelId = resolveModelId(modelPrefix);
     const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
-    const now = getNow();
 
     const systemInstruction = `You are a SHARP WARDROBE EDITOR. Your target audience is women (26-44) seeking style advice for real life.
     
@@ -297,7 +351,7 @@ OUTPUT REQUIREMENTS:
 Return a JSON matching the appropriate schema parts.
     `.trim();
 
-    const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
+    const data = (await fetchWithKeyRotation(apiKey, urlTemplate, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -305,11 +359,11 @@ Return a JSON matching the appropriate schema parts.
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
                 responseMimeType: "application/json",
-                responseSchema: DraftArticleSchema, // Schema is flexible enough to handle partials if structured right, or we just extract what we need
+                responseSchema: DraftArticleSchema, 
                 temperature: 0.9,
             },
         }),
-    });
+    })) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
 
     return extractJSONData(data);
 }
