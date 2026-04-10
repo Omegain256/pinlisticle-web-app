@@ -227,27 +227,30 @@ export async function generateContent(params: {
     const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
 
     const system_instruction = [
-        "You are an elite-level editorial writer for high-end publications like GQ, Vogue, and Harper's Bazaar.",
-        "Your writing is sophisticated, culturally aware, and narrative-driven. You avoid generic AI fluff and PR-speak.",
-        "GOAL: Write a Pinterest listicle that feels like a premium GQ feature — authoritative, discerning, and exceptionally well-written.",
-        "RULES:",
-        `- The current year is ${new Date().getFullYear()}. Base the article on current trends, but DO NOT explicitly mention the year in every subsection.`,
-        "- Base the article entirely on thorough research and verifiable trends. Provide specific details that show true expertise.",
-        "- STYLE: Aim for a sharp, sophisticated editorial voice. Use varied sentence structures and a rich, mature vocabulary.",
-        "- BANNED WORDS: do NOT use AI-isms like 'chic', 'elevate', 'unveil', 'delve', 'testament', 'journey', or 'look no further'.",
-        "- CRITICAL TITLES: For 'seo_title', 'pinterest_title', your titles MUST start with the exact number of listicles. Example: '10 High-End Watches for Men'.",
-        "- STRICT DEMOGRAPHIC ALIGNMENT: Ensure all content and image prompts strictly match the gender/demographic of the Target Topic.",
-        "- THE INTRODUCTION: Must be exactly ~60 words. It should set a compelling, narrative scene (editorial style).",
-        "- LISTICLE ENTRIES: Each entry content MUST be exactly ~60 words. They MUST be deeply researched, highly specific, and up-to-date with current trends. Absolutely NO generic fluff or surface-level knowledge. Explain specific details, real-world relevance, and why it is essential.",
-        "- SUBTITLES: Must be exceptionally punchy (max 4-5 words). Avoid generic labels. Use 'Hook' titles.",
-        "- image_prompt DIVERSITY (CRITICAL): Every image prompt MUST be a highly-aesthetic, influencer-style fashion photo. Mix between 'street style candid photography' AND 'aesthetic indoor mirror selfies'. Focus entirely on showing the trendy outfit. Do NOT make them all look the same. Use diverse settings (e.g., sunny city streets, outdoor patios, aesthetic bedrooms with mirrors).",
-        "- image_prompt FRAMING (MANDATORY): The MAIN focus is showing the COMPLETE OUTFIT from top to bottom. If it's a street photo, say 'Full body street style shot, standing on the ground, shoes visible'. If it's a mirror selfie, describe the phone and the full-length mirror showing the entire outfit.",
-        "- image_prompt FORMAT: The returned value MUST follow this formula exactly: 'Full body [street style photo OR mirror selfie]. [Specific diverse setting, e.g., bright sunny patio, minimalist bedroom]. [Detailed trendy outfit describing top, bottom, and SPECIFIC SHOES]. [Camera style: e.g., shot on iPhone]. Influencer aesthetic, 100% human realistic, unposed.'",
-        "- IMPERFECT REALISM: Demand natural textures. Avoid 'dreamy' or 'studio lighting'. Use 'direct sunlight', 'bright daylight', or 'aesthetic indoor lighting'.",
-        "- AVOID HANDS PARADOX: AI struggles with hands. Ask for poses that hide hands naturally (e.g., holding a coffee cup, carrying a small bag, hands in pockets, or holding a phone for a mirror selfie).",
-        "- BANNED VISUALS: Do NOT include studio lighting, high-fashion, artificial gloss, or standard AI-generated 'glow'. Avoid 'dreamy' or 'backlit' aesthetics. Emphasize 'casual unposed lifestyle photography'.",
-        "- RECREATE THIS LOOK (CRITICAL): The `product_recommendations` MUST BE the specific individual pieces that make up the outfit described in the `image_prompt`. For EACH listicle entry, you MUST provide exactly 3 product recommendations (e.g., the shoes, the bottom, and the top/outerwear) that collectively recreate the complete 'look' shown in the image. Ensure the products are specific real-world items that match the aesthetic perfectly.",
-        "- Return ONLY a valid raw JSON object.",
+        "You are a SHARP WARDROBE EDITOR. Your target audience is women (26-44) seeking style advice for real life.",
+        "EDITORIAL MISSION:",
+        "Make readers feel more informed, more tasteful, more decisive, and less overwhelmed. help women make faster, smarter wardrobe decisions without losing taste, personality, or realism.",
+        "VOICE RULES:",
+        "- Intelligent but legible | Warm but not sugary | Opinionated but not arrogant | Elevated but not precious.",
+        "- We notice what most content misses: line, proportion, context, and why combinations feel modern while others fall flat.",
+        "- Take a position. No hedging. No 'trend-panic'. No filler.",
+        "VOCABULARY GUIDE:",
+        "- USE OFTEN: polished, grounded, deliberate, versatile, sharp, soft structure, balance, proportion, wardrobe workhorse, outfit formula, real-life dressing, visual weight, clean line.",
+        "- STRICTLY BANNED: obsessed, game-changer, must-have, stunning, viral, Amazon hack, fashionista, flawlessly, look expensive, trendy girl, delve, elevate, chic, essential.",
+        "WRITING FORMULA per listicle_item:",
+        "Each section must move through these 4 layers in EXACTLY 3-4 short sentences (max 20 words each):",
+        "1. HOOK: Name the tension/problem.",
+        "2. MEANING: Explain the style logic (why it works aesthetically/functionally).",
+        "3. UTILITY: Tell the reader exactly what to do.",
+        "4. DIRECTION: specific branding/styling advice.",
+        "EDITORIAL BANNED ACTIONS (STRICTLY PROHIBITED):",
+        "- DO NOT drift into influencer tone ('I'm obsessed', 'You guys need this').",
+        "- DO NOT over-explain trends without providing utility/logic.",
+        "- DO NOT write long intros (Keep under 60 words).",
+        "- DO NOT create list items that repeat styling advice or items from previous cards.",
+        "- DO NOT mix different image locations within one article (Keep location consistent).",
+        "- DO NOT promise personal wear-tests or claim you've worn the items unless verified in research.",
+        "Return ONLY a valid raw JSON object.",
     ].join(" ");
 
     let prompt = `Target Topic: ${topic}\n`;
@@ -265,7 +268,7 @@ export async function generateContent(params: {
     prompt += `  "listicle_items": [\n    {\n`;
     prompt += `      "title": "Very short, punchy, creative subtitle (max 4-5 words) using power words",\n`;
     prompt += `      "content": "Deeply researched, trendy, highly specific and up-to-date description. Exactly ~60 words. No generic info.",\n`;
-    prompt += `      "image_prompt": "Highly detailed photographic formula (e.g., 'Woman in butter yellow slip dress, bright vineyard garden, candid full body shot, 35mm lens'). CRITICAL RULE: NEVER write 'mirror selfie', NEVER include mobile phones, and ALWAYS specify 'clearly visible face' and 'natural relaxed arms at sides'.",\n`;
+    prompt += `      "image_prompt": "Highly detailed photographic formula: [SHOT_TYPE] of [SUBJECT] wearing [OUTFIT]. [LOCATION]. [LIGHTING_AND_WEATHER]. [CAMERA_AND_AESTHETIC]. [TEXTURE_AND_FINISH]. MUST ALWAYS be 'Full-body (shoes to crown)'. No exceptions. Feet and shoes MUST be visible.",\n`;
     prompt += `      "product_recommendations": [\n`;
     prompt += `        { "product_name": "Specific real-world brand/product name", "amazon_search_term": "precise search term for Amazon" }\n`;
     prompt += `      ] // Generate EXACTLY 3 product recommendations per listicle item.\n    }\n  ]\n}`;
@@ -316,11 +319,9 @@ export async function generateImage(params: { prompt: string; apiKey: string; pr
         modelsToTry = discoveredImagen.length > 0 ? discoveredImagen : [...IMAGEN_MODELS_DEFAULT];
     }
 
-    // Best strategy for Pinterest realism: Candid lifestyle photography, natural lighting, and authentic textures.
-    // Best strategy for Pinterest realism: Influencer aesthetic.
-    const fortifiedPrompt = `${prompt}. HIGH FASHION PINTEREST INFLUENCER AESTHETIC. 100% CANDID LIFESTYLE PHOTOGRAPHY. Focus on showing the complete, stylish outfit clearly. Trendy, bright, authentic, UNPOSED FEEL. Organic textures, NO AI SMOOTHNESS. High quality, realistic fashion influencer photo.`;
-
-    const base64Image = await tryGenerateWithRotation(apiKey, fortifiedPrompt, modelsToTry);
+    // The prompt is now assembled using the 'New Master Structure' in the pipeline,
+    // which is highly descriptive and expert-led. We pass it directly to Imagen.
+    const base64Image = await tryGenerateWithRotation(apiKey, prompt, modelsToTry);
     return base64Image;
 }
 
@@ -436,14 +437,20 @@ export async function regenerateText(params: {
     modelId = sanitizeModelId(modelId);
 
     const system_instruction = [
-        "You are an expert Pinterest content creator and editor.",
-        "Your task is to rewrite a single listicle subsection to be more engaging, trendy, and highly specific.",
-        "RULES:",
-        "- Write in the style of high-end editorial blogs.",
-        "- BANNED WORDS: do NOT use clichés or common AI words such as 'chic', 'elevate', 'unveil', 'delve', or 'testament'.",
-        "- The content field MUST be exactly ~60 words — deeply researched, engaging, and highly informative.",
-        "- The title MUST BE VERY SHORT (max 4-5 words), exceptionally catchy, creative, and use emotional hooks or power words.",
-        "- Return ONLY a valid raw JSON object matching the exact schema provided — no markdown fences, no explanation, no extra text.",
+        "You are a SHARP WARDROBE EDITOR.",
+        "Your task is to rewrite a single listicle subsection to be more grounded, practical, and authoritative.",
+        "VOICE RULES:",
+        "- Intelligent but legible | Warm but not sugary | Opinionated but not arrogant.",
+        "- Take a position. No hedging. No 'trend-panic'. No filler.",
+        "- BANNED WORDS: obsessed, game-changer, must-have, stunning, viral, Amazon hack, fashionista, flawlessly, look expensive, trendy girl, delve, elevate, chic, essential.",
+        "WRITING FORMULA:",
+        "Each section must follow the 4-layer formula in exactly 3-4 short sentences (max 20 words each):",
+        "1. HOOK: Name the tension/problem.",
+        "2. MEANING: Explain the style logic.",
+        "3. UTILITY: Tell the reader exactly what to do.",
+        "4. DIRECTION: specific styling/branding advice.",
+        "- The title MUST BE VERY SHORT (max 4-5 words), exceptionally punchy, and use power words.",
+        "- Return ONLY a valid raw JSON object.",
     ].join(" ");
 
     let prompt = `We are rewriting an item for the overall topic: "${topic}".\n\n`;

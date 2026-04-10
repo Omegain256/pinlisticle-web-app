@@ -56,13 +56,11 @@ export const ItemCardsSchema = {
       image_prompt_seed: {
         type: "OBJECT",
         properties: {
-          subject: { type: "STRING" },
-          setting: { type: "STRING" },
-          shot: { type: "STRING" },
-          lighting: { type: "STRING" },
-          camera: { type: "STRING" }
+          shot_type: { type: "STRING" }, // e.g. "Full-body", "Medium", "Detail"
+          outfit_description: { type: "STRING" },
+          pose_instruction: { type: "STRING" }
         },
-        required: ["subject", "setting", "shot", "lighting", "camera"]
+        required: ["shot_type", "outfit_description", "pose_instruction"]
       }
     },
     required: ["item_index", "item_name", "why_it_works", "trend_support", "styling_notes", "reader_value", "freshness_signal", "image_prompt_seed"]
@@ -130,12 +128,12 @@ export const StyleDNASchema = {
   properties: {
     article_id: { type: "STRING" },
     style_family: { type: "STRING" },
-    base_subject: { type: "STRING" },
-    composition_pool: { type: "ARRAY", items: { type: "STRING" } },
-    camera_pool: { type: "ARRAY", items: { type: "STRING" } },
-    lighting_pool: { type: "ARRAY", items: { type: "STRING" } },
+    subject_definition: { type: "STRING" }, // Article-wide consistent person
+    location_definition: { type: "STRING" }, // Article-wide consistent location
+    lighting_and_weather: { type: "STRING" }, // Article-wide consistent lighting
+    camera_and_aesthetic: { type: "STRING" }, // Article-wide consistent tech vibe
+    texture_and_finish: { type: "STRING" }, // Article-wide consistent skin/film texture
     palette_base: { type: "ARRAY", items: { type: "STRING" } },
-    setting_pool: { type: "ARRAY", items: { type: "STRING" } },
     realism_constraints: { type: "ARRAY", items: { type: "STRING" } },
     diversity_rotation: {
       type: "OBJECT",
@@ -146,9 +144,7 @@ export const StyleDNASchema = {
       },
       required: ["age_range", "body_types", "hair_textures"]
     },
-    do_not_use: { type: "ARRAY", items: { type: "STRING" } },
-    model: { type: "STRING" },
     negative_prompt: { type: "STRING" }
   },
-  required: ["article_id", "style_family", "base_subject", "composition_pool", "camera_pool", "lighting_pool", "palette_base", "setting_pool", "realism_constraints", "diversity_rotation", "do_not_use", "model", "negative_prompt"]
+  required: ["article_id", "style_family", "subject_definition", "location_definition", "lighting_and_weather", "camera_and_aesthetic", "texture_and_finish", "palette_base", "realism_constraints", "diversity_rotation", "negative_prompt"]
 };
