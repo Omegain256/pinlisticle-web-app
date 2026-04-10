@@ -2,9 +2,9 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Queue, ConnectionOptions } from "bullmq";
 
-const redisConnection: ConnectionOptions = {
+export const redisConnection: ConnectionOptions = {
     host: process.env.REDIS_HOST || "localhost",
-    port: parseInt(process.env.REDIS_PORT || "6379"),
+    port: parseInt(process.env.REDIS_PORT || "6379", 10),
     username: process.env.REDIS_USERNAME || "default",
     password: process.env.REDIS_PASSWORD || "",
     tls: process.env.REDIS_TLS === "true" ? {} : undefined,
@@ -23,11 +23,11 @@ if (process.env.REDIS_URL) {
     try {
         const url = new URL(process.env.REDIS_URL);
         redisConnection.host = url.hostname;
-        redisConnection.port = parseInt(url.port);
-        redisConnection.username = url.username;
-        redisConnection.password = url.password;
+        redisConnection.port = url.port ? parseInt(url.port, 10) : (url.protocol === 'rediss:' ? 6380 : 6379);
+        if (url.username) redisConnection.username = url.username;
+        if (url.password) redisConnection.password = url.password;
         if (url.protocol === 'rediss:') {
-            redisConnection.tls = {};
+            redisConnection.tls = { rejectUnauthorized: false };
         }
     } catch (e) {
         console.error("Invalid REDIS_URL provided:", process.env.REDIS_URL);
