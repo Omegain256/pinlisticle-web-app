@@ -66,20 +66,24 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, stage: "item_cards", error: "No item cards generated." }, { status: 500 });
         }
 
-        // ── Stage 2.5: Visual Intelligence ──────────────────────────────────────
-        // Fetch real fashion reference images, analyze with Gemini Vision,
-        // and enrich item_cards with grounded VisualDNA + precision image_prompts.
+        // ── Stage 4.5: Visual Intelligence ──────────────────────────────────────
+        // Uses reference_image_urls from Stage 2 (already harvested via Jina AI).
+        // Fetches those real fashion photos, analyses with Gemini Vision → VisualDNA.
         let enriched_item_cards = item_cards;
         try {
-            const visualResult = await pipelineVisualIntelligence(targetKeyword, item_cards, apiKey, style_dna);
+            const referenceImgUrls: string[] = evidence_pack?.reference_image_urls ?? [];
+            const visualResult = await pipelineVisualIntelligence(
+                targetKeyword, item_cards, apiKey, style_dna, referenceImgUrls
+            );
             if (visualResult && visualResult.length > 0) {
                 enriched_item_cards = visualResult;
-                console.log(`[S2.5] Item cards enriched with Visual Intelligence.`);
+                console.log(`[S4.5] Item cards enriched with ${referenceImgUrls.length} Jina-sourced images.`);
             }
         } catch (e: any) {
             // Visual Intelligence is fully non-fatal — pipeline continues with original cards
             console.warn("Visual Intelligence skipped:", e.message);
         }
+
 
         // ── Stage 5: Draft Article ────────────────────────────────────────────
         let article_draft: any;

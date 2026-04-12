@@ -106,19 +106,22 @@ const worker = new Worker<PublishPipelineData>(
             }
             await job.updateProgress(50);
 
-            // S4.5: Visual Intelligence — enriches item cards with VisualDNA from real reference images
+            // S4.5: Visual Intelligence — enriches item cards with real VisualDNA using Jina-sourced images
             if (!state.visual_dna_applied && state.item_cards && state.item_cards.length > 0) {
                 console.log(`[Job ${job.id}] S4.5: Running Visual Intelligence on ${state.item_cards.length} item cards...`);
                 try {
+                    const evidencePack = state.evidence_pack as any;
+                    const referenceImgUrls: string[] = evidencePack?.reference_image_urls ?? [];
                     const enriched = await pipelineVisualIntelligence(
                         targetToken,
                         state.item_cards,
                         data.apiKey,
-                        state.style_dna
+                        state.style_dna,
+                        referenceImgUrls,
                     );
                     if (enriched && enriched.length > 0) {
                         state.item_cards = enriched as WorkerState["item_cards"];
-                        console.log(`[Job ${job.id}] S4.5: Visual Intelligence complete — ${enriched.length} cards enriched with VisualDNA.`);
+                        console.log(`[Job ${job.id}] S4.5: Visual Intelligence complete — ${enriched.length} cards enriched. (${referenceImgUrls.length} Jina images used)`);
                     }
                 } catch (visErr: unknown) {
                     const msg = visErr instanceof Error ? visErr.message : "Unknown error";
@@ -128,6 +131,7 @@ const worker = new Worker<PublishPipelineData>(
                 await job.updateData(data);
             }
             await job.updateProgress(62);
+
 
             // S5: Draft Article
             if (!state.article_draft && state.brief && state.item_cards && state.evidence_pack) {

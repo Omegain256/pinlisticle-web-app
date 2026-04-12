@@ -67,53 +67,15 @@ export async function pipelineClassifyTopic(keyword: string, apiKey: string) {
     return extractJSONData(data);
 }
 
-// Stage 2: Web Search Evidence Pack
-// NOTE: Gemini does NOT support responseSchema/responseMimeType when googleSearch grounding is enabled.
-export async function pipelineSearchEvidence(keyword: string, briefJson: any, apiKey: string) {
-    const modelId = resolveModelId("lite", true);
-    const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
-    const now = getNow();
-
-    const systemInstruction = `You are a research editor working in ${now}. Use Google Search to find the MOST CURRENT information available — prioritise results from 2025 and 2026. Do NOT reference articles or trends from 2024 or earlier unless they are still actively relevant today. Output ONLY valid JSON, no markdown fences, no extra text.`;
-    const prompt = `
-Today's date: ${now}
-Keyword: "${keyword}"
-Brief: ${JSON.stringify(briefJson)}
-
-Search Google for the very latest 2025-2026 trends, statistics, and angles for this keyword.
-Return a JSON object with these fields:
-- "trending_angles": string[] (3-5 current 2026 angles — be specific, e.g. "quiet luxury trench coats trending on TikTok Spring 2026")
-- "top_sources": string[] (3-5 source domains found)
-- "seasonal_context": string (specific to current season: ${now})
-- "audience_pain_points": string[] (what readers are actually struggling with right now)
-- "competitive_gaps": string (what most articles on this topic are missing in 2026)
-- "key_statistics": string[] (specific numbers or data points — include the year/source)
-`.trim();
-
-    const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            system_instruction: { parts: [{ text: systemInstruction }] },
-            contents: [{ parts: [{ text: prompt }] }],
-            tools: [{ googleSearch: {} }],
-            generationConfig: { temperature: 0.3 },
-        }),
-    });
-
-    return extractJSONDataFreeForm(data);
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// Stage 2.5: Visual Intelligence
-// Fetches real fashion reference images, analyses them with Gemini Vision,
-// and builds a precision VisualDNA JSON + engineered image_prompt per outfit.
+// Jina AI Reader — Free web-to-markdown proxy. No API key required.
+// Fetches any public URL and returns full article content as clean markdown.
 // ─────────────────────────────────────────────────────────────────────────────
+const JINA_BASE = "https://r.jina.ai/";
+const JINA_TIMEOUT_MS = 10000; // 10s per page
 
-/** Fashion sources to prefer (in priority order). Pinterest is tried first but
- *  hotlink-protection means it often fails — the fallback chain handles that. */
-const VISUAL_SOURCES_PRIORITY = [
-    "pinterest.com",
+/** Fashion article sources to prioritise when selecting page URLs to read */
+const FASHION_SOURCE_PRIORITY = [
     "whowhatwear.com",
     "vogue.com",
     "harpersbazaar.com",
@@ -121,175 +83,384 @@ const VISUAL_SOURCES_PRIORITY = [
     "instyle.com",
     "elle.com",
     "glamour.com",
+    "pinterest.com",
+    "byrdie.com",
+    "thezoereport.com",
 ];
 
-async function fetchImageAsBase64(
+/** Fetch a URL via Jina AI Reader and return the markdown content */
+async function fetchViaJina(pageUrl: string): Promise<string | null> {
+    try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), JINA_TIMEOUT_MS);
+        const res = await fetch(`${JINA_BASE}${pageUrl}`, {
+            signal: controller.signal,
+            headers: {
+                "Accept": "text/markdown, text/plain, */*",
+                "X-Return-Format": "markdown",
+                "X-Image-Caption": "true", // include image captions with URLs
+            },
+        });
+        clearTimeout(timer);
+        if (!res.ok) return null;
+        const text = await res.text();
+        return text.slice(0, 8000); // cap at 8K chars per article to stay within context
+    } catch {
+        return null;
+    }
+}
+
+/** Extract image URLs from Jina-returned markdown */
+function extractImagesFromMarkdown(markdown: string): string[] {
+    const urls: string[] = [];
+    // Match markdown image syntax: ![alt](url)
+    const mdImgs = markdown.matchAll(/!\[[^\]]*\]\((https?:\/\/[^)]+)\)/g);
+    for (const m of mdImgs) {
+        const url = m[1];
+        if (/\.(jpg|jpeg|png|webp)/i.test(url)) urls.push(url);
+    }
+    // Match pinimg.com CDN URLs (Pinterest image CDN, often in plain text links)
+    const pinImgs = markdown.matchAll(/https?:\/\/i\.pinimg\.com\/[^\s"')]+/g);
+    for (const m of pinImgs) urls.push(m[0]);
+    // Match other fashion CDN patterns
+    const cdnImgs = markdown.matchAll(/https?:\/\/[^\s"')]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"')]*)?/gi);
+    for (const m of cdnImgs) urls.push(m[0]);
+    return [...new Set(urls)].slice(0, 12); // deduplicate, cap at 12
+}
+
+/** Extract page URLs from Gemini groundingChunks and rank by fashion source priority */
+function extractAndRankPageUrls(groundingData: any): string[] {
+    const chunks: any[] = groundingData?.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const urls: string[] = [];
+    for (const chunk of chunks) {
+        const uri: string = chunk?.web?.uri || "";
+        if (uri && uri.startsWith("http")) urls.push(uri);
+    }
+    // Also pull from search suggestions
+    const suggestions = groundingData?.candidates?.[0]?.groundingMetadata?.webSearchQueries || [];
+    
+    return urls.sort((a, b) => {
+        const rankA = FASHION_SOURCE_PRIORITY.findIndex(s => a.includes(s));
+        const rankB = FASHION_SOURCE_PRIORITY.findIndex(s => b.includes(s));
+        return (rankA === -1 ? 99 : rankA) - (rankB === -1 ? 99 : rankB);
+    });
+}
+
+// Stage 2: Web Search Evidence Pack (Jina AI enhanced)
+// Flow: googleSearch grounding → extract real article URLs → Jina reads full article text
+// → Gemini synthesises structured evidence from REAL content → returns with reference_image_urls
+export async function pipelineSearchEvidence(keyword: string, briefJson: any, apiKey: string) {
+    const modelId = resolveModelId("lite", true);
+    const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
+    const now = getNow();
+
+    // ── Step A: Run grounded search to discover top article page URLs ──────────
+    console.log(`[S2] Running grounded search for: "${keyword}"...`);
+    let groundingData: any = null;
+    let pageUrls: string[] = [];
+
+    try {
+        const searchData = await fetchWithKeyRotation(apiKey, urlTemplate, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: `You are a research assistant. Today is ${now}. Search for the most current 2026 fashion articles, outfit ideas, and trend reports for the given keyword. Focus on authoritative fashion sources.` }] },
+                contents: [{ parts: [{ text: `Search for the very latest 2026 fashion content about: "${keyword}". Find the top articles from Vogue, Who What Wear, Harper's Bazaar, Refinery29, InStyle, Elle, and Pinterest.` }] }],
+                tools: [{ googleSearch: {} }],
+                generationConfig: { temperature: 0.1 },
+            }),
+        });
+        groundingData = searchData;
+        pageUrls = extractAndRankPageUrls(searchData);
+        console.log(`[S2] Grounded search found ${pageUrls.length} article URLs.`);
+    } catch (e: any) {
+        console.warn(`[S2] Grounded search failed: ${e.message}. Proceeding with Jina fallback.`);
+    }
+
+    // ── Step B: Deep-read top 4 articles via Jina AI Reader (free) ────────────
+    const MAX_PAGES = 4;
+    const articleContents: Array<{ url: string; markdown: string }> = [];
+    let allReferenceImageUrls: string[] = [];
+
+    // If grounded search found no URLs, use a direct Jina search on key fashion sites
+    if (pageUrls.length === 0) {
+        const fallbackUrls = [
+            `https://www.whowhatwear.com/search?q=${encodeURIComponent(keyword)}`,
+            `https://www.refinery29.com/en-us/search?q=${encodeURIComponent(keyword)}`,
+            `https://www.vogue.com/search?q=${encodeURIComponent(keyword)}`,
+        ];
+        pageUrls = fallbackUrls;
+    }
+
+    const topUrls = pageUrls.slice(0, MAX_PAGES);
+    console.log(`[S2] Reading ${topUrls.length} articles via Jina AI...`);
+
+    // Fetch pages sequentially to avoid rate limits
+    for (const url of topUrls) {
+        const markdown = await fetchViaJina(url);
+        if (markdown && markdown.length > 200) {
+            articleContents.push({ url, markdown });
+            const imgUrls = extractImagesFromMarkdown(markdown);
+            allReferenceImageUrls.push(...imgUrls);
+            console.log(`[S2] ✓ Jina read ${url.slice(0, 60)}... (${markdown.length} chars, ${imgUrls.length} images)`);
+        } else {
+            console.log(`[S2] ✗ Jina could not read: ${url.slice(0, 60)}...`);
+        }
+        await sleep(300); // gentle pacing
+    }
+
+    // Deduplicate image URLs
+    allReferenceImageUrls = [...new Set(allReferenceImageUrls)];
+    console.log(`[S2] Total reference images harvested: ${allReferenceImageUrls.length}`);
+
+    // ── Step C: Synthesise structured evidence from REAL article content ───────
+    const hasRealContent = articleContents.length > 0;
+    const realContentBlock = hasRealContent
+        ? articleContents.map(a => `SOURCE: ${a.url}\n${a.markdown}`).join("\n\n---\n\n")
+        : "No article content available — use your training knowledge for Spring 2026.";
+
+    const systemInstruction = `You are a senior fashion research editor. Today is ${now}.
+Your job: synthesize structured intelligence from real fashion articles for a listicle writer.
+Be HIGHLY SPECIFIC — name exact brands, specific color codes, exact garment names from the actual articles.
+Do NOT generalise. Do NOT hallucinate statistics. Attribute every claim to its source URL.
+Output ONLY valid JSON, no markdown fences, no extra text.`;
+
+    const synthesisPrompt = `
+Today: ${now}
+Keyword: "${keyword}"
+Brief: ${JSON.stringify(briefJson)}
+
+REAL ARTICLE CONTENT FROM TOP FASHION SOURCES (${articleContents.length} articles read):
+${realContentBlock}
+
+Based on this REAL content, return a JSON object with:
+- "trending_angles": string[] (3-5 SPECIFIC trends from the actual articles above — quote exact outfit combos or brand names found)
+- "top_sources": string[] (URLs of sources actually read)
+- "seasonal_context": string (exact season/context from the articles — include specific event references if found)
+- "audience_pain_points": string[] (real problems mentioned in the articles or comments)
+- "competitive_gaps": string (what angle these articles MISSED that we can own)
+- "key_statistics": string[] (any specific numbers, percentages, product names with prices — quote source)
+- "specific_outfits": string[] (exact outfit combinations mentioned in articles — brand + garment + styling)
+`.trim();
+
+    try {
+        const synthesisData = await fetchWithKeyRotation(apiKey, urlTemplate, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemInstruction }] },
+                contents: [{ parts: [{ text: synthesisPrompt }] }],
+                generationConfig: { temperature: 0.3 },
+            }),
+        });
+
+        const result = extractJSONDataFreeForm(synthesisData);
+        // Attach the harvested image URLs so Visual Intelligence can use them
+        return {
+            ...result,
+            reference_image_urls: allReferenceImageUrls,
+        };
+    } catch (e: any) {
+        console.warn(`[S2] Synthesis failed: ${e.message}. Using fallback evidence.`);
+        return {
+            trending_angles: [`${keyword} styling trends for ${now}`],
+            top_sources: topUrls,
+            seasonal_context: now,
+            audience_pain_points: [],
+            competitive_gaps: "",
+            key_statistics: [],
+            specific_outfits: [],
+            reference_imag/**
+ * Fetch an image URL as base64, using TWO strategies:
+ * 1. Direct fetch (works for most editorial sites, Pinterest CDN when URLs are correct)
+ * 2. Jina proxy: https://r.jina.ai/{url} — routes through Jina which retrieves the raw image
+ *    even for some hotlink-protected sources.
+ */
+async function fetchImageAsBase64WithFallback(
     url: string,
     timeoutMs = 8000
-): Promise<{ data: string; mimeType: string } | null> {
+): Promise<{ data: string; mimeType: string; strategy: string } | null> {
+    // Strategy 1: Direct fetch with browser-like headers
     try {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeoutMs);
         const res = await fetch(url, {
             signal: controller.signal,
             headers: {
-                // Mimic a browser so Pinterest/fashion sites don't block the request
                 "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
                 "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
                 "Referer": "https://www.google.com/",
             },
         });
         clearTimeout(timer);
-        if (!res.ok) return null;
-        const contentType = res.headers.get("content-type") || "image/jpeg";
-        if (!contentType.startsWith("image/")) return null;
-        const buffer = await res.arrayBuffer();
-        const data = Buffer.from(buffer).toString("base64");
-        return { data, mimeType: contentType.split(";")[0] };
+        if (res.ok) {
+            const contentType = res.headers.get("content-type") || "image/jpeg";
+            if (contentType.startsWith("image/")) {
+                const buffer = await res.arrayBuffer();
+                if (buffer.byteLength > 1000) { // skip empty/tiny responses
+                    return {
+                        data: Buffer.from(buffer).toString("base64"),
+                        mimeType: contentType.split(";")[0],
+                        strategy: "direct",
+                    };
+                }
+            }
+        }
     } catch {
-        return null;
+        // Fall through to strategy 2
     }
-}
 
-/** Extract image URLs from Gemini grounding chunks */
-function extractImageUrlsFromGrounding(data: any): string[] {
-    const chunks: any[] = data?.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const urls: string[] = [];
-    for (const chunk of chunks) {
-        const uri: string = chunk?.web?.uri || "";
-        if (!uri) continue;
-        // Direct image extensions
-        if (/\.(jpg|jpeg|png|webp)(\?|$)/i.test(uri)) {
-            urls.push(uri);
+    // Strategy 2: Jina proxy (bypasses hotlink protection for many sites)
+    try {
+        const jinaUrl = `${JINA_BASE}${url}`;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        const res = await fetch(jinaUrl, {
+            signal: controller.signal,
+            headers: { "Accept": "image/webp,image/apng,image/*,*/*;q=0.8" },
+        });
+        clearTimeout(timer);
+        if (res.ok) {
+            const contentType = res.headers.get("content-type") || "image/jpeg";
+            if (contentType.startsWith("image/")) {
+                const buffer = await res.arrayBuffer();
+                if (buffer.byteLength > 1000) {
+                    return {
+                        data: Buffer.from(buffer).toString("base64"),
+                        mimeType: contentType.split(";")[0],
+                        strategy: "jina-proxy",
+                    };
+                }
+            }
         }
-        // Pinterest CDN image URLs (often end in /originals/ or have image paths)
-        if (uri.includes("pinimg.com") || uri.includes("pinterest.com")) {
-            urls.push(uri);
-        }
+    } catch {
+        // Both strategies failed
     }
-    // Also check renderedContent for img src tags as a secondary scrape
-    const rendered: string = data?.candidates?.[0]?.groundingMetadata?.searchEntryPoint?.renderedContent || "";
-    const imgMatches = rendered.matchAll(/src=["'](https?:\/\/[^"']+\.(?:jpg|jpeg|png|webp)[^"']*)["']/gi);
-    for (const m of imgMatches) urls.push(m[1]);
-    return [...new Set(urls)]; // deduplicate
-}
 
-/** Sort URLs so preferred sources appear first */
-function rankImageUrls(urls: string[]): string[] {
-    return urls.sort((a, b) => {
-        const rankA = VISUAL_SOURCES_PRIORITY.findIndex(s => a.includes(s));
-        const rankB = VISUAL_SOURCES_PRIORITY.findIndex(s => b.includes(s));
-        const rA = rankA === -1 ? 99 : rankA;
-        const rB = rankB === -1 ? 99 : rankB;
-        return rA - rB;
-    });
+    return null;
 }
 
 export async function pipelineVisualIntelligence(
     keyword: string,
     itemCards: any[],
     apiKey: string,
-    styleDNA?: any
+    styleDNA?: any,
+    referenceImageUrlsFromEvidence: string[] = [],
 ): Promise<any[]> {
     const modelId = resolveModelId("lite", true); // flash is sufficient for vision
     const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
-    const now = getNow();
     const itemCount = itemCards.length;
 
-    // ── Step A: Grounded search for real fashion reference images ─────────────
-    console.log(`[S2.5] Searching for visual references: "${keyword}"...`);
-    let referenceImageUrls: string[] = [];
+    // ── Step A: Use pre-harvested image URLs from Stage 2 (Evidence Pack) ──────
+    // No additional search needed — Stage 2 already ran Jina on real fashion articles
+    // and extracted all embedded image URLs.
+    let candidateUrls: string[] = [...referenceImageUrlsFromEvidence];
 
-    try {
-        const searchPrompt = `Search for real, high-quality fashion photography images for: "${keyword} outfits 2026".
-        Search across these sources: Pinterest boards, Who What Wear, Vogue, Harper's Bazaar, Refinery29, InStyle, Elle.
-        I need you to find actual image URLs for real outfit photos. Return the URLs of the best fashion images you find.`;
-
-        const searchData = await fetchWithKeyRotation(apiKey, urlTemplate, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: searchPrompt }] }],
-                tools: [{ googleSearch: {} }],
-                generationConfig: { temperature: 0.1 },
-            }),
-        });
-
-        referenceImageUrls = extractImageUrlsFromGrounding(searchData);
-        referenceImageUrls = rankImageUrls(referenceImageUrls);
-        console.log(`[S2.5] Found ${referenceImageUrls.length} candidate image URLs from grounded search.`);
-    } catch (e: any) {
-        console.warn(`[S2.5] Grounded search failed: ${e.message}. Will use prompt-only analysis.`);
-    }
-
-    // ── Step B: Fetch up to 6 images (cycle across outfit items) ─────────────
-    const maxImages = 6;
-    const fetchedImages: Array<{ data: string; mimeType: string; sourceUrl: string } | null> = [];
-
-    for (const url of referenceImageUrls.slice(0, maxImages * 2)) { // try up to 2x to get maxImages successes
-        if (fetchedImages.filter(Boolean).length >= maxImages) break;
-        const result = await fetchImageAsBase64(url);
-        if (result) {
-            fetchedImages.push({ ...result, sourceUrl: url });
-            console.log(`[S2.5] ✓ Fetched image from ${new URL(url).hostname}`);
-        } else {
-            console.log(`[S2.5] ✗ Could not fetch image from ${url.slice(0, 60)}...`);
-            fetchedImages.push(null); // preserve index alignment, but mark as failed
+    // If evidence pack provided no images (e.g. fallback path), do a targeted Jina read
+    if (candidateUrls.length === 0) {
+        console.log(`[S4.5] No reference images from evidence pack. Running targeted Jina search...`);
+        try {
+            const fallbackPages = [
+                `https://www.whowhatwear.com/search?q=${encodeURIComponent(keyword + " outfits 2026")}`,
+                `https://www.refinery29.com/en-us/search?q=${encodeURIComponent(keyword)}`,
+                `https://www.vogue.com/search?q=${encodeURIComponent(keyword)}`,
+            ];
+            for (const pageUrl of fallbackPages) {
+                const md = await fetchViaJina(pageUrl);
+                if (md) {
+                    const imgs = extractImagesFromMarkdown(md);
+                    candidateUrls.push(...imgs);
+                    if (candidateUrls.length >= 6) break;
+                }
+                await sleep(300);
+            }
+        } catch (e: any) {
+            console.warn(`[S4.5] Fallback Jina search failed: ${e.message}.`);
         }
     }
 
-    const validImages = fetchedImages.filter(Boolean) as Array<{ data: string; mimeType: string; sourceUrl: string }>;
-    console.log(`[S2.5] Successfully fetched ${validImages.length} reference images.`);
+    // Prefer i.pinimg.com CDN direct URLs (higher resolution, direct access)
+    candidateUrls.sort((a, b) => {
+        const aPin = a.includes("pinimg.com") ? -1 : 0;
+        const bPin = b.includes("pinimg.com") ? -1 : 0;
+        return aPin - bPin;
+    });
 
-    // ── Step C: Vision analysis — build VisualDNA for all items in one call ──
-    const hasImages = validImages.length > 0;
+    console.log(`[S4.5] ${candidateUrls.length} candidate image URLs to try.`);
 
-    // Build the parts array: text prompt + up to 3 inline images
+    // ── Step B: Fetch up to 4 images using direct + Jina proxy dual strategy ───
+    const MAX_IMAGES = 4;
+    const validImages: Array<{ data: string; mimeType: string; sourceUrl: string; strategy: string }> = [];
+
+    for (const url of candidateUrls) {
+        if (validImages.length >= MAX_IMAGES) break;
+        try {
+            const result = await fetchImageAsBase64WithFallback(url);
+            if (result) {
+                validImages.push({ ...result, sourceUrl: url });
+                const hostname = new URL(url).hostname;
+                console.log(`[S4.5] ✓ [${result.strategy}] Image fetched from ${hostname}`);
+            } else {
+                console.log(`[S4.5] ✗ Both strategies failed for: ${url.slice(0, 70)}...`);
+            }
+        } catch {
+            // Malformed URL or other error — skip silently
+        }
+        await sleep(200); // gentle pacing between fetches
+    }
+
+    console.log(`[S4.5] Successfully fetched ${validImages.length}/${MAX_IMAGES} reference images.`);
+
+    // ── Step C: Build VisualDNA for all items in a single Gemini Vision call ───
     const visionParts: any[] = [];
 
     const systemText = `You are a professional fashion photo analyst and AI image prompt engineer.
 Your task:
-1. Analyze the provided reference fashion photographs (if any).
+1. Analyze the provided reference fashion photographs (${validImages.length} images attached).
 2. For each of the ${itemCount} outfit items listed below, synthesize a Visual DNA JSON object.
-3. The "image_prompt" field MUST be a precision Imagen prompt that will produce a photorealistic, 
-   full-body editorial fashion photograph. MANDATORY: the shot must go from shoes to crown — feet always visible.
+3. The "image_prompt" field MUST be a precision Imagen 4 prompt that produces a photorealistic,
+   full-body editorial fashion photograph. MANDATORY: frame from shoes to crown — feet always visible.
 
-For each outfit, extract or infer:
-- key_pieces: exact garment names + fabrics (e.g. "cream ribbed linen trousers", "oversized blazer in camel wool")
-- color_palette: 2-4 dominant color names or hex codes visible/implied
-- aesthetic: 1-3 mood tags (e.g. "quiet luxury", "coastal casual", "old money")
-- composition: framing style (ALWAYS "Full-length, shoes to crown, mid-stride")
-- lighting: lighting conditions evident or ideal for this aesthetic
-- background: specific setting that suits the aesthetic
-- image_prompt: FULL assembled prompt in this exact format:
-  "Full-length editorial street style photo, shoes to crown frame, showing a woman wearing [key_pieces]. 
-   [background]. [lighting]. [aesthetic] aesthetic. Shot on Sony A7RV 85mm f/1.4 lens. 
-   Photorealistic, 4K UHD, fashion editorial, no text, no watermarks."
+RULES FOR EACH FIELD:
+- key_pieces: Name EXACT garments with fabric (e.g. "cream ribbed linen wide-leg trousers", "camel double-breasted blazer in boiled wool"). Be granular.
+- color_palette: 2-4 specific hex codes or precise color names (e.g. "#F2EDE4 warm cream", "#8B6F52 cognac brown")
+- aesthetic: 1-3 precise mood tags derived from the reference images (e.g. "old money coastal", "Parisian minimalist")
+- composition: ALWAYS "Full-length editorial, shoes-to-crown frame, mid-stride or 3/4 turn"
+- lighting: Exact lighting conditions (e.g. "golden hour sidelight, warm amber color grade")
+- background: Hyper-specific location (e.g. "Haussmann limestone building facade, Paris 8th arrondissement")
+- image_prompt: Assemble as:
+  "Full-length editorial fashion photograph, shoes-to-crown frame. A woman wearing [key_pieces — listed individually].
+   [background]. [lighting]. [aesthetic] mood. Shot on Sony A7RV with 85mm f/1.4 prime lens.
+   Photorealistic, 4K UHD, grain texture of 35mm film, skin pores visible, no AI artifacts,
+   no text, no watermarks, no cropped feet."
 
-${styleDNA ? `STYLE DNA CONTEXT (article-wide aesthetic constraints):
-- Subject: ${styleDNA.subject_definition || "A modern woman, 26-44"}
-- Lighting: ${styleDNA.lighting_and_weather || "Natural cinematic light"}
-- Camera: ${styleDNA.camera_and_aesthetic || "Shot on 35mm film"}
-- Texture: ${styleDNA.texture_and_finish || "Authentic film grain, honest skin"}` : ""}
+${styleDNA ? `ARTICLE-WIDE STYLE DNA (apply consistently across all outfits):
+Subject: ${styleDNA.subject_definition || "Confident woman, 28-38, mixed heritage, natural makeup"}
+Lighting: ${styleDNA.lighting_and_weather || "Natural cinematic light, no harsh shadows"}
+Camera: ${styleDNA.camera_and_aesthetic || "35mm editorial film aesthetic"}
+Texture: ${styleDNA.texture_and_finish || "Authentic film grain, honest skin, no smoothing"}
+Negative space: avoid ${styleDNA.negative_prompt || "mannequin-like poses, plastic skin, AI-smoothed faces"}` : ""}
 
-RETURN ONLY a JSON array with exactly ${itemCount} VisualDNA objects. No markdown, no explanations.`;
+RETURN ONLY a raw JSON array with exactly ${itemCount} VisualDNA objects. No markdown, no code fences, no extra text.`;
 
     visionParts.push({ text: systemText });
 
-    // Add up to 3 reference images inline
+    // Attach real reference images inline (up to 3 for context window efficiency)
     for (const img of validImages.slice(0, 3)) {
         visionParts.push({
             inlineData: { mimeType: img.mimeType, data: img.data }
         });
     }
 
-    // Append the item list so Gemini knows what it needs to produce
+    // Append target outfit items for Gemini to analyze against the reference images
     const itemSummary = itemCards.map((card: any, i: number) => ({
         outfit_id: i + 1,
         item_name: card.item_name || `Outfit ${i + 1}`,
         styling_notes: card.styling_notes || {},
         trend_support: card.trend_support || [],
         image_prompt_seed: card.image_prompt_seed || {},
+        // Pass any specific_outfits from evidence pack if stored on the card
+        evidence_context: card.evidence_context || "",
     }));
     visionParts.push({ text: `\nOUTFIT ITEMS TO ANALYZE:\n${JSON.stringify(itemSummary, null, 2)}` });
 
@@ -304,7 +475,7 @@ RETURN ONLY a JSON array with exactly ${itemCount} VisualDNA objects. No markdow
                 generationConfig: {
                     responseMimeType: "application/json",
                     responseSchema: VisualIntelligenceSchema,
-                    temperature: 0.6,
+                    temperature: 0.55,
                 },
             }),
         });
@@ -312,27 +483,27 @@ RETURN ONLY a JSON array with exactly ${itemCount} VisualDNA objects. No markdow
         const parsed = extractJSONData(analysisData);
         if (Array.isArray(parsed) && parsed.length > 0) {
             visualDNAArray = parsed;
-            console.log(`[S2.5] Vision analysis complete. Generated ${visualDNAArray.length} VisualDNA objects.`);
+            console.log(`[S4.5] ✓ Vision analysis complete. ${visualDNAArray.length} VisualDNA objects generated.`);
+            if (validImages.length > 0) {
+                console.log(`[S4.5] ✓ Analysis was grounded in ${validImages.length} real reference images.`);
+            }
         }
     } catch (e: any) {
-        console.warn(`[S2.5] Vision analysis failed: ${e.message}. Falling back to seed-based prompts.`);
-        // Return empty array — caller will use existing seed-based prompts
-        return [];
+        console.warn(`[S4.5] Vision analysis failed: ${e.message}. Falling back to seed-based prompts.`);
+        return []; // Caller will use original seed-based prompts — non-fatal
     }
 
-    // ── Step D: Merge VisualDNA image_prompts back into item cards ─────────────
-    // Only overwrite where we have a valid, non-empty VisualDNA entry
+    // ── Step D: Merge VisualDNA back into item cards ──────────────────────────
     const enrichedCards = itemCards.map((card: any, i: number) => {
         const dna = visualDNAArray.find((d: any) => d.outfit_id === i + 1) || visualDNAArray[i];
-        if (!dna?.image_prompt) return card; // keep original if analysis failed for this item
+        if (!dna?.image_prompt) return card; // keep original if this item failed
         return {
             ...card,
-            visual_dna: dna, // store the full VisualDNA for downstream use
+            visual_dna: dna,
             image_prompt_seed: {
                 ...card.image_prompt_seed,
                 outfit_description: dna.key_pieces?.join(", ") || card.image_prompt_seed?.outfit_description,
-                // Store the engineered prompt so draft stage uses it directly
-                engineered_image_prompt: dna.image_prompt,
+                engineered_image_prompt: dna.image_prompt, // used verbatim by draft stage
             },
         };
     });
