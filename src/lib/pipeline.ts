@@ -270,7 +270,12 @@ Based on this REAL content, return a JSON object with:
             competitive_gaps: "",
             key_statistics: [],
             specific_outfits: [],
-            reference_imag/**
+            reference_image_urls: allReferenceImageUrls,
+        };
+    }
+}
+
+/**
  * Fetch an image URL as base64, using TWO strategies:
  * 1. Direct fetch (works for most editorial sites, Pinterest CDN when URLs are correct)
  * 2. Jina proxy: https://r.jina.ai/{url} — routes through Jina which retrieves the raw image
@@ -278,6 +283,7 @@ Based on this REAL content, return a JSON object with:
  */
 async function fetchImageAsBase64WithFallback(
     url: string,
+
     timeoutMs = 8000
 ): Promise<{ data: string; mimeType: string; strategy: string } | null> {
     // Strategy 1: Direct fetch with browser-like headers
