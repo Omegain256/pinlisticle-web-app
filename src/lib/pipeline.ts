@@ -12,7 +12,8 @@ import {
     ItemCardsSchema,
     DraftArticleSchema,
     QAScoreSchema,
-    StyleDNASchema
+    StyleDNASchema,
+    VisualIntelligenceSchema,
 } from "./schemas";
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -101,6 +102,242 @@ Return a JSON object with these fields:
     });
 
     return extractJSONDataFreeForm(data);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stage 2.5: Visual Intelligence
+// Fetches real fashion reference images, analyses them with Gemini Vision,
+// and builds a precision VisualDNA JSON + engineered image_prompt per outfit.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Fashion sources to prefer (in priority order). Pinterest is tried first but
+ *  hotlink-protection means it often fails — the fallback chain handles that. */
+const VISUAL_SOURCES_PRIORITY = [
+    "pinterest.com",
+    "whowhatwear.com",
+    "vogue.com",
+    "harpersbazaar.com",
+    "refinery29.com",
+    "instyle.com",
+    "elle.com",
+    "glamour.com",
+];
+
+async function fetchImageAsBase64(
+    url: string,
+    timeoutMs = 8000
+): Promise<{ data: string; mimeType: string } | null> {
+    try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        const res = await fetch(url, {
+            signal: controller.signal,
+            headers: {
+                // Mimic a browser so Pinterest/fashion sites don't block the request
+                "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+                "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+                "Referer": "https://www.google.com/",
+            },
+        });
+        clearTimeout(timer);
+        if (!res.ok) return null;
+        const contentType = res.headers.get("content-type") || "image/jpeg";
+        if (!contentType.startsWith("image/")) return null;
+        const buffer = await res.arrayBuffer();
+        const data = Buffer.from(buffer).toString("base64");
+        return { data, mimeType: contentType.split(";")[0] };
+    } catch {
+        return null;
+    }
+}
+
+/** Extract image URLs from Gemini grounding chunks */
+function extractImageUrlsFromGrounding(data: any): string[] {
+    const chunks: any[] = data?.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const urls: string[] = [];
+    for (const chunk of chunks) {
+        const uri: string = chunk?.web?.uri || "";
+        if (!uri) continue;
+        // Direct image extensions
+        if (/\.(jpg|jpeg|png|webp)(\?|$)/i.test(uri)) {
+            urls.push(uri);
+        }
+        // Pinterest CDN image URLs (often end in /originals/ or have image paths)
+        if (uri.includes("pinimg.com") || uri.includes("pinterest.com")) {
+            urls.push(uri);
+        }
+    }
+    // Also check renderedContent for img src tags as a secondary scrape
+    const rendered: string = data?.candidates?.[0]?.groundingMetadata?.searchEntryPoint?.renderedContent || "";
+    const imgMatches = rendered.matchAll(/src=["'](https?:\/\/[^"']+\.(?:jpg|jpeg|png|webp)[^"']*)["']/gi);
+    for (const m of imgMatches) urls.push(m[1]);
+    return [...new Set(urls)]; // deduplicate
+}
+
+/** Sort URLs so preferred sources appear first */
+function rankImageUrls(urls: string[]): string[] {
+    return urls.sort((a, b) => {
+        const rankA = VISUAL_SOURCES_PRIORITY.findIndex(s => a.includes(s));
+        const rankB = VISUAL_SOURCES_PRIORITY.findIndex(s => b.includes(s));
+        const rA = rankA === -1 ? 99 : rankA;
+        const rB = rankB === -1 ? 99 : rankB;
+        return rA - rB;
+    });
+}
+
+export async function pipelineVisualIntelligence(
+    keyword: string,
+    itemCards: any[],
+    apiKey: string,
+    styleDNA?: any
+): Promise<any[]> {
+    const modelId = resolveModelId("lite", true); // flash is sufficient for vision
+    const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
+    const now = getNow();
+    const itemCount = itemCards.length;
+
+    // ── Step A: Grounded search for real fashion reference images ─────────────
+    console.log(`[S2.5] Searching for visual references: "${keyword}"...`);
+    let referenceImageUrls: string[] = [];
+
+    try {
+        const searchPrompt = `Search for real, high-quality fashion photography images for: "${keyword} outfits 2026".
+        Search across these sources: Pinterest boards, Who What Wear, Vogue, Harper's Bazaar, Refinery29, InStyle, Elle.
+        I need you to find actual image URLs for real outfit photos. Return the URLs of the best fashion images you find.`;
+
+        const searchData = await fetchWithKeyRotation(apiKey, urlTemplate, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: searchPrompt }] }],
+                tools: [{ googleSearch: {} }],
+                generationConfig: { temperature: 0.1 },
+            }),
+        });
+
+        referenceImageUrls = extractImageUrlsFromGrounding(searchData);
+        referenceImageUrls = rankImageUrls(referenceImageUrls);
+        console.log(`[S2.5] Found ${referenceImageUrls.length} candidate image URLs from grounded search.`);
+    } catch (e: any) {
+        console.warn(`[S2.5] Grounded search failed: ${e.message}. Will use prompt-only analysis.`);
+    }
+
+    // ── Step B: Fetch up to 6 images (cycle across outfit items) ─────────────
+    const maxImages = 6;
+    const fetchedImages: Array<{ data: string; mimeType: string; sourceUrl: string } | null> = [];
+
+    for (const url of referenceImageUrls.slice(0, maxImages * 2)) { // try up to 2x to get maxImages successes
+        if (fetchedImages.filter(Boolean).length >= maxImages) break;
+        const result = await fetchImageAsBase64(url);
+        if (result) {
+            fetchedImages.push({ ...result, sourceUrl: url });
+            console.log(`[S2.5] ✓ Fetched image from ${new URL(url).hostname}`);
+        } else {
+            console.log(`[S2.5] ✗ Could not fetch image from ${url.slice(0, 60)}...`);
+            fetchedImages.push(null); // preserve index alignment, but mark as failed
+        }
+    }
+
+    const validImages = fetchedImages.filter(Boolean) as Array<{ data: string; mimeType: string; sourceUrl: string }>;
+    console.log(`[S2.5] Successfully fetched ${validImages.length} reference images.`);
+
+    // ── Step C: Vision analysis — build VisualDNA for all items in one call ──
+    const hasImages = validImages.length > 0;
+
+    // Build the parts array: text prompt + up to 3 inline images
+    const visionParts: any[] = [];
+
+    const systemText = `You are a professional fashion photo analyst and AI image prompt engineer.
+Your task:
+1. Analyze the provided reference fashion photographs (if any).
+2. For each of the ${itemCount} outfit items listed below, synthesize a Visual DNA JSON object.
+3. The "image_prompt" field MUST be a precision Imagen prompt that will produce a photorealistic, 
+   full-body editorial fashion photograph. MANDATORY: the shot must go from shoes to crown — feet always visible.
+
+For each outfit, extract or infer:
+- key_pieces: exact garment names + fabrics (e.g. "cream ribbed linen trousers", "oversized blazer in camel wool")
+- color_palette: 2-4 dominant color names or hex codes visible/implied
+- aesthetic: 1-3 mood tags (e.g. "quiet luxury", "coastal casual", "old money")
+- composition: framing style (ALWAYS "Full-length, shoes to crown, mid-stride")
+- lighting: lighting conditions evident or ideal for this aesthetic
+- background: specific setting that suits the aesthetic
+- image_prompt: FULL assembled prompt in this exact format:
+  "Full-length editorial street style photo, shoes to crown frame, showing a woman wearing [key_pieces]. 
+   [background]. [lighting]. [aesthetic] aesthetic. Shot on Sony A7RV 85mm f/1.4 lens. 
+   Photorealistic, 4K UHD, fashion editorial, no text, no watermarks."
+
+${styleDNA ? `STYLE DNA CONTEXT (article-wide aesthetic constraints):
+- Subject: ${styleDNA.subject_definition || "A modern woman, 26-44"}
+- Lighting: ${styleDNA.lighting_and_weather || "Natural cinematic light"}
+- Camera: ${styleDNA.camera_and_aesthetic || "Shot on 35mm film"}
+- Texture: ${styleDNA.texture_and_finish || "Authentic film grain, honest skin"}` : ""}
+
+RETURN ONLY a JSON array with exactly ${itemCount} VisualDNA objects. No markdown, no explanations.`;
+
+    visionParts.push({ text: systemText });
+
+    // Add up to 3 reference images inline
+    for (const img of validImages.slice(0, 3)) {
+        visionParts.push({
+            inlineData: { mimeType: img.mimeType, data: img.data }
+        });
+    }
+
+    // Append the item list so Gemini knows what it needs to produce
+    const itemSummary = itemCards.map((card: any, i: number) => ({
+        outfit_id: i + 1,
+        item_name: card.item_name || `Outfit ${i + 1}`,
+        styling_notes: card.styling_notes || {},
+        trend_support: card.trend_support || [],
+        image_prompt_seed: card.image_prompt_seed || {},
+    }));
+    visionParts.push({ text: `\nOUTFIT ITEMS TO ANALYZE:\n${JSON.stringify(itemSummary, null, 2)}` });
+
+    let visualDNAArray: any[] = [];
+
+    try {
+        const analysisData = await fetchWithKeyRotation(apiKey, urlTemplate, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                contents: [{ parts: visionParts }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: VisualIntelligenceSchema,
+                    temperature: 0.6,
+                },
+            }),
+        });
+
+        const parsed = extractJSONData(analysisData);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+            visualDNAArray = parsed;
+            console.log(`[S2.5] Vision analysis complete. Generated ${visualDNAArray.length} VisualDNA objects.`);
+        }
+    } catch (e: any) {
+        console.warn(`[S2.5] Vision analysis failed: ${e.message}. Falling back to seed-based prompts.`);
+        // Return empty array — caller will use existing seed-based prompts
+        return [];
+    }
+
+    // ── Step D: Merge VisualDNA image_prompts back into item cards ─────────────
+    // Only overwrite where we have a valid, non-empty VisualDNA entry
+    const enrichedCards = itemCards.map((card: any, i: number) => {
+        const dna = visualDNAArray.find((d: any) => d.outfit_id === i + 1) || visualDNAArray[i];
+        if (!dna?.image_prompt) return card; // keep original if analysis failed for this item
+        return {
+            ...card,
+            visual_dna: dna, // store the full VisualDNA for downstream use
+            image_prompt_seed: {
+                ...card.image_prompt_seed,
+                outfit_description: dna.key_pieces?.join(", ") || card.image_prompt_seed?.outfit_description,
+                // Store the engineered prompt so draft stage uses it directly
+                engineered_image_prompt: dna.image_prompt,
+            },
+        };
+    });
+
+    return enrichedCards;
 }
 
 // Stage 3: Item Cards
@@ -350,6 +587,8 @@ async function executeDraftBatch(params: {
         : isLast ? `You are drafting the END of a ${totalItems}-item listicle. Generate the final ${batch.length} items and the Outro.`
         : `You are drafting a MIDDLE section of a ${totalItems}-item listicle. Generate content for ${batch.length} items.`;
 
+    const hasVisualDNA = batch.some((card: any) => card.image_prompt_seed?.engineered_image_prompt);
+
     const prompt = `
 ${instructions}
 KEYWORD: "${keyword}"
@@ -359,7 +598,10 @@ BATCH ITEMS: ${JSON.stringify(batch, null, 2)}
 OUTPUT REQUIREMENTS:
 - "title": Specific, compelling headline. NO NUMBERS.
 - "content": Exactly 3 SHORT sentences. FORMULA: Hook (tension/problem) → Meaning (logic) → Utility (action) → Direction (branding).
-- "image_prompt": ASSEMBLE the prompt using the MASTER STRUCTURE. 
+- "image_prompt": ${hasVisualDNA
+    ? `For each item: if the BATCH ITEM has an "image_prompt_seed.engineered_image_prompt" field, copy it VERBATIM as the image_prompt — do NOT modify or shorten it. If no engineered_image_prompt is present, ASSEMBLE using the MASTER STRUCTURE.`
+    : `ASSEMBLE the prompt using the MASTER STRUCTURE.`
+}
 
 Return a JSON matching the appropriate schema parts.
     `.trim();

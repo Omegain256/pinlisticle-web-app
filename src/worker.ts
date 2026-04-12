@@ -8,7 +8,8 @@ import {
     pipelineGenerateItemCards,
     pipelineDraftArticle,
     pipelineScoreEditorialQA,
-    pipelineGenerateStyleDNA
+    pipelineGenerateStyleDNA,
+    pipelineVisualIntelligence,
 } from "./lib/pipeline";
 import { generateImage } from "./lib/ai";
 
@@ -30,6 +31,7 @@ interface WorkerState {
     brief?: unknown;
     evidence_pack?: unknown;
     style_dna?: unknown;
+    visual_dna_applied?: boolean; // flag: have we run Visual Intelligence?
     item_cards?: Array<{
         image_prompt_seed: {
             subject: string;
@@ -37,7 +39,9 @@ interface WorkerState {
             shot: string;
             lighting: string;
             camera: string;
+            engineered_image_prompt?: string; // set by Visual Intelligence stage
         };
+        visual_dna?: unknown;
     }>;
     article_draft?: ArticleDraft;
     qa_score?: {
@@ -80,6 +84,11 @@ const worker = new Worker<PublishPipelineData>(
             }
             await job.updateProgress(30);
 
+            // S2.5: Visual Intelligence — placed AFTER evidence pack but BEFORE item cards.
+            // This pre-fetches and pools reference images so we have them ready for analysis.
+            // (Note: item card enrichment happens after S4 completes below.)
+            await job.updateProgress(30);
+
             // S3: Style DNA
             if (!state.style_dna && state.brief) {
                 console.log(`[Job ${job.id}] S3: Generating Style DNA...`);
@@ -97,13 +106,37 @@ const worker = new Worker<PublishPipelineData>(
             }
             await job.updateProgress(50);
 
+            // S4.5: Visual Intelligence — enriches item cards with VisualDNA from real reference images
+            if (!state.visual_dna_applied && state.item_cards && state.item_cards.length > 0) {
+                console.log(`[Job ${job.id}] S4.5: Running Visual Intelligence on ${state.item_cards.length} item cards...`);
+                try {
+                    const enriched = await pipelineVisualIntelligence(
+                        targetToken,
+                        state.item_cards,
+                        data.apiKey,
+                        state.style_dna
+                    );
+                    if (enriched && enriched.length > 0) {
+                        state.item_cards = enriched as WorkerState["item_cards"];
+                        console.log(`[Job ${job.id}] S4.5: Visual Intelligence complete — ${enriched.length} cards enriched with VisualDNA.`);
+                    }
+                } catch (visErr: unknown) {
+                    const msg = visErr instanceof Error ? visErr.message : "Unknown error";
+                    console.warn(`[Job ${job.id}] S4.5: Visual Intelligence non-fatal error: ${msg}. Continuing with seed-based prompts.`);
+                }
+                state.visual_dna_applied = true;
+                await job.updateData(data);
+            }
+            await job.updateProgress(62);
+
             // S5: Draft Article
             if (!state.article_draft && state.brief && state.item_cards && state.evidence_pack) {
                 console.log(`[Job ${job.id}] S5: Drafting Article from Cards...`);
                 state.article_draft = (await pipelineDraftArticle(targetToken, data.tone, state.brief, state.item_cards as any, state.evidence_pack, data.apiKey, data.modelPrefix)) as ArticleDraft;
                 await job.updateData(data);
             }
-            await job.updateProgress(65);
+            await job.updateProgress(75);
+
 
             // S6: Quality Assurance (soft-gate: warns but does NOT fail the job)
             if (!state.qa_score && state.article_draft && state.item_cards) {

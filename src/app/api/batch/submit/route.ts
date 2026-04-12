@@ -6,6 +6,7 @@ import {
     pipelineDraftArticle,
     pipelineScoreEditorialQA,
     pipelineGenerateStyleDNA,
+    pipelineVisualIntelligence,
 } from "@/lib/pipeline";
 import { generateImage } from "@/lib/ai";
 
@@ -65,10 +66,25 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, stage: "item_cards", error: "No item cards generated." }, { status: 500 });
         }
 
+        // ── Stage 2.5: Visual Intelligence ──────────────────────────────────────
+        // Fetch real fashion reference images, analyze with Gemini Vision,
+        // and enrich item_cards with grounded VisualDNA + precision image_prompts.
+        let enriched_item_cards = item_cards;
+        try {
+            const visualResult = await pipelineVisualIntelligence(targetKeyword, item_cards, apiKey, style_dna);
+            if (visualResult && visualResult.length > 0) {
+                enriched_item_cards = visualResult;
+                console.log(`[S2.5] Item cards enriched with Visual Intelligence.`);
+            }
+        } catch (e: any) {
+            // Visual Intelligence is fully non-fatal — pipeline continues with original cards
+            console.warn("Visual Intelligence skipped:", e.message);
+        }
+
         // ── Stage 5: Draft Article ────────────────────────────────────────────
         let article_draft: any;
         try {
-            article_draft = await pipelineDraftArticle(targetKeyword, tone || "conversational", brief, item_cards, evidence_pack, apiKey, modelPrefix || "pro");
+            article_draft = await pipelineDraftArticle(targetKeyword, tone || "conversational", brief, enriched_item_cards, evidence_pack, apiKey, modelPrefix || "pro");
         } catch (e: any) {
             return NextResponse.json({ success: false, stage: "draft", error: e.message }, { status: 500 });
         }
@@ -123,7 +139,7 @@ export async function POST(req: NextRequest) {
             success: true,
             article: article_draft,
             qa_score,
-            stages_completed: ["classify", "evidence", "style_dna", "item_cards", "draft", "qa", "images"],
+            stages_completed: ["classify", "evidence", "style_dna", "item_cards", "visual_intelligence", "draft", "qa", "images"],
         });
 
     } catch (error: any) {

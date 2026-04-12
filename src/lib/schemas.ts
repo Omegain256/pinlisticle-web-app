@@ -148,3 +148,26 @@ export const StyleDNASchema = {
   },
   required: ["article_id", "style_family", "subject_definition", "location_definition", "lighting_and_weather", "camera_and_aesthetic", "texture_and_finish", "palette_base", "realism_constraints", "diversity_rotation", "negative_prompt"]
 };
+
+// STAGE 2.5: Visual Intelligence — Per-outfit Visual DNA derived from real reference images
+export const VisualDNAItemSchema = {
+  type: "OBJECT",
+  properties: {
+    outfit_id:     { type: "INTEGER" },
+    title:         { type: "STRING" },
+    key_pieces:    { type: "ARRAY", items: { type: "STRING" } },
+    color_palette: { type: "ARRAY", items: { type: "STRING" } }, // hex codes or descriptive names
+    aesthetic:     { type: "STRING" }, // e.g. "quiet luxury, minimalist"
+    composition:   { type: "STRING" }, // e.g. "full body, street style"
+    lighting:      { type: "STRING" }, // e.g. "natural daylight, soft shadows"
+    background:    { type: "STRING" }, // e.g. "urban stone wall"
+    image_prompt:  { type: "STRING" }, // fully assembled Imagen-ready prompt
+  },
+  required: ["outfit_id", "title", "key_pieces", "color_palette", "aesthetic", "composition", "lighting", "background", "image_prompt"],
+};
+
+export const VisualIntelligenceSchema = {
+  type: "ARRAY",
+  items: VisualDNAItemSchema,
+};
+
