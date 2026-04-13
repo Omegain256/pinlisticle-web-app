@@ -196,7 +196,12 @@ const worker = new Worker<PublishPipelineData>(
                         const index = item.item_index;
                         const enriched = (state.item_cards as any[]).find((c: any) => c.item_index === index);
                         if (enriched?.web_image) {
-                            return { ...item, web_image: enriched.web_image };
+                            return { 
+                                ...item, 
+                                web_image: enriched.web_image,
+                                image_base64: enriched.web_image.imageBase64,
+                                image_prompt: enriched.image_prompt_seed?.engineered_image_prompt || item.image_prompt
+                            };
                         }
                         return item;
                     });

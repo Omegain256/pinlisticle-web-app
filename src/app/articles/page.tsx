@@ -456,12 +456,19 @@ export default function ArticlesLibrary() {
                                                                 {/* Image positioned BELOW the title */}
                                                                 <div className="w-full max-w-sm mx-auto">
                                                                     {item.image_base64 ? (
-                                                                        <div className="rounded-2xl overflow-hidden shadow-md aspect-[9/16] bg-slate-100">
-                                                                            <img
-                                                                                src={`data:image/jpeg;base64,${item.image_base64}`}
-                                                                                alt={item.title}
-                                                                                className="w-full h-full object-cover"
-                                                                            />
+                                                                        <div className="space-y-2">
+                                                                            <div className="rounded-2xl overflow-hidden shadow-md aspect-[9/16] bg-slate-100">
+                                                                                <img
+                                                                                    src={`data:image/jpeg;base64,${item.image_base64}`}
+                                                                                    alt={item.title}
+                                                                                    className="w-full h-full object-cover"
+                                                                                />
+                                                                            </div>
+                                                                            {item.web_image?.attribution && (
+                                                                                <p className="text-[10px] text-slate-400 text-right italic pr-1">
+                                                                                    Photo: {item.web_image.attribution.creditLine || item.web_image.attribution.siteName}
+                                                                                </p>
+                                                                            )}
                                                                         </div>
                                                                     ) : (
                                                                         <div className="rounded-2xl shadow-md aspect-[9/16] bg-slate-50 border border-slate-100 border-dashed flex items-center justify-center text-slate-300 text-xs text-center p-4">
