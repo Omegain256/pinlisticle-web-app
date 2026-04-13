@@ -428,22 +428,24 @@ export async function pipelineSearchImages(
     // ─── Step F: Greedy Best-Fit Fallback (Zero-Fail Policy) ────────────────
     // Ensure 100% of items have an image assigned. 
     // If the AI was too picky, we force-assign the remaining images.
-    const enrichedCards = itemCards.map((card, i) => {
-        let web_image = finalAssignments.get(i);
+    const enriched = itemCards.map((card, i) => {
+        let match = finalAssignments.get(i);
         
-        if (!web_image) {
+        if (!match) {
             console.log(`[ImgSearch] Force-assigning candidate for Item ${i} (AI was too picky)`);
             // Find any unused image or just use the pool sequentially
-            web_image = imagePool[i % imagePool.length];
+            match = imagePool[i % imagePool.length];
         }
 
         return {
             ...card,
-                mime_type: img.mimeType,
-                original_url: img.originalUrl,
-                file_size_kb: img.fileSizeKb,
-                attribution: img.attribution,
-            },
+            web_image: match ? {
+                image_base64: match.imageBase64,
+                mime_type: match.mimeType,
+                original_url: match.originalUrl,
+                file_size_kb: match.fileSizeKb,
+                attribution: match.attribution,
+            } : null
         };
     });
 
