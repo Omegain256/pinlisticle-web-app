@@ -314,36 +314,44 @@ Example: { "0": 4, "1": 0 }`;
 
 // ─── Main export: pipelineSearchImages ───────────────────────────────────────
 
-/** Uses Gemini Grounding to find image URLs specifically for one fashion item without needing Jina Search */
-async function sniperSearchKeyless(card: any, apiKey: string): Promise<ArticleImagePool[]> {
+/** Uses DuckDuckGo Image Search to directly find high-resolution raw image URLs */
+async function sniperSearchDDG(card: any): Promise<ArticleImagePool[]> {
     const query = `${card.item_name} fashion outfit blog photo`;
-    const now = new Date().toISOString().split("T")[0];
-    const urlTemplate = `${GEMINI_BASE}/${MODEL_VISION}:generateContent?key=API_KEY_PLACEHOLDER`;
-
+    
     try {
-        const searchData = await fetchWithKeyRotation(apiKey, urlTemplate, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                system_instruction: { parts: [{ text: `You are a fashion photo researcher. Today is ${now}. Find real photo image URLs for the specific garment: "${card.item_name}".` }] },
-                contents: [{ parts: [{ text: `Search for high-quality real-world outfit photos of: "${card.item_name}". Return a list of 5-10 image URLs from blogs or Pinterest in the grounding metadata.` }] }],
-                tools: [{ googleSearch: {} }],
-                generationConfig: { temperature: 0.1 },
-            }),
+        console.log(`[Sniper DDG] Fetching VQD token for: "${query}"`);
+        const vqdRes = await fetch(`https://duckduckgo.com/?q=${encodeURIComponent(query)}`, {
+            headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
         });
-
-        const metadata = searchData?.candidates?.[0]?.groundingMetadata;
-        const stringified = JSON.stringify(metadata);
-        const imageUrls = extractImagesFromMarkdown(stringified);
-
-        return imageUrls.map(url => ({
-            imageUrl: url,
-            pageUrl: "https://www.google.com/search?q=" + encodeURIComponent(query),
-            siteName: "Search Engine",
-            articleTitle: `Sniper: ${card.item_name}`
+        const html = await vqdRes.text();
+        const vqdMatch = html.match(/vqd=([\'\"]?)([^\'&\"\s]+)\1/);
+        
+        if (!vqdMatch) {
+            console.warn(`[Sniper DDG] Failed to extract VQD token for ${card.item_name}`);
+            return [];
+        }
+        
+        const vqd = vqdMatch[2];
+        console.log(`[Sniper DDG] Token acquired. Querying DDG Image Search...`);
+        
+        const imgRes = await fetch(`https://duckduckgo.com/i.js?l=us-en&o=json&q=${encodeURIComponent(query)}&vqd=${vqd}&f=,,,,,&p=1`, {
+            headers: { 
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+                "Accept": "application/json"
+            }
+        });
+        
+        const imgData = await imgRes.json();
+        const results = imgData?.results || [];
+        
+        return results.map((r: any) => ({
+            imageUrl: r.image, // The raw .jpg or .png URL
+            pageUrl: r.url,    // The source page
+            siteName: new URL(r.url).hostname.replace("www.", ""),
+            articleTitle: r.title || `Sniper: ${card.item_name}`
         }));
     } catch (e) {
-        console.warn(`[Sniper] Keyless fallback failed for ${card.item_name}:`, e);
+        console.warn(`[Sniper DDG] Search failed for ${card.item_name}:`, e);
         return [];
     }
 }
@@ -351,43 +359,32 @@ async function sniperSearchKeyless(card: any, apiKey: string): Promise<ArticleIm
 export async function pipelineSearchImages(
     keyword: string,
     itemCards: any[],
-    evidencePack: any, // Now containing article_pool
+    evidencePack: any,
     apiKey: string
 ): Promise<any[]> {
-    console.log(`[ImgSearch] Starting Vision-Powered pipeline for: "${keyword}"`);
+    console.log(`[ImgSearch] Starting pipeline for: "${keyword}"`);
 
-    // A. Use articles found during research (Evidence Pack)
-    const sources = evidencePack?.article_pool || [];
-    if (sources.length === 0) {
-        console.warn("[ImgSearch] No article pool found in evidence. Pipeline cannot proceed.");
-        return itemCards;
-    }
+    // A. Build candidate pool from article_pool in evidence pack
+    const sources: Array<{ url: string; title: string; markdown: string }> = evidencePack?.article_pool || [];
+    const allCandidates: ArticleImagePool[] = [];
 
-    // B. Build candidate pool from existing markdown
-    const allCandidates: any[] = [];
     for (const source of sources) {
-        const imageUrls = extractImagesFromMarkdown(source.markdown);
-        const sourceUrl = source.url;
-        const hostname = new URL(sourceUrl).hostname.replace("www.", "");
-        
-        const candidates = imageUrls.map(imageUrl => ({
-            imageUrl,
-            pageUrl: sourceUrl,
-            siteName: hostname,
-            articleTitle: source.title || "Fashion Article"
-        }));
-        allCandidates.push(...candidates);
+        try {
+            const imageUrls = extractImagesFromMarkdown(source.markdown);
+            const hostname = new URL(source.url).hostname.replace("www.", "");
+            imageUrls.forEach(imageUrl => allCandidates.push({
+                imageUrl,
+                pageUrl: source.url,
+                siteName: hostname,
+                articleTitle: source.title || "Fashion Article"
+            }));
+        } catch { /* skip bad URLs */ }
     }
 
-    if (allCandidates.length === 0) {
-        console.warn("[ImgSearch] No image candidates found in article pool.");
-        return itemCards;
-    }
+    console.log(`[ImgSearch] ${allCandidates.length} image candidates from ${sources.length} research articles.`);
 
-    console.log(`[ImgSearch] ${allCandidates.length} image candidates pooled from ${sources.length} research sources.`);
-
-    // C. Download + compress candidates (cap at reasonable amount for Vision)
-    const targetImageCount = Math.min(itemCards.length * 3, 12);
+    // B. Download + compress candidates
+    const targetImageCount = Math.min(itemCards.length * 3, 15);
     const imagePool: WebImage[] = [];
 
     for (const candidate of allCandidates) {
@@ -395,21 +392,20 @@ export async function pipelineSearchImages(
         const img = await downloadAndCompress(candidate);
         if (img) {
             imagePool.push(img);
-            console.log(`[ImgSearch] Pooled: ${img.attribution.siteName} — ${img.fileSizeKb}KB`);
+            console.log(`[ImgSearch] ✅ Pooled: ${img.attribution.siteName} — ${img.fileSizeKb}KB`);
         }
         await sleep(200);
     }
 
+    // C. SNIPER MODE: if article pool failed, do per-item grounding search
     if (imagePool.length === 0) {
-        console.warn("[ImgSearch] Main research pool empty. TRIGGERING KEYLESS SNIPER MODE.");
-        // Try targeted searches for each item using Gemini Grounding (Keyless)
-        for (let i = 0; i < itemCards.length; i++) {
-            if (imagePool.length >= 10) break; // cap
+        console.warn("[ImgSearch] Article pool yielded 0 images. Entering SNIPER MODE 4.0 (DuckDuckGo)...");
+        for (let i = 0; i < itemCards.length && imagePool.length < 10; i++) {
             const card = itemCards[i];
-            console.log(`[ImgSearch] Sniper search (Grounded): "${card.item_name}"`);
-            const sniperCandidates = await sniperSearchKeyless(card, apiKey);
-
-            for (const cand of sniperCandidates.slice(0, 3)) {
+            console.log(`[ImgSearch] Sniper DDG: "${card.item_name}"`);
+            const sniperCandidates = await sniperSearchDDG(card);
+            
+            for (const cand of sniperCandidates.slice(0, 4)) {
                 const img = await downloadAndCompress(cand);
                 if (img) imagePool.push(img);
             }
@@ -418,9 +414,11 @@ export async function pipelineSearchImages(
     }
 
     if (imagePool.length === 0) {
-        console.warn("[ImgSearch] Sniper mode also failed. No real images found.");
+        console.warn("[ImgSearch] ALL strategies failed — no images found. Returning items without images.");
         return itemCards;
     }
+
+    console.log(`[ImgSearch] Image pool ready: ${imagePool.length} images for ${itemCards.length} items.`);
 
     // D. Vision-powered matching
     const finalAssignments = await matchImagesToItems(itemCards, imagePool, apiKey);
