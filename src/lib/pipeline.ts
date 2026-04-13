@@ -144,7 +144,7 @@ async function fetchViaJina(pageUrl: string): Promise<string | null> {
 }
 
 /** Extract image URLs from Jina-returned markdown */
-function extractImagesFromMarkdown(markdown: string): string[] {
+export function extractImagesFromMarkdown(markdown: string): string[] {
     const urls: string[] = [];
     // Match markdown image syntax: ![alt](url)
     const mdImgs = markdown.matchAll(/!\[[^\]]*\]\((https?:\/\/[^)\s?#]+(?:[^)\s]*))\)/g);
@@ -219,7 +219,7 @@ export async function pipelineSearchEvidence(keyword: string, briefJson: any, ap
 
     // ── Step B: Deep-read top 4 articles via Jina AI Reader (free) ────────────
     const MAX_PAGES = 4;
-    const articleContents: Array<{ url: string; markdown: string }> = [];
+    const articleContents: Array<{ url: string; title: string, markdown: string }> = [];
     let allReferenceImageUrls: string[] = [];
 
     // If grounded search found no URLs, use a direct Jina search on key fashion sites

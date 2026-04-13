@@ -15,35 +15,13 @@
  */
 
 import { fetchWithKeyRotation } from "./ai";
+import { extractImagesFromMarkdown } from "./pipeline";
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const JINA_BASE = "https://r.jina.ai/";
 const MODEL_VISION = "gemini-1.5-flash"; // Stable Vision capabilities
 
-// Reuse extraction logic from pipeline.ts for consistency
-function extractImagesFromMarkdown(markdown: string): string[] {
-    const urls: string[] = [];
-    // Match markdown image syntax: ![alt](url)
-    const mdImgs = markdown.matchAll(/!\[[^\]]*\]\((https?:\/\/[^)\s?#]+(?:[^)\s]*))\)/g);
-    for (const m of mdImgs) {
-        const url = m[1];
-        if (/\.(jpg|jpeg|png|webp|avif)/i.test(url)) urls.push(url);
-    }
 
-    // Match Pinterest image CDN
-    const pinImgs = markdown.matchAll(/https?:\/\/i\.pinimg\.com\/[^\s"')]+\.(?:jpg|jpeg|png|webp)/gi);
-    for (const m of pinImgs) urls.push(m[0]);
-
-    // Match generic fashion CDN patterns
-    const cdnImgs = markdown.matchAll(/https?:\/\/[^\s"')(]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"')(]*)?/gi);
-    for (const m of cdnImgs) urls.push(m[0]);
-
-    // Match common lazy-load patterns
-    const lazyImgs = markdown.matchAll(/(?:data-src|data-lazy|data-original|data-srcset)=["'](https?:\/\/[^\s"']+)["']/gi);
-    for (const m of lazyImgs) urls.push(m[1]);
-
-    return [...new Set(urls)];
-}
 
 // Fashion article sources ranked by content quality
 const IMAGE_SOURCE_PRIORITY = [

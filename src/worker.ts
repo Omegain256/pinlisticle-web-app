@@ -161,7 +161,7 @@ const worker = new Worker<PublishPipelineData>(
                 console.log(`[Job ${job.id}] S5: Drafting Article from Cards...`);
                 // STRIP HEAVY DATA: remove base64 strings before sending to LLM for writing
                 const strippedCards = stripHeavyData(state.item_cards);
-                state.article_draft = (await pipelineDraftArticle(targetToken, data.tone, state.brief, strippedCards as any, state.evidence_pack, data.apiKey, data.modelPrefix)) as ArticleDraft;
+                state.article_draft = (await pipelineDraftArticle(targetToken, data.tone, state.brief, strippedCards as any, state.evidence_pack, data.apiKey, data.modelPrefix)) as any;
                 await job.updateData(data);
             }
             await job.updateProgress(75);
@@ -187,9 +187,9 @@ const worker = new Worker<PublishPipelineData>(
             await job.updateProgress(80);
 
             // S7: Images Generation
-            const useWebImages = (data as any).imageMode === "web";
+            const useWebImagesLocal = (data as any).imageMode === "web";
 
-            if (useWebImages) {
+            if (useWebImagesLocal) {
                 console.log(`[Job ${job.id}] S7: Stitching Web Images via item_index...`);
                 if (state.article_draft?.listicle_items && state.item_cards) {
                     state.article_draft.listicle_items = state.article_draft.listicle_items.map((item: any) => {
