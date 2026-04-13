@@ -7,17 +7,25 @@ const originalFetch = global.fetch;
 global.fetch = async (url: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const urlStr = url.toString();
 
-    // Let all DDG traffic through, there is no AI matching anymore!
+    // Let DDG search through natively
+    if (urlStr.includes('duckduckgo')) return originalFetch(url, init);
+
+    // Mock Gemini Vision Verification
+    if (urlStr.includes('gemini-1.5-flash:generateContent')) {
+        // Always pick image at index 1 for the demo, showing it works!
+        return new Response(JSON.stringify({
+            candidates: [{ content: { parts: [{ text: "1" }] } }]
+        }), { status: 200, headers: new Headers({ 'content-type': 'application/json' }) });
+    }
+
     return originalFetch(url, init);
 };
 
 async function runDemo() {
-    console.log("🚀 Running Sniper 5.0 Local Test (1:1 Native Resolution)...\n");
+    console.log("🚀 Running Sniper 5.1 Local Test (Targeted DDG + Vision Verification)...\n");
 
     const itemCards = [
-        { item_index: 0, item_name: "Trench Coat outfit", styling_notes: "..." },
-        { item_index: 1, item_name: "Denim tank top", styling_notes: "..." },
-        { item_index: 2, item_name: "Trench Coat outfit", styling_notes: "..." }, // duplicate name to test deduplication!
+        { item_index: 0, item_name: "Silk Bias-Cut Midi Dress with Sneakers", styling_notes: "..." },
     ];
 
     // Intentionally pass an empty article_pool to force SNIPER DDG to run

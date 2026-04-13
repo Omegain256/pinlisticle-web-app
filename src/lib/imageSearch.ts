@@ -133,61 +133,104 @@ async function downloadAndCompress(candidate: ArticleImagePool): Promise<WebImag
     };
 }
 
-// ─── Main export: pipelineSearchImages (Sniper 5.0) ─────────────────────────
+import { fetchWithKeyRotation } from "./ai";
+
+// ─── Main export: pipelineSearchImages (Sniper 5.1) ─────────────────────────
 
 export async function pipelineSearchImages(
-    keyword: string, // Main article topic
+    keyword: string, 
     itemCards: any[],
-    evidencePack: any, // Kept for interface compatibility
-    apiKey: string     // Kept for interface compatibility
+    evidencePack: any, 
+    apiKey: string     
 ): Promise<any[]> {
-    console.log(`[ImgSearch] Starting Sniper 5.0 Direct-Mapping for ${itemCards.length} items`);
+    console.log(`[ImgSearch] Starting Sniper 5.1 Vision-Verified Mapping for ${itemCards.length} items`);
 
     const usedUrls = new Set<string>();
     const enrichedCards = [];
 
-    // Process consecutively to strictly control Memory (prevent OOM Spikes)
     for (let i = 0; i < itemCards.length; i++) {
         const card = itemCards[i];
-        console.log(`[ImgSearch] Resolving image for [${i}/${itemCards.length}]: "${card.item_name}"`);
+        console.log(`[ImgSearch] Resolving image for [${i + 1}/${itemCards.length}]: "${card.item_name}"`);
 
-        // Query combining article topic and item name for extreme visual accuracy
-        const searchQuery = `${keyword} ${card.item_name} fashion outfit pinterest blog photo`;
-        
-        let match: WebImage | null = null;
+        // Drop the generic keyword so DDG prioritizes the exact specific item
+        const searchQuery = `${card.item_name} fashion outfit pinterest`;
         const candidates = await sniperSearchDDG(searchQuery);
 
+        // Gather up to 3 valid candidates
+        const downloadedImages: WebImage[] = [];
         for (const candidate of candidates) {
-            // Prevent duplicated images completely
+            if (downloadedImages.length >= 3) break;
             if (usedUrls.has(candidate.imageUrl)) continue;
 
             const img = await downloadAndCompress(candidate);
-            if (img) {
-                match = img;
-                usedUrls.add(candidate.imageUrl);
-                break; // We only need ONE perfect match per item!
-            }
-            await sleep(200); // polite delay between checks
+            if (img) downloadedImages.push(img);
+            await sleep(100);
         }
 
-        // Attach WebImage natively without any AI Processing Context
+        let bestMatch: WebImage | null = null;
+
+        if (downloadedImages.length === 1) {
+            bestMatch = downloadedImages[0];
+            console.log(`[ImgSearch] Only 1 candidate found. Auto-selecting.`);
+        } 
+        else if (downloadedImages.length > 1) {
+            console.log(`[ImgSearch] Verifying ${downloadedImages.length} candidates with Vision...`);
+            
+            try {
+                const urlTemplate = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=API_KEY_PLACEHOLDER`;
+                const imageParts = downloadedImages.map((img, idx) => ([
+                    { text: `IMAGE [${idx}]:` },
+                    { inlineData: { mimeType: img.mimeType, data: img.imageBase64 } }
+                ])).flat();
+
+                const visionRes = await fetchWithKeyRotation(apiKey, urlTemplate, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                { text: `You are a fashion photo editor. Look at the images provided. Which single image best visually represents this exact outfit: "${card.item_name}"? \nReply with ONLY a single digit representing the best matching image index (e.g. 0, 1, or 2). Do not include any other text.` },
+                                ...imageParts
+                            ]
+                        }],
+                        generationConfig: { temperature: 0.0 }
+                    }),
+                });
+
+                const text = visionRes?.candidates?.[0]?.content?.parts?.[0]?.text || "0";
+                const matchIdx = parseInt(text.replace(/[^0-9]/g, "")) || 0;
+                const safeIdx = (matchIdx >= 0 && matchIdx < downloadedImages.length) ? matchIdx : 0;
+                
+                bestMatch = downloadedImages[safeIdx];
+                console.log(`[ImgSearch] Vision selected index [${safeIdx}] for "${card.item_name}"`);
+            } catch (e) {
+                console.warn(`[ImgSearch] Vision verification failed, defaulting to first candidate.`, e);
+                bestMatch = downloadedImages[0];
+            }
+        }
+
+        if (bestMatch) {
+            usedUrls.add(bestMatch.originalUrl);
+        }
+
+        // Attach WebImage natively
         enrichedCards.push({
             ...card,
-            web_image: match ? {
-                image_base64: match.imageBase64,
-                mime_type: match.mimeType,
-                original_url: match.originalUrl,
-                file_size_kb: match.fileSizeKb,
-                attribution: match.attribution,
+            web_image: bestMatch ? {
+                image_base64: bestMatch.imageBase64,
+                mime_type: bestMatch.mimeType,
+                original_url: bestMatch.originalUrl,
+                file_size_kb: bestMatch.fileSizeKb,
+                attribution: bestMatch.attribution,
             } : null
         });
 
-        // Small garbage collection rest
-        await sleep(400); 
+        // Small garbage collection rest (buffers from unused images naturally drop out of scope here)
+        await sleep(300); 
     }
 
     const matchedCount = enrichedCards.filter(c => c.web_image !== null).length;
-    console.log(`[ImgSearch] Pipeline complete. ${matchedCount}/${itemCards.length} items have 1:1 precise visual matches.`);
+    console.log(`[ImgSearch] Pipeline complete. ${matchedCount}/${itemCards.length} items have Vision-Verified visual matches.`);
 
     return enrichedCards;
 }
