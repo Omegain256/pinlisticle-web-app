@@ -452,23 +452,28 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
                 : `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predict?key=${key}`;
 
             try {
-                let parts: any[] = [{ text: prompt }];
+                const NEGATIVE_PROMPT = "editorial fashion shoot, studio lighting, DSLR bokeh, cinematic color grading, beauty filter skin, plastic skin, waxy face, overly airbrushed texture, CGI smoothness, unrealistic symmetry, uncanny eyes, warped hands, extra fingers, duplicate limbs, broken wrists, distorted reflection, incorrect mirror geometry, floating feet, fake shadows, exaggerated curves, unrealistic body proportions, over-sharpened pores, fake fabric sheen, unnatural hair, perfect showroom interior, surreal luxury bedroom, overexposed whites, crushed shadows, extreme HDR halos, glossy skin, anime features, doll-like face";
+                const hardenedPrompt = `${prompt}\n\nNegative prompt: ${NEGATIVE_PROMPT}`;
+
+                let parts: any[] = [{ text: hardenedPrompt }];
 
                 if (isNanoBanana && referenceImages && referenceImages.length > 0) {
                     parts = [
                         { text: "STRICT SHOT MATRIX CONSTRAINT. You must draw exactly the environments and subjects shown in the attached reference images. Character C1 and Environment E4 must be meticulously adhered to." },
                         ...referenceImages.map(img => ({ inlineData: { mimeType: img.mimeType, data: img.data } })),
-                        { text: prompt }
+                        { text: hardenedPrompt }
                     ];
                 }
 
                 const body = isNanoBanana
                     ? JSON.stringify({
                         contents: [{ parts }],
-                        generationConfig: { responseModalities: ["IMAGE", "TEXT"] }
+                        generationConfig: { 
+                            responseModalities: ["IMAGE", "TEXT"],
+                        }
                     })
                     : JSON.stringify({
-                        instances: [{ prompt }],
+                        instances: [{ prompt: hardenedPrompt }],
                         parameters: { sampleCount: 1, aspectRatio: "9:16", outputOptions: { mimeType: "image/jpeg" } }
                     });
 

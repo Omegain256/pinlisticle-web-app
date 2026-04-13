@@ -9,11 +9,12 @@ export const TopicClassificationSchema = {
     niche: { type: "STRING", enum: ["fashion", "home-decor", "beauty", "food", "travel", "wellness", "diy", "parenting"] },
     search_intent: { type: "STRING", enum: ["inspirational", "informational", "transactional", "mixed"] },
     recommended_article_archetype: { type: "STRING", enum: ["wearable-ideas", "mistakes-to-avoid", "capsule-wardrobe", "budget-vs-elevated", "occasion-based", "trend-explainer", "body-aware", "weather-specific"] },
+    style_archetype: { type: "STRING", enum: ["casual", "luxury", "sporty"] },
     recommended_list_length: { type: "INTEGER" },
     seasonality_notes: { type: "STRING" },
     risk_flags: { type: "ARRAY", items: { type: "STRING" } }
   },
-  required: ["topic_type", "freshness_tier", "niche", "search_intent", "recommended_article_archetype", "recommended_list_length", "seasonality_notes", "risk_flags"]
+  required: ["topic_type", "freshness_tier", "niche", "search_intent", "recommended_article_archetype", "style_archetype", "recommended_list_length", "seasonality_notes", "risk_flags"]
 };
 
 // STAGE 2: Web Research Evidence Pack
@@ -161,9 +162,11 @@ export const VisualDNAItemSchema = {
     aesthetic:     { type: "STRING" }, // e.g. "quiet luxury, minimalist"
     composition:   { type: "STRING" }, // e.g. "full body, street style"
     lighting:      { type: "STRING" }, // e.g. "natural daylight, soft shadows"
+    phone_color:   { type: "STRING", enum: ["White Titanium", "Desert Titanium"] },
+    pose:          { type: "STRING" }, // natural stance description
     image_prompt:  { type: "STRING" }, // fully assembled Imagen-ready prompt
   },
-  required: ["outfit_id", "title", "key_pieces", "color_palette", "aesthetic", "composition", "lighting", "image_prompt"],
+  required: ["outfit_id", "title", "key_pieces", "color_palette", "aesthetic", "composition", "lighting", "phone_color", "pose", "image_prompt"],
 };
 
 export const VisualIntelligenceSchema = {

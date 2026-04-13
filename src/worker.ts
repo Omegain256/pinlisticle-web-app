@@ -140,7 +140,7 @@ const worker = new Worker<PublishPipelineData>(
                     const evidencePack = state.evidence_pack as any;
                     const referenceImgUrls: string[] = evidencePack?.reference_image_urls ?? [];
                     const enriched = await pipelineVisualIntelligence(
-                        targetToken, state.item_cards, data.apiKey, state.style_dna, referenceImgUrls,
+                        targetToken, state.item_cards, data.apiKey, state.style_dna, referenceImgUrls, state.brief
                     );
                     if (enriched && enriched.length > 0) {
                         state.item_cards = enriched as WorkerState["item_cards"];

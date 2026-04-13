@@ -79,6 +79,7 @@ export async function pipelineClassifyTopic(keyword: string, apiKey: string) {
     1. Identify the core "Wardrobe Tension" or "Problem" behind this keyword.
     2. Determine the "Style Logic" required to solve it.
     3. Define the "Reader Outcome" (how they feel more capable).
+    4. Categorize the style archetype as "casual", "luxury", or "sporty".
     
     Return a JSON brief.`;
     const prompt = `Classify this keyword/topic: "${keyword}". Identify the real-life wardrobe problem it solves.`;
@@ -463,6 +464,7 @@ export async function pipelineVisualIntelligence(
     apiKey: string,
     styleDNA?: any,
     referenceImageUrlsFromEvidence: string[] = [],
+    briefJson?: any,
 ): Promise<any[]> {
     const modelId = resolveModelId("lite", true); // flash is sufficient for vision
     const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
@@ -528,34 +530,50 @@ export async function pipelineVisualIntelligence(
 
     console.log(`[S4.5] Successfully fetched ${validImages.length}/${MAX_IMAGES} reference images.`);
 
-    // ── Step C: Build VisualDNA for all items in a single Gemini Vision call ───
-    const visionParts: any[] = [];
-
+    // ── Step C: Template selection for iPhone 16 Pro ──────────────────────────
+    const archetype = (briefJson?.style_archetype || "casual").toLowerCase();
+    
     const C1_IDENTITY = "Character C1 (female model, middle-parted deep brunette hair, hazel-brown eyes, prominent high cheekbones, natural fair skin texture)";
-    const E4_ENVIRONMENT = "Environment E4 (Thestoneset Scene 1: premium minimal white studio, flat matte white background, soft architectural side-lighting)";
+    const E4_ENVIRONMENT = "Environment E4 (tidy minimalist bedroom, white walls, light oak wood floors, a neatly made low bed with white duvet, and a monstera plant in the corner)";
+
+    const TEMPLATES = {
+        casual: `Full-body mirror selfie of ${C1_IDENTITY} modeling a casual everyday outfit, captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16.
+She is standing in ${E4_ENVIRONMENT}, in front of a thin-framed floor mirror. The framing is straight-on at chest height with a realistic handheld phone perspective and subtle wide-angle smartphone distortion.
+Lighting is soft afternoon daylight from a window off-camera, creating a natural Smart HDR 5 iPhone look.
+She is wearing [OUTFIT] and holding a [PHONE_COLOR] iPhone 16 Pro. Her pose is [POSE].
+Keep the image looking like a real social media outfit mirror selfie, not studio fashion photography. Preserve realistic skin texture, accurate hands, believable hair strands, true mirror reflection geometry, grounded feet, and natural fabric folds.`,
+        
+        luxury: `Full-body mirror selfie of ${C1_IDENTITY} modeling a quiet luxury outfit, captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16.
+She is standing in ${E4_ENVIRONMENT}, in front of a thin-framed floor mirror. The framing is centered and natural at chest height with subtle wide-angle smartphone perspective.
+Lighting is soft, clean afternoon daylight from a window outside the frame, creating a realistic Smart HDR 5 iPhone rendering.
+She is wearing [OUTFIT] and holding a [PHONE_COLOR] iPhone 16 Pro. Her pose is [POSE].
+The result should feel like a genuine high-end personal outfit post, not editorial fashion photography. Preserve realistic skin texture, natural facial asymmetry, accurate hands, believable fabric drape, true mirror reflections, and subtle real-world imperfections.`,
+        
+        sporty: `Full-body mirror selfie of ${C1_IDENTITY} modeling a sporty streetwear outfit, captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16.
+She is standing in ${E4_ENVIRONMENT}, in front of a thin-framed floor mirror. The framing is slightly casual and handheld at chest height with realistic smartphone perspective.
+Lighting is soft daytime window light from off-camera, creating a realistic Smart HDR 5 iPhone look.
+She is wearing [OUTFIT] and holding a [PHONE_COLOR] iPhone 16 Pro. Her pose is [POSE].
+Keep the result looking like a real mirror selfie taken for social media, not a commercial campaign. Preserve realistic skin texture, accurate hand anatomy, believable sneaker materials, natural hoodie and nylon fabric folds, true mirror reflection geometry, and grounded feet.`
+    };
+
+    const activeTemplate = TEMPLATES[archetype as keyof typeof TEMPLATES] || TEMPLATES.casual;
+
+    // ── Step D: Build VisualDNA for all items in a single Gemini Vision call ───
+    const visionParts: any[] = [];
 
     const systemText = `You are a professional fashion photo analyst and AI image prompt engineer.
 STRICT SHOT MATRIX COMPLIANCE (MANDATORY):
 - SUBJECT: Always use ${C1_IDENTITY}. NO IDENTITY DRIFTING.
-- ENVIRONMENT: Always use ${E4_ENVIRONMENT}. NO ENVIRONMENTAL DRIFTING. Ignore all evidence pack location mentions.
-- COMPOSITION: Always use "Full-length editorial, shoes-to-crown frame, standing straight, front view (Pose P1, Angle A1)".
+- ENVIRONMENT: Always use ${E4_ENVIRONMENT}.
+- MIRROR: Mirror frame must be clearly visible in every single shot.
+- OUTFIT: Specific styling derived from reference images.
 
 RULES FOR EACH FIELD:
-- key_pieces: Name EXACT garments with fabric (e.g. "cream ribbed linen wide-leg trousers").
-- color_palette: 2-4 specific hex codes or precise color names.
-- aesthetic: 1-3 precise mood tags (e.g. "minimalist Parisian").
-- lighting: "Cinematic top-lighting matching Environment E4".
+- phone_color: Rotate between "White Titanium" and "Desert Titanium" to keep the set feeling dynamic.
+- pose: Accurate descriptions: "relaxed stance, weight on one leg", "casual stance, angled hips", or "easy mirror-selfie stance". 
 - image_prompt: Assemble as:
-  "Full-length editorial fashion photograph of ${C1_IDENTITY} in ${E4_ENVIRONMENT}. Standing straight, front (P1, A1). 
-   Wearing [key_pieces — listed individually]. 
-   [lighting]. [aesthetic] mood. Shot on Sony A7RV with 85mm f/1.4 lens.
-   Photorealistic, 4K UHD, 35mm film texture, visible pores, no AI artifacts, no text."
-
-SHOT MATRIX RULE (apply strictly across all outfits):
-Subject: ${C1_IDENTITY}. NO IDENTITY DRIFTING.
-Environment: ${E4_ENVIRONMENT}. NO ENVIRONMENTAL DRIFTING. Do not introduce furniture, plants, windows, or alternate settings.
-Pose / Angle: Pose ID P1 (Standing straight, front), Angle ID A1 (Full body, head-to-toe).
-Outfit: Adapt the layers to fit naturally onto ${C1_IDENTITY} in ${E4_ENVIRONMENT}.
+${activeTemplate}
+...where [OUTFIT] is a specific description of the garments, [PHONE_COLOR] is the assigned color, and [POSE] is the pose described above.
 
 RETURN ONLY a raw JSON array with exactly ${itemCount} VisualDNA objects. No markdown, no code fences, no extra text.`;
 

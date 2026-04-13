@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
             try {
                 const referenceImgUrls: string[] = evidence_pack?.reference_image_urls ?? [];
                 const visualResult = await pipelineVisualIntelligence(
-                    targetKeyword, item_cards, apiKey, style_dna, referenceImgUrls
+                    targetKeyword, item_cards, apiKey, style_dna, referenceImgUrls, brief
                 );
                 if (visualResult && visualResult.length > 0) {
                     enriched_item_cards = visualResult;
