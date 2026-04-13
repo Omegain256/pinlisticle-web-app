@@ -199,7 +199,7 @@ const worker = new Worker<PublishPipelineData>(
                             return { 
                                 ...item, 
                                 web_image: enriched.web_image,
-                                image_base64: enriched.web_image.imageBase64,
+                                image_base64: enriched.web_image.image_base64 || (enriched.web_image as any).imageBase64,
                                 image_prompt: enriched.image_prompt_seed?.engineered_image_prompt || item.image_prompt
                             };
                         }

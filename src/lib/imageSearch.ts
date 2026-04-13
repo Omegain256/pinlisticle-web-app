@@ -152,26 +152,45 @@ async function downloadAndCompress(candidate: ArticleImagePool): Promise<WebImag
             const timer = setTimeout(() => controller.abort(), 10000);
             const res = await fetch(`${JINA_BASE}${imageUrl}`, {
                 signal: controller.signal,
-                headers: { "Accept": "image/webp,image/apng,image/*,*/*;q=0.8" },
+                headers: {
+                    "Accept": "text/markdown, image/webp, image/*, */*",
+                    "X-Return-Format": "markdown",
+                },
             });
             clearTimeout(timer);
             if (res.ok) {
-                const ct = res.headers.get("content-type") || "image/jpeg";
+                const ct = res.headers.get("content-type") || "";
+                
+                // Case A: Jina returned an image directly
                 if (ct.startsWith("image/")) {
                     const buf = await res.arrayBuffer();
-                    if (buf.byteLength > 20000) {
+                    if (buf.byteLength > 15000) { // Slightly lower threshold for web mode
                         imageBuffer = Buffer.from(buf);
                         mimeType = ct.split(";")[0];
+                    }
+                } 
+                // Case B: Jina returned markdown (e.g. from Pinterest Pin page)
+                else {
+                    const markdown = await res.text();
+                    const extracted = extractImagesFromMarkdown(markdown);
+                    if (extracted.length > 0) {
+                        // Recurse once with the direct URL
+                        return await downloadAndCompress({
+                            imageUrl: extracted[0],
+                            pageUrl,
+                            siteName,
+                            articleTitle
+                        });
                     }
                 }
             }
         } catch {
-            // Jina proxy failed, try direct fetch
+            // Direct fetch fallback for images...
             try {
                 const res = await fetch(imageUrl, {
                     headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36" }
                 });
-                if (res.ok) {
+                if (res.ok && res.headers.get("content-type")?.startsWith("image/")) {
                     const buf = await res.arrayBuffer();
                     imageBuffer = Buffer.from(buf);
                     mimeType = res.headers.get("content-type")?.split(";")[0] || "image/jpeg";
@@ -404,16 +423,22 @@ export async function pipelineSearchImages(
     }
 
     // D. Vision-powered matching
-    const assignments = await matchImagesToItems(itemCards, imagePool, apiKey);
+    const finalAssignments = await matchImagesToItems(itemCards, imagePool, apiKey);
 
-    // E. Merge web images into item cards
-    const enriched = itemCards.map((card: any, i: number) => {
-        const img = assignments.get(i);
-        if (!img) return card;
+    // ─── Step F: Greedy Best-Fit Fallback (Zero-Fail Policy) ────────────────
+    // Ensure 100% of items have an image assigned. 
+    // If the AI was too picky, we force-assign the remaining images.
+    const enrichedCards = itemCards.map((card, i) => {
+        let web_image = finalAssignments.get(i);
+        
+        if (!web_image) {
+            console.log(`[ImgSearch] Force-assigning candidate for Item ${i} (AI was too picky)`);
+            // Find any unused image or just use the pool sequentially
+            web_image = imagePool[i % imagePool.length];
+        }
+
         return {
             ...card,
-            web_image: {
-                image_base64: img.imageBase64,
                 mime_type: img.mimeType,
                 original_url: img.originalUrl,
                 file_size_kb: img.fileSizeKb,

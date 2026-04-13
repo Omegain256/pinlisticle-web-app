@@ -201,7 +201,17 @@ export function extractImagesFromMarkdown(markdown: string): string[] {
     const paramImgs = markdown.matchAll(/https?:\/\/[^\s"')(]+\.[a-z0-9]{2,5}(?:\?[^\s"')(]*?(?:format|width|height|width|resize)=[^&"'\s]+)/gi);
     for (const m of paramImgs) urls.push(m[0]);
 
-    return [...new Set(urls)].slice(0, 40); // Increased cap to 40 for higher vision pool
+    // Pinterest Pin resolver: if a pin URL is found, we should ideally visit it
+    // For now, extract potential image IDs from the URL and guestimate CDN URLs
+    const pinIds = markdown.matchAll(/pinterest\.com\/pin\/(\d+)/gi);
+    for (const m of pinIds) {
+        const pinId = m[1];
+        // We know standard Pinterest structure: originals/xx/yy/zz/...
+        // But better is to just add the PIN URL to the list and let the sniper handle it
+        urls.push(`https://www.pinterest.com/pin/${pinId}/`);
+    }
+
+    return [...new Set(urls)].slice(0, 60); // Even higher cap for Zero-Fail
 }
 
 /** Extract page URLs from Gemini groundingChunks and rank by fashion source priority */
