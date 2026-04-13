@@ -42,7 +42,8 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 async function findCompetitorArticleUrls(keyword: string, apiKey: string): Promise<string[]> {
     const urlTemplate = `${GEMINI_BASE}/${MODEL_FLASH}:generateContent?key=API_KEY_PLACEHOLDER`;
-    const searchQuery = `"${keyword}" outfit ideas blog 2026`;
+    // Broaden query: remove strict quotes and allow 2025-2026 range
+    const searchQuery = `${keyword} outfit ideas editorial blog 2025 2026`;
 
     try {
         const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
@@ -138,29 +139,26 @@ async function extractImagesFromArticle(pageUrl: string): Promise<ArticleImagePo
 
             const imageUrls: string[] = [];
 
-            // Markdown image syntax: ![alt](url)
-            const mdImgs = markdown.matchAll(/!\[[^\]]*\]\((https?:\/\/[^)]+)\)/g);
+            // Match markdown image syntax: ![alt](url)
+            const mdImgs = markdown.matchAll(/!\[[^\]]*\]\((https?:\/\/[^)\s?#]+(?:[^)\s]*))\)/g);
             for (const m of mdImgs) {
                 const url = m[1];
-                if (/\.(jpg|jpeg|png|webp)/i.test(url) && !url.includes("logo") && !url.includes("icon") && !url.includes("avatar")) {
-                    imageUrls.push(url);
-                }
+                if (/\.(jpg|jpeg|png|webp|avif)/i.test(url)) imageUrls.push(url);
             }
 
-            // Pinterest CDN (pinimg.com) inline URLs
-            const pinImgs = markdown.matchAll(/https?:\/\/i\.pinimg\.com\/[^\s"')]+/g);
+            // Match Pinterest image CDN
+            const pinImgs = markdown.matchAll(/https?:\/\/i\.pinimg\.com\/[^\s"')]+\.(?:jpg|jpeg|png|webp)/gi);
             for (const m of pinImgs) imageUrls.push(m[0]);
 
-            // Generic image CDN patterns
-            const cdnImgs = markdown.matchAll(/https?:\/\/[^\s"')]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"')]*)?/gi);
-            for (const m of cdnImgs) {
-                const url = m[0];
-                if (!url.includes("logo") && !url.includes("icon") && !url.includes("banner") && !url.includes("avatar")) {
-                    imageUrls.push(url);
-                }
-            }
+            // Match generic fashion CDN patterns with optional query params (ignoring trailing parens)
+            const cdnImgs = markdown.matchAll(/https?:\/\/[^\s"')(]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"')(]*)?/gi);
+            for (const m of cdnImgs) imageUrls.push(m[0]);
 
-            const deduped = [...new Set(imageUrls)].slice(0, 8);
+            // Match common lazy-load patterns (data-src, data-original) found in markdown as plain text
+            const lazyImgs = markdown.matchAll(/(?:data-src|data-lazy|data-original)=["'](https?:\/\/[^\s"']+)["']/gi);
+            for (const m of lazyImgs) imageUrls.push(m[1]);
+
+            const deduped = [...new Set(imageUrls)].filter(url => !url.includes("logo") && !url.includes("icon") && !url.includes("banner") && !url.includes("avatar")).slice(0, 8);
             console.log(`[ImgSearch] Jina: ${deduped.length} images from ${hostname}`);
 
             return deduped.map(imageUrl => ({
@@ -357,8 +355,10 @@ export async function pipelineSearchImages(
     // B. Read articles + extract image candidates
     const allCandidates: ArticleImagePool[] = [];
     for (const url of articleUrls) {
-        const candidates = await extractImagesFromArticle(url);
-        allCandidates.push(...candidates);
+        console.log(`[ImgSearch] Extracting from ${url.slice(0, 40)}...`);
+        const extracted = await extractImagesFromArticle(url);
+        allCandidates.push(...extracted);
+        console.log(`[ImgSearch] Found ${extracted.length} images from source.`);
         await sleep(400);
         if (allCandidates.length >= 20) break; // cap total candidates
     }

@@ -158,7 +158,9 @@ const worker = new Worker<PublishPipelineData>(
             // S5: Draft Article
             if (!state.article_draft && state.brief && state.item_cards && state.evidence_pack) {
                 console.log(`[Job ${job.id}] S5: Drafting Article from Cards...`);
-                state.article_draft = (await pipelineDraftArticle(targetToken, data.tone, state.brief, state.item_cards as any, state.evidence_pack, data.apiKey, data.modelPrefix)) as ArticleDraft;
+                // STRIP HEAVY DATA: remove base64 strings before sending to LLM for writing
+                const strippedCards = stripHeavyData(state.item_cards);
+                state.article_draft = (await pipelineDraftArticle(targetToken, data.tone, state.brief, strippedCards as any, state.evidence_pack, data.apiKey, data.modelPrefix)) as ArticleDraft;
                 await job.updateData(data);
             }
             await job.updateProgress(75);

@@ -113,13 +113,22 @@ export function buildArticleHtml(data: GeneratedArticle["data"], amazonTag?: str
         // 2. Image (priority: WP uploaded > web_image with attribution > AI-generated base64)
         if (item.wp_attachment_id && item.wp_source_url) {
             html += `<!-- wp:image {"id":${item.wp_attachment_id},"sizeSlug":"large","linkDestination":"none","className":"pinlisticle-item-img"} -->\n<figure class="wp-block-image size-large pinlisticle-item-img"><img src="${item.wp_source_url}" alt="${item.title}" class="wp-image-${item.wp_attachment_id}"/></figure>\n<!-- /wp:image -->\n`;
-        } else if (item.web_image?.image_base64) {
+        } else if (item.web_image) {
             // Web image: render with attribution figcaption
+            const imgData = item.web_image.image_base64;
+            const fallbackUrl = item.web_image.attribution?.sourceUrl || item.web_image.original_url;
             const mimeType = item.web_image.mime_type || "image/jpeg";
-            const credit = item.web_image.attribution?.creditLine || "";
+            const credit = item.web_image.attribution?.creditLine || item.web_image.attribution?.siteName || "";
+
             html += `<!-- wp:html -->\n`;
             html += `<figure class="wp-block-image pinlisticle-item-img" style="margin-bottom:0.5rem">\n`;
-            html += `  <img src="data:${mimeType};base64,${item.web_image.image_base64}" alt="${item.title}" style="width:100%;height:auto;display:block;"/>\n`;
+            if (imgData && imgData !== "[STRIPPED_FOR_LLM]") {
+                html += `  <img src="data:${mimeType};base64,${imgData}" alt="${item.title}" style="width:100%;height:auto;display:block;"/>\n`;
+            } else if (fallbackUrl) {
+                // Warning: some sources block hotlinking, but better than nothing for preview
+                html += `  <img src="${fallbackUrl}" alt="${item.title}" style="width:100%;height:auto;display:block;opacity:0.6;"/>\n`;
+                html += `  <p style="font-size:0.6rem;color:red;">[Preview Only - Real Photo Delayed]</p>\n`;
+            }
             if (credit) {
                 html += `  <figcaption style="font-size:0.7rem;color:#888;margin-top:0.25rem;text-align:right;">${credit}</figcaption>\n`;
             }
