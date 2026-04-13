@@ -358,6 +358,8 @@ export async function getShotMatrixReferences(): Promise<ImageReference[]> {
 
             loadLocal('c1_model/face.jpeg', 'image/jpeg');
             loadLocal('c1_model/full_body.png', 'image/png');
+            loadLocal('c1_model/Model 1 Facial Features.png', 'image/png');
+            loadLocal('c1_model/Model 1 Side By Side.png', 'image/png');
             loadLocal('e4_scene.jpeg', 'image/jpeg');
         } else {
             // Client-side fetch

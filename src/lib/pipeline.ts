@@ -531,8 +531,8 @@ export async function pipelineVisualIntelligence(
     // ── Step C: Build VisualDNA for all items in a single Gemini Vision call ───
     const visionParts: any[] = [];
 
-    const C1_IDENTITY = "Character C1 (female model, sharp editorial features, pulled-back blonde hair, high cheekbones, natural skin texture)";
-    const E4_ENVIRONMENT = "Environment E4 (sterile neutral-toned brutalist studio, polished limestone floors, flat gray walls, minimalist cinematic top-lighting)";
+    const C1_IDENTITY = "Character C1 (female model, middle-parted deep brunette hair, hazel-brown eyes, prominent high cheekbones, natural fair skin texture)";
+    const E4_ENVIRONMENT = "Environment E4 (Thestoneset Scene 1: premium minimal white studio, flat matte white background, soft architectural side-lighting)";
 
     const systemText = `You are a professional fashion photo analyst and AI image prompt engineer.
 STRICT SHOT MATRIX COMPLIANCE (MANDATORY):
