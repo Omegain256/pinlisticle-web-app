@@ -9,6 +9,8 @@
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
+import { fetchWithKeyRotation } from "./ai";
+
 // ─── Step A: Search for precise raw images via DuckDuckGo Image proxy ──────────
 
 export interface ArticleImagePool {
@@ -133,7 +135,20 @@ async function downloadAndCompress(candidate: ArticleImagePool): Promise<WebImag
     };
 }
 
-import { fetchWithKeyRotation } from "./ai";
+import { extractImagesFromMarkdown, searchViaJina } from "./pipeline";
+
+async function sniperSearchJinaFallback(query: string): Promise<ArticleImagePool[]> {
+    const md = await searchViaJina(`${query} fashion pinterest`);
+    if (!md) return [];
+    
+    const extracted = extractImagesFromMarkdown(md);
+    return extracted.map(url => ({
+        imageUrl: url,
+        pageUrl: `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}`,
+        siteName: "pinterest.com",
+        articleTitle: query
+    }));
+}
 
 // ─── Main export: pipelineSearchImages (Sniper 5.1) ─────────────────────────
 
@@ -152,9 +167,23 @@ export async function pipelineSearchImages(
         const card = itemCards[i];
         console.log(`[ImgSearch] Resolving image for [${i + 1}/${itemCards.length}]: "${card.item_name}"`);
 
-        // Drop the generic keyword so DDG prioritizes the exact specific item
-        const searchQuery = `${card.item_name} fashion outfit pinterest`;
-        const candidates = await sniperSearchDDG(searchQuery);
+        // 1. Primary Strategy: Explicit 1:1 DDG mapping
+        let searchQuery = `${card.item_name} fashion outfit pinterest`;
+        let candidates = await sniperSearchDDG(searchQuery);
+
+        // 2. Fallback Strategy A: Jina DuckDuckGo Reader
+        if (candidates.length === 0) {
+            console.log(`[ImgSearch] DDG Primary blocked or 0 results. Falling back to Jina Reader...`);
+            candidates = await sniperSearchJinaFallback(searchQuery);
+        }
+
+        // 3. Fallback Strategy B: Drop the complex title and rely on the broad keyword
+        if (candidates.length === 0) {
+            console.warn(`[ImgSearch] Zero candidates found for explicit item. Falling back to broad keyword: "${keyword}"`);
+            searchQuery = `${keyword} fashion outfit pinterest`;
+            candidates = await sniperSearchDDG(searchQuery);
+            if (candidates.length === 0) candidates = await sniperSearchJinaFallback(searchQuery);
+        }
 
         // Gather up to 3 valid candidates
         const downloadedImages: WebImage[] = [];
