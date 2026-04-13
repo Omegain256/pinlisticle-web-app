@@ -7,6 +7,7 @@ import {
     pipelineScoreEditorialQA,
     pipelineGenerateStyleDNA,
     pipelineVisualIntelligence,
+    stripHeavyData,
 } from "@/lib/pipeline";
 import { generateImage } from "@/lib/ai";
 import { pipelineSearchImages } from "@/lib/imageSearch";
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
             // WEB IMAGE MODE: scrape competitor articles → real photos + attribution
             console.log("[S4.5] Web Image Mode: searching competitor articles for real outfit photos...");
             try {
-                const webResult = await pipelineSearchImages(targetKeyword, item_cards, apiKey);
+                const webResult = await pipelineSearchImages(targetKeyword, item_cards, evidence_pack, apiKey);
                 if (webResult && webResult.length > 0) {
                     enriched_item_cards = webResult;
                     const matched = webResult.filter((c: any) => c.web_image).length;

@@ -18,7 +18,7 @@ import { fetchWithKeyRotation } from "./ai";
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const JINA_BASE = "https://r.jina.ai/";
-const MODEL_VISION = "gemini-2.5-flash"; // Strong Vision capabilities
+const MODEL_VISION = "gemini-1.5-flash"; // Stable Vision capabilities
 
 // Reuse extraction logic from pipeline.ts for consistency
 function extractImagesFromMarkdown(markdown: string): string[] {

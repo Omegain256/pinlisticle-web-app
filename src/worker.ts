@@ -10,6 +10,7 @@ import {
     pipelineScoreEditorialQA,
     pipelineGenerateStyleDNA,
     pipelineVisualIntelligence,
+    stripHeavyData,
 } from "./lib/pipeline";
 import { pipelineSearchImages } from "./lib/imageSearch";
 import { generateImage } from "./lib/ai";
