@@ -193,7 +193,7 @@ export async function pipelineSearchEvidence(keyword: string, briefJson: any, ap
     }
 
     // Filter for editorial article URLs — reject search pages, homepages, generic nav
-    const EDITORIAL_PATTERNS = [/\/\d{4}\//, /\/article\//i, /\/style\//i, /\/fashion\//i, /\/outfits?\//i, /\/lookbook\//i, /\/what-to-wear/i, /\/trend/i, /\d{1,2}-[a-z]+-/];
+    const EDITORIAL_PATTERNS = [/\/\d{4}\//, /\/article\//i, /\/style\//i, /\/fashion\//i, /\/outfits?\//i, /\/lookbook\//i, /\/what-to-wear/i, /\/trend/i, /\/best-/i, /\/spring-/i, /\/summer-/i, /\/fall-/i, /\/winter-/i, /\d{1,2}-[a-z]+-/];
     const REJECT_PATTERNS = [/\/search[/?]/i, /\?q=/i, /\?s=/i, /\/page\//i];
     const editorialUrls = pageUrls.filter(u =>
         !REJECT_PATTERNS.some(p => p.test(u)) &&
@@ -801,11 +801,12 @@ EVIDENCE (cite specific facts — not summaries): ${JSON.stringify(evidencePack)
 BATCH ITEMS: ${JSON.stringify(batch, null, 2)}
 
 CRITICAL OUTPUT RULES:
-1. title: Specific. NO NUMBERS. Name a garment or outfit combo.
-2. content: EXACTLY 3 sentences. Hook → Meaning+Utility → Direction.
-3. image_prompt: If item has image_prompt_seed.engineered_image_prompt, copy it VERBATIM. Otherwise use MASTER STRUCTURE.
-4. Scan every field for BANNED WORDS before returning. Replace any found.
-5. article_intro (first batch only): Max 2 sentences naming the wardrobe problem.
+1. item_index: Copy EXACTLY from the BATCH ITEMS provided.
+2. title: Specific. NO NUMBERS. Name a garment or outfit combo.
+3. content: EXACTLY 3 sentences. Hook → Meaning+Utility → Direction.
+4. image_prompt: If item has image_prompt_seed.engineered_image_prompt, copy it VERBATIM. Otherwise use MASTER STRUCTURE.
+5. Scan every field for BANNED WORDS before returning. Replace any found.
+6. article_intro (first batch only): Max 2 sentences naming the wardrobe problem.
 
 Return JSON matching the schema.
     `.trim();

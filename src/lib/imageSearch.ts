@@ -18,7 +18,7 @@ import { fetchWithKeyRotation } from "./ai";
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const JINA_BASE = "https://r.jina.ai/";
-const MODEL_FLASH = "gemini-2.5-flash-preview-04-17";
+const MODEL_FLASH = "gemini-2.5-flash";
 
 // Fashion article sources ranked by content quality
 const IMAGE_SOURCE_PRIORITY = [
@@ -72,6 +72,11 @@ async function findCompetitorArticleUrls(keyword: string, apiKey: string): Promi
             /\/lookbook\//i,
             /\/what-to-wear/i,
             /\/trend/i,
+            /\/best-/i,
+            /\/spring-/i,
+            /\/summer-/i,
+            /\/fall-/i,
+            /\/winter-/i,
             /\d{1,2}-[a-z]+-/,
         ];
         const REJECT_PATTERNS = [/\/search[/?]/i, /\?q=/i, /\?s=/i, /\/page\//i, /\/tag\//i];

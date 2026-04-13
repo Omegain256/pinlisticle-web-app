@@ -23,8 +23,14 @@ const redisConnection = process.env.REDIS_URL ?
 
 
 interface ArticleDraft {
+    featured_image_base64?: string;
     listicle_items: Array<{
+        item_index: number;
+        title: string;
+        content: string;
         image_prompt: string;
+        web_image?: any;
+        image_base64?: string;
     }>;
 }
 
@@ -178,8 +184,28 @@ const worker = new Worker<PublishPipelineData>(
             await job.updateProgress(80);
 
             // S7: Images Generation
-            if (!state.image_results) {
-                console.log(`[Job ${job.id}] S7: Generating images using Master Structure...`);
+            const useWebImages = (data as any).imageMode === "web";
+
+            if (useWebImages) {
+                console.log(`[Job ${job.id}] S7: Stitching Web Images via item_index...`);
+                if (state.article_draft?.listicle_items && state.item_cards) {
+                    state.article_draft.listicle_items = state.article_draft.listicle_items.map((item: any) => {
+                        const index = item.item_index;
+                        const enriched = (state.item_cards as any[]).find((c: any) => c.item_index === index);
+                        if (enriched?.web_image) {
+                            return { ...item, web_image: enriched.web_image };
+                        }
+                        return item;
+                    });
+                    
+                    const firstWebImg = (state.item_cards as any[]).find((c: any) => c.web_image);
+                    if (firstWebImg?.web_image && !state.article_draft.featured_image_base64) {
+                        state.article_draft.featured_image_base64 = firstWebImg.web_image.image_base64;
+                    }
+                }
+                await job.updateData(data);
+            } else if (!state.image_results) {
+                console.log(`[Job ${job.id}] S7: Generating AI images using Master Structure...`);
                 state.image_results = [];
                 const items = state.article_draft?.listicle_items || [];
                 
@@ -187,12 +213,20 @@ const worker = new Worker<PublishPipelineData>(
                     const item = items[i];
                     console.log(`[Job ${job.id}] Generating image ${i + 1}/${items.length}...`);
                     
-                    // Use the image_prompt directly from the drafted article (Master Structure)
-                    const b64 = await generateImage({ 
-                        prompt: item.image_prompt, 
-                        apiKey: data.apiKey 
-                    });
-                    state.image_results.push(b64);
+                    try {
+                        const b64 = await generateImage({ 
+                            prompt: item.image_prompt, 
+                            apiKey: data.apiKey 
+                        });
+                        state.image_results.push(b64 || "");
+                        if (item) item.image_base64 = b64;
+                        if (i === 0 && state.article_draft && !state.article_draft.featured_image_base64) {
+                            state.article_draft.featured_image_base64 = b64;
+                        }
+                    } catch (imgErr: any) {
+                        console.warn(`[Job ${job.id}] Image ${i+1} failed: ${imgErr.message}`);
+                        state.image_results.push("");
+                    }
                 }
                 await job.updateData(data);
             }

@@ -81,6 +81,7 @@ export const DraftArticleSchema = {
       items: {
         type: "OBJECT",
         properties: {
+          item_index: { type: "INTEGER" },
           title: { type: "STRING" },
           content: { type: "STRING" },
           has_swap: { type: "BOOLEAN" },
@@ -97,7 +98,7 @@ export const DraftArticleSchema = {
             }
           }
         },
-        required: ["title", "content", "has_swap", "image_prompt", "product_recommendations"]
+        required: ["item_index", "title", "content", "has_swap", "image_prompt", "product_recommendations"]
       }
     }
   },

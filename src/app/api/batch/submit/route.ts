@@ -119,17 +119,18 @@ export async function POST(req: NextRequest) {
 
         // ── Stage 7: Finalize Images ─────────────────────────────────────────
         if (useWebImages) {
-            // WEB MODE: copy web_image data from enriched_item_cards into article_draft
+            // WEB MODE: copy web_image data from enriched_item_cards into article_draft using item_index
             if (article_draft?.listicle_items) {
-                article_draft.listicle_items = article_draft.listicle_items.map((item: any, i: number) => {
-                    const enriched = enriched_item_cards[i];
+                article_draft.listicle_items = article_draft.listicle_items.map((item: any) => {
+                    const index = item.item_index;
+                    const enriched = enriched_item_cards.find((c: any) => c.item_index === index);
                     if (enriched?.web_image) {
                         return { ...item, web_image: enriched.web_image };
                     }
                     return item;
                 });
                 const firstWebImg = enriched_item_cards.find((c: any) => c.web_image);
-                if (firstWebImg?.web_image) {
+                if (firstWebImg?.web_image && !article_draft.featured_image_base64) {
                     article_draft.featured_image_base64 = firstWebImg.web_image.image_base64;
                 }
             }
