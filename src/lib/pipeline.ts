@@ -65,39 +65,6 @@ export function stripHeavyData(obj: any): any {
     return stripped;
 }
 
-/** 
- * Utility to strip heavy base64 data and massive prompts before sending to LLM.
- * This prevents reaching the MAX_API_PAYLOAD_SIZE (1MB usually).
- */
-export function stripHeavyData(obj: any): any {
-    if (!obj) return obj;
-    if (Array.isArray(obj)) return obj.map(item => stripHeavyData(item));
-    if (typeof obj !== "object") return obj;
-
-    const stripped = { ...obj };
-    const heavyFields = ["image_base64", "imageBase64", "web_image", "visual_dna", "image_results"];
-    
-    for (const field of heavyFields) {
-        if (field in stripped) {
-            // Keep the metadata but remove the actual base64
-            if (field === "web_image" && stripped[field]?.image_base64) {
-                stripped[field] = { ...stripped[field], image_base64: "[STRIPPED_FOR_LLM]" };
-            } else {
-                stripped[field] = "[STRIPPED]";
-            }
-        }
-    }
-    
-    // Recursively strip nested objects
-    for (const key in stripped) {
-        if (typeof stripped[key] === "object") {
-            stripped[key] = stripHeavyData(stripped[key]);
-        }
-    }
-    
-    return stripped;
-}
-
 // Stage 1: Classify Topic (Brief)
 export async function pipelineClassifyTopic(keyword: string, apiKey: string) {
     const modelId = resolveModelId("lite", true); // Classification is simple, use flash
