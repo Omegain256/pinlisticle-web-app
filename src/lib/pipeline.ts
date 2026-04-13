@@ -538,22 +538,25 @@ export async function pipelineVisualIntelligence(
 
     const TEMPLATES = {
         casual: `Full-body mirror selfie of ${C1_IDENTITY} modeling a casual everyday outfit, captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16.
-She is standing in ${E4_ENVIRONMENT}, in front of a thin-framed floor mirror. The framing is straight-on at chest height with a realistic handheld phone perspective and subtle wide-angle smartphone distortion.
-Lighting is soft afternoon daylight from a window off-camera, creating a natural Smart HDR 5 iPhone look.
+She is standing in ${E4_ENVIRONMENT}, in front of a thin-framed floor mirror. One monstera plant is in the far corner, clearly separated from her silhouette.
+She has exactly two arms and two hands. One hand is holding the phone, the other is at her side or in a pocket.
+The framing is straight-on at chest height with a realistic handheld phone perspective.
 She is wearing [OUTFIT] and holding a [PHONE_COLOR] iPhone 16 Pro. Her pose is [POSE].
-Keep the image looking like a real social media outfit mirror selfie, not studio fashion photography. Preserve realistic skin texture, accurate hands, believable hair strands, true mirror reflection geometry, grounded feet, and natural fabric folds.`,
+Keep the image looking like a real social media outfit mirror selfie. Preserve realistic skin texture, accurate hands with five fingers, and natural anatomical symmetry.`,
         
         luxury: `Full-body mirror selfie of ${C1_IDENTITY} modeling a quiet luxury outfit, captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16.
-She is standing in ${E4_ENVIRONMENT}, in front of a thin-framed floor mirror. The framing is centered and natural at chest height with subtle wide-angle smartphone perspective.
-Lighting is soft, clean afternoon daylight from a window outside the frame, creating a realistic Smart HDR 5 iPhone rendering.
+She is standing in ${E4_ENVIRONMENT}, in front of a thin-framed floor mirror. The room decor is minimal and kept away from her body.
+She has exactly two arms and two hands. One hand is holding the phone, the other is elegantly at her side.
+The framing is centered and natural at chest height.
 She is wearing [OUTFIT] and holding a [PHONE_COLOR] iPhone 16 Pro. Her pose is [POSE].
-The result should feel like a genuine high-end personal outfit post, not editorial fashion photography. Preserve realistic skin texture, natural facial asymmetry, accurate hands, believable fabric drape, true mirror reflections, and subtle real-world imperfections.`,
+The result should feel like a genuine high-end personal outfit post. Preserve realistic skin texture, natural facial asymmetry, accurate five-finger hands, and zero extra limbs.`,
         
         sporty: `Full-body mirror selfie of ${C1_IDENTITY} modeling a sporty streetwear outfit, captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16.
-She is standing in ${E4_ENVIRONMENT}, in front of a thin-framed floor mirror. The framing is slightly casual and handheld at chest height with realistic smartphone perspective.
-Lighting is soft daytime window light from off-camera, creating a realistic Smart HDR 5 iPhone look.
+She is standing in ${E4_ENVIRONMENT}, in front of a thin-framed floor mirror. Background plants are far in the corner to avoid silhouette overlap.
+She has exactly two arms and two hands. One hand is holding the phone, the other is resting naturally or in a pocket.
+The framing is slightly casual and handheld at chest height.
 She is wearing [OUTFIT] and holding a [PHONE_COLOR] iPhone 16 Pro. Her pose is [POSE].
-Keep the result looking like a real mirror selfie taken for social media, not a commercial campaign. Preserve realistic skin texture, accurate hand anatomy, believable sneaker materials, natural hoodie and nylon fabric folds, true mirror reflection geometry, and grounded feet.`
+Keep the result looking like a real mirror selfie taken for social media. Preserve realistic skin texture, accurate hand anatomy, five fingers, and perfect anatomical symmetry with two arms only.`
     };
 
     const activeTemplate = TEMPLATES[archetype as keyof typeof TEMPLATES] || TEMPLATES.casual;
