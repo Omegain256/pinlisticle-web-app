@@ -180,18 +180,25 @@ async function fetchViaJina(pageUrl: string): Promise<string | null> {
 function extractImagesFromMarkdown(markdown: string): string[] {
     const urls: string[] = [];
     // Match markdown image syntax: ![alt](url)
-    const mdImgs = markdown.matchAll(/!\[[^\]]*\]\((https?:\/\/[^)]+)\)/g);
+    const mdImgs = markdown.matchAll(/!\[[^\]]*\]\((https?:\/\/[^)\s?#]+(?:[^)\s]*))\)/g);
     for (const m of mdImgs) {
         const url = m[1];
-        if (/\.(jpg|jpeg|png|webp)/i.test(url)) urls.push(url);
+        if (/\.(jpg|jpeg|png|webp|avif)/i.test(url)) urls.push(url);
     }
-    // Match pinimg.com CDN URLs (Pinterest image CDN, often in plain text links)
-    const pinImgs = markdown.matchAll(/https?:\/\/i\.pinimg\.com\/[^\s"')]+/g);
+
+    // Match Pinterest image CDN
+    const pinImgs = markdown.matchAll(/https?:\/\/i\.pinimg\.com\/[^\s"')]+\.(?:jpg|jpeg|png|webp)/gi);
     for (const m of pinImgs) urls.push(m[0]);
-    // Match other fashion CDN patterns
-    const cdnImgs = markdown.matchAll(/https?:\/\/[^\s"')]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"')]*)?/gi);
+
+    // Match generic fashion CDN patterns (ignoring trailing parens)
+    const cdnImgs = markdown.matchAll(/https?:\/\/[^\s"')(]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"')(]*)?/gi);
     for (const m of cdnImgs) urls.push(m[0]);
-    return [...new Set(urls)].slice(0, 12); // deduplicate, cap at 12
+
+    // Match common lazy-load patterns
+    const lazyImgs = markdown.matchAll(/(?:data-src|data-lazy|data-original|data-srcset)=["'](https?:\/\/[^\s"']+)["']/gi);
+    for (const m of lazyImgs) urls.push(m[1]);
+
+    return [...new Set(urls)].slice(0, 20); // deduplicate, cap at 20 per article
 }
 
 /** Extract page URLs from Gemini groundingChunks and rank by fashion source priority */
@@ -273,7 +280,11 @@ export async function pipelineSearchEvidence(keyword: string, briefJson: any, ap
     for (const url of topUrls) {
         const markdown = await fetchViaJina(url);
         if (markdown && markdown.length > 200) {
-            articleContents.push({ url, markdown });
+            // Extract title from markdown h1 or first line
+            const match = markdown.match(/^#\s+(.+)$/m) || markdown.match(/^(.+)$/m);
+            const title = match ? match[1].trim() : "Fashion Article";
+            
+            articleContents.push({ url, title, markdown });
             const imgUrls = extractImagesFromMarkdown(markdown);
             allReferenceImageUrls.push(...imgUrls);
             console.log(`[S2] ✓ Jina read ${url.slice(0, 60)}... (${markdown.length} chars, ${imgUrls.length} images)`);
@@ -329,10 +340,11 @@ Based on this REAL content, return a JSON object with:
         });
 
         const result = extractJSONDataFreeForm(synthesisData);
-        // Attach the harvested image URLs so Visual Intelligence can use them
+        // Attach the harvested image URLs and full articles so Image Search can use them
         return {
             ...result,
             reference_image_urls: allReferenceImageUrls,
+            article_pool: articleContents, // Full markdown and URLs
         };
     } catch (e: any) {
         console.warn(`[S2] Synthesis failed: ${e.message}. Using fallback evidence.`);
@@ -345,6 +357,7 @@ Based on this REAL content, return a JSON object with:
             key_statistics: [],
             specific_outfits: [],
             reference_image_urls: allReferenceImageUrls,
+            article_pool: articleContents, 
         };
     }
 }

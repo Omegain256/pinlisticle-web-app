@@ -18,7 +18,32 @@ import { fetchWithKeyRotation } from "./ai";
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const JINA_BASE = "https://r.jina.ai/";
-const MODEL_FLASH = "gemini-2.5-flash";
+const MODEL_VISION = "gemini-2.5-flash"; // Strong Vision capabilities
+
+// Reuse extraction logic from pipeline.ts for consistency
+function extractImagesFromMarkdown(markdown: string): string[] {
+    const urls: string[] = [];
+    // Match markdown image syntax: ![alt](url)
+    const mdImgs = markdown.matchAll(/!\[[^\]]*\]\((https?:\/\/[^)\s?#]+(?:[^)\s]*))\)/g);
+    for (const m of mdImgs) {
+        const url = m[1];
+        if (/\.(jpg|jpeg|png|webp|avif)/i.test(url)) urls.push(url);
+    }
+
+    // Match Pinterest image CDN
+    const pinImgs = markdown.matchAll(/https?:\/\/i\.pinimg\.com\/[^\s"')]+\.(?:jpg|jpeg|png|webp)/gi);
+    for (const m of pinImgs) urls.push(m[0]);
+
+    // Match generic fashion CDN patterns
+    const cdnImgs = markdown.matchAll(/https?:\/\/[^\s"')(]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"')(]*)?/gi);
+    for (const m of cdnImgs) urls.push(m[0]);
+
+    // Match common lazy-load patterns
+    const lazyImgs = markdown.matchAll(/(?:data-src|data-lazy|data-original|data-srcset)=["'](https?:\/\/[^\s"']+)["']/gi);
+    for (const m of lazyImgs) urls.push(m[1]);
+
+    return [...new Set(urls)];
+}
 
 // Fashion article sources ranked by content quality
 const IMAGE_SOURCE_PRIORITY = [
@@ -37,69 +62,6 @@ const IMAGE_SOURCE_PRIORITY = [
 ];
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-
-// ─── Step A: Find competitor article URLs via grounded search ───────────────
-
-async function findCompetitorArticleUrls(keyword: string, apiKey: string): Promise<string[]> {
-    const urlTemplate = `${GEMINI_BASE}/${MODEL_FLASH}:generateContent?key=API_KEY_PLACEHOLDER`;
-    // Broaden query: remove strict quotes and allow 2025-2026 range
-    const searchQuery = `${keyword} outfit ideas editorial blog 2025 2026`;
-
-    try {
-        const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: `Find the top blog articles and listicles about: ${searchQuery}. Focus on fashion blogs, style sites, and editorial publications that include real outfit photos.` }] }],
-                tools: [{ googleSearch: {} }],
-                generationConfig: { temperature: 0.1 },
-            }),
-        });
-
-        const chunks: any[] = data?.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-        const urls: string[] = [];
-        for (const chunk of chunks) {
-            const uri: string = chunk?.web?.uri || "";
-            if (uri && uri.startsWith("http")) urls.push(uri);
-        }
-
-        // Filter for editorial article URLs
-        const EDITORIAL_PATTERNS = [
-            /\/\d{4}\//,
-            /\/article\//i,
-            /\/style\//i,
-            /\/fashion\//i,
-            /\/outfits?\//i,
-            /\/lookbook\//i,
-            /\/what-to-wear/i,
-            /\/trend/i,
-            /\/best-/i,
-            /\/spring-/i,
-            /\/summer-/i,
-            /\/fall-/i,
-            /\/winter-/i,
-            /\d{1,2}-[a-z]+-/,
-        ];
-        const REJECT_PATTERNS = [/\/search[/?]/i, /\?q=/i, /\?s=/i, /\/page\//i, /\/tag\//i];
-
-        const editorial = urls
-            .filter(u =>
-                !REJECT_PATTERNS.some(p => p.test(u)) &&
-                (EDITORIAL_PATTERNS.some(p => p.test(u)) || IMAGE_SOURCE_PRIORITY.some(s => u.includes(s)))
-            )
-            .sort((a, b) => {
-                const ra = IMAGE_SOURCE_PRIORITY.findIndex(s => a.includes(s));
-                const rb = IMAGE_SOURCE_PRIORITY.findIndex(s => b.includes(s));
-                return (ra === -1 ? 99 : ra) - (rb === -1 ? 99 : rb);
-            });
-
-        console.log(`[ImgSearch] Found ${editorial.length} editorial article URLs.`);
-        return editorial.slice(0, 5);
-    } catch (e: any) {
-        console.warn(`[ImgSearch] Grounded search failed: ${e.message}`);
-        return [];
-    }
-}
 
 // ─── Step B: Read articles via Jina, extract image URLs + attribution ────────
 
@@ -137,28 +99,10 @@ async function extractImagesFromArticle(pageUrl: string): Promise<ArticleImagePo
                 ? hostname.split(".").map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" ").replace(" Com", "").replace(" Co", "")
                 : hostname;
 
-            const imageUrls: string[] = [];
-
-            // Match markdown image syntax: ![alt](url)
-            const mdImgs = markdown.matchAll(/!\[[^\]]*\]\((https?:\/\/[^)\s?#]+(?:[^)\s]*))\)/g);
-            for (const m of mdImgs) {
-                const url = m[1];
-                if (/\.(jpg|jpeg|png|webp|avif)/i.test(url)) imageUrls.push(url);
-            }
-
-            // Match Pinterest image CDN
-            const pinImgs = markdown.matchAll(/https?:\/\/i\.pinimg\.com\/[^\s"')]+\.(?:jpg|jpeg|png|webp)/gi);
-            for (const m of pinImgs) imageUrls.push(m[0]);
-
-            // Match generic fashion CDN patterns with optional query params (ignoring trailing parens)
-            const cdnImgs = markdown.matchAll(/https?:\/\/[^\s"')(]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"')(]*)?/gi);
-            for (const m of cdnImgs) imageUrls.push(m[0]);
-
-            // Match common lazy-load patterns (data-src, data-original) found in markdown as plain text
-            const lazyImgs = markdown.matchAll(/(?:data-src|data-lazy|data-original)=["'](https?:\/\/[^\s"']+)["']/gi);
-            for (const m of lazyImgs) imageUrls.push(m[1]);
-
-            const deduped = [...new Set(imageUrls)].filter(url => !url.includes("logo") && !url.includes("icon") && !url.includes("banner") && !url.includes("avatar")).slice(0, 8);
+            const deduped = extractImagesFromMarkdown(markdown)
+                .filter(url => !url.includes("logo") && !url.includes("icon") && !url.includes("banner") && !url.includes("avatar"))
+                .slice(0, 8);
+            
             console.log(`[ImgSearch] Jina: ${deduped.length} images from ${hostname}`);
 
             return deduped.map(imageUrl => ({
@@ -281,6 +225,8 @@ async function downloadAndCompress(candidate: ArticleImagePool): Promise<WebImag
 
 // ─── Step E: Match images to item cards via Gemini ───────────────────────────
 
+// ─── Step E: Vision-powered match images to items cards ─────────────────────
+
 async function matchImagesToItems(
     itemCards: any[],
     imagePool: WebImage[],
@@ -288,28 +234,49 @@ async function matchImagesToItems(
 ): Promise<Map<number, WebImage>> {
     if (imagePool.length === 0 || itemCards.length === 0) return new Map();
 
-    const urlTemplate = `${GEMINI_BASE}/${MODEL_FLASH}:generateContent?key=API_KEY_PLACEHOLDER`;
+    const urlTemplate = `${GEMINI_BASE}/${MODEL_VISION}:generateContent?key=API_KEY_PLACEHOLDER`;
 
-    const prompt = `You are a fashion photo editor. Match each outfit item to the most relevant image from the pool.
+    console.log(`[ImgSearch] Running Vision matching for ${itemCards.length} items against ${imagePool.length} images...`);
+
+    // We'll process items in batches or all at once if the gallery isn't too large
+    // For 5-10 items and 10-15 images, one multimodal prompt is highly effective.
+    const imageParts = imagePool.map((img, idx) => ([
+        { text: `IMAGE [${idx}] from ${img.attribution.siteName}:` },
+        { inline_data: { mime_type: img.mimeType, data: img.imageBase64 } }
+    ])).flat();
+
+    const itemDescription = itemCards.map((c: any, i: number) => 
+        `ITEM ID ${i}: ${c.item_name}. Styling notes: ${c.styling_notes}.`
+    ).join("\n");
+
+    const promptText = `You are a fashion photo editor. Your job is to match each outfit ITEM to the most visually accurate IMAGE from the provided gallery.
 
 OUTFIT ITEMS:
-${JSON.stringify(itemCards.map((c: any, i: number) => ({ id: i, name: c.item_name, notes: c.styling_notes })), null, 2)}
+${itemDescription}
 
-IMAGE POOL (by index):
-${imagePool.map((img, i) => `[${i}] From: ${img.attribution.siteName} — "${img.attribution.articleTitle}" (${img.fileSizeKb}KB)`).join("\n")}
+RULES:
+1. Return a JSON object where keys are ITEM IDs and values are IMAGE indices (0-indexed).
+2. ONLY match if the image VISUALLY depicts the item described. If no image fits, omit the item.
+3. Distribute images — do not use the same image for every item.
+4. Return ONLY JSON.
 
-Return a JSON object where keys are outfit item IDs (0-indexed) and values are image pool indices.
-Each item should get exactly one image. Distribute images across items — do not assign the same image to multiple items if possible.
-If there are fewer images than items, some items may have no match (omit them from output).
-Return ONLY the JSON object, no markdown.`;
+Example: { "0": 4, "1": 0 }`;
 
     try {
         const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.1 },
+                contents: [{
+                    parts: [
+                        { text: promptText },
+                        ...imageParts
+                    ]
+                }],
+                generationConfig: { 
+                    responseMimeType: "application/json",
+                    temperature: 0.1 
+                },
             }),
         });
 
@@ -325,11 +292,11 @@ Return ONLY the JSON object, no markdown.`;
                 result.set(itemId, img);
             }
         }
-        console.log(`[ImgSearch] Matched ${result.size}/${itemCards.length} items to images.`);
+        console.log(`[ImgSearch] Vision matched ${result.size}/${itemCards.length} items.`);
         return result;
     } catch (e: any) {
-        console.warn(`[ImgSearch] Image matching failed: ${e.message}. Using sequential assignment.`);
-        // Fallback: sequential assignment
+        console.warn(`[ImgSearch] Vision matching failed: ${e.message}. Using fallback metadata assignment.`);
+        // Fallback: sequential assignment based on simple string matching (weak but better than nothing)
         const result = new Map<number, WebImage>();
         imagePool.slice(0, itemCards.length).forEach((img, i) => result.set(i, img));
         return result;
@@ -341,37 +308,43 @@ Return ONLY the JSON object, no markdown.`;
 export async function pipelineSearchImages(
     keyword: string,
     itemCards: any[],
+    evidencePack: any, // Now containing article_pool
     apiKey: string
 ): Promise<any[]> {
-    console.log(`[ImgSearch] Starting web image pipeline for: "${keyword}"`);
+    console.log(`[ImgSearch] Starting Vision-Powered pipeline for: "${keyword}"`);
 
-    // A. Find competitor article URLs
-    const articleUrls = await findCompetitorArticleUrls(keyword, apiKey);
-    if (articleUrls.length === 0) {
-        console.warn("[ImgSearch] No article URLs found. Returning original cards.");
+    // A. Use articles found during research (Evidence Pack)
+    const sources = evidencePack?.article_pool || [];
+    if (sources.length === 0) {
+        console.warn("[ImgSearch] No article pool found in evidence. Pipeline cannot proceed.");
         return itemCards;
     }
 
-    // B. Read articles + extract image candidates
-    const allCandidates: ArticleImagePool[] = [];
-    for (const url of articleUrls) {
-        console.log(`[ImgSearch] Extracting from ${url.slice(0, 40)}...`);
-        const extracted = await extractImagesFromArticle(url);
-        allCandidates.push(...extracted);
-        console.log(`[ImgSearch] Found ${extracted.length} images from source.`);
-        await sleep(400);
-        if (allCandidates.length >= 20) break; // cap total candidates
+    // B. Build candidate pool from existing markdown
+    const allCandidates: any[] = [];
+    for (const source of sources) {
+        const imageUrls = extractImagesFromMarkdown(source.markdown);
+        const sourceUrl = source.url;
+        const hostname = new URL(sourceUrl).hostname.replace("www.", "");
+        
+        const candidates = imageUrls.map(imageUrl => ({
+            imageUrl,
+            pageUrl: sourceUrl,
+            siteName: hostname,
+            articleTitle: source.title || "Fashion Article"
+        }));
+        allCandidates.push(...candidates);
     }
 
     if (allCandidates.length === 0) {
-        console.warn("[ImgSearch] No images found in articles. Returning original cards.");
+        console.warn("[ImgSearch] No image candidates found in article pool.");
         return itemCards;
     }
 
-    console.log(`[ImgSearch] ${allCandidates.length} image candidates from ${articleUrls.length} articles.`);
+    console.log(`[ImgSearch] ${allCandidates.length} image candidates pooled from ${sources.length} research sources.`);
 
-    // C+D. Download + compress up to N images (target: 1–2 per item card)
-    const targetImageCount = Math.min(itemCards.length * 2, 16);
+    // C. Download + compress candidates (cap at reasonable amount for Vision)
+    const targetImageCount = Math.min(itemCards.length * 3, 12);
     const imagePool: WebImage[] = [];
 
     for (const candidate of allCandidates) {
@@ -379,20 +352,20 @@ export async function pipelineSearchImages(
         const img = await downloadAndCompress(candidate);
         if (img) {
             imagePool.push(img);
-            console.log(`[ImgSearch] ✓ ${img.attribution.siteName} — ${img.fileSizeKb}KB`);
+            console.log(`[ImgSearch] Pooled: ${img.attribution.siteName} — ${img.fileSizeKb}KB`);
         }
-        await sleep(250);
+        await sleep(200);
     }
 
     if (imagePool.length === 0) {
-        console.warn("[ImgSearch] All image downloads failed. Returning original cards.");
+        console.warn("[ImgSearch] All image pooled failed to download.");
         return itemCards;
     }
 
-    // E. Match images to item cards
+    // D. Vision-powered matching
     const assignments = await matchImagesToItems(itemCards, imagePool, apiKey);
 
-    // F. Merge web images into item cards
+    // E. Merge web images into item cards
     const enriched = itemCards.map((card: any, i: number) => {
         const img = assignments.get(i);
         if (!img) return card;
@@ -409,6 +382,6 @@ export async function pipelineSearchImages(
     });
 
     const matched = enriched.filter((c: any) => c.web_image).length;
-    console.log(`[ImgSearch] Pipeline complete. ${matched}/${itemCards.length} items have web images.`);
+    console.log(`[ImgSearch] Pipeline complete. ${matched}/${itemCards.length} items have visual matches.`);
     return enriched;
 }

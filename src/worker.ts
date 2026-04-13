@@ -121,7 +121,7 @@ const worker = new Worker<PublishPipelineData>(
             if (useWebImages && !state.web_images_applied && state.item_cards && state.item_cards.length > 0) {
                 console.log(`[Job ${job.id}] S4.5: Web Image Mode — searching competitor articles...`);
                 try {
-                    const webResult = await pipelineSearchImages(targetToken, state.item_cards, data.apiKey);
+                    const webResult = await pipelineSearchImages(targetToken, state.item_cards, state.evidence_pack, data.apiKey);
                     if (webResult && webResult.length > 0) {
                         state.item_cards = webResult as WorkerState["item_cards"];
                         const matched = webResult.filter((c: any) => c.web_image).length;
