@@ -551,12 +551,11 @@ RULES FOR EACH FIELD:
    Photorealistic, 4K UHD, grain texture of 35mm film, skin pores visible, no AI artifacts,
    no text, no watermarks, no cropped feet."
 
-${styleDNA ? `ARTICLE-WIDE STYLE DNA (apply consistently across all outfits):
-Subject: ${styleDNA.subject_definition || "Confident woman, 28-38, mixed heritage, natural makeup"}
-Lighting: ${styleDNA.lighting_and_weather || "Natural cinematic light, no harsh shadows"}
-Camera: ${styleDNA.camera_and_aesthetic || "35mm editorial film aesthetic"}
-Texture: ${styleDNA.texture_and_finish || "Authentic film grain, honest skin, no smoothing"}
-Negative space: avoid ${styleDNA.negative_prompt || "mannequin-like poses, plastic skin, AI-smoothed faces"}` : ""}
+SHOT MATRIX RULE (apply strictly across all outfits):
+Subject: Character ID C1. Must perfectly match facial structure, eye color, skin tone, and hair of the reference woman. NO IDENTITY DRIFTING.
+Environment: Environment ID E4. This is the absolute, mandatory background asset. NO ENVIRONMENTAL DRIFTING. Do not introduce furniture, plants, windows, or alternate settings.
+Pose / Angle: Pose ID P1 (Standing straight, front), Angle ID A1 (Full body, head-to-toe).
+Outfit: Adapt the layers to fit naturally onto Character C1 in Environment E4.
 
 RETURN ONLY a raw JSON array with exactly ${itemCount} VisualDNA objects. No markdown, no code fences, no extra text.`;
 
@@ -645,10 +644,12 @@ FOR EACH ITEM CARD:
 5. reader_value: The concrete outcome — what becomes easier for the reader after reading this.
 6. freshness_signal: One angle most competitor articles on this keyword are missing.
 
-IMAGE SEED RULES (MANDATORY — these feed the Imagen prompt engine):
-- SHOT_TYPE: ALWAYS "Full-length frame, shoes to crown, mid-stride". Full silhouette including shoes MUST be visible. NO EXCEPTIONS.
-- OUTFIT_DESCRIPTION: Name FABRICS and DRAPE (e.g. "matte nylon rain jacket with cinched belt, straight-leg dark denim, lug-sole rubber Chelsea boot"). No colour-only descriptions.
-- POSE_INSTRUCTION: One specific unposed action (e.g. "stepping off a kerb, collar turned up, eyes ahead, mid-stride").
+SHOT MATRIX RULES (MANDATORY — these feed the image generation):
+- CHARACTER ID: C1 (Match reference precisely: lock facial structure, skin tone, and hair). NO IDENTITY DRIFTING.
+- ENVIRONMENT ID: E4 (Match scene reference precisely as a sterile, editorial setting). NO ENVIRONMENTAL DRIFTING (Do not add furniture, plants, or windows).
+- POSE ID: P1 (Standing straight, front).
+- ANGLE ID: A1 (Full body, head-to-toe).
+- OUTFIT_DESCRIPTION: Explicit styling for the clothing layers ONLY.
 
 STRICTLY BANNED WORDS (any field):
 obsessed, game-changer, must-have, stunning, viral, fashionista, flawlessly, look expensive, trendy girl, delve, elevate, chic, essential, timeless, effortless, versatile, curated, luxe, statement, iconic, investment piece.`;

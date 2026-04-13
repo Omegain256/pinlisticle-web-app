@@ -13,7 +13,7 @@ import {
     stripHeavyData,
 } from "./lib/pipeline";
 import { pipelineSearchImages } from "./lib/imageSearch";
-import { generateImage } from "./lib/ai";
+import { generateImage, getShotMatrixReferences } from "./lib/ai";
 
 console.log("Starting PinListicle BullMQ Worker...");
 
@@ -222,9 +222,11 @@ const worker = new Worker<PublishPipelineData>(
                     console.log(`[Job ${job.id}] Generating image ${i + 1}/${items.length}...`);
                     
                     try {
+                        const refs = await getShotMatrixReferences();
                         const b64 = await generateImage({ 
                             prompt: item.image_prompt, 
-                            apiKey: data.apiKey 
+                            apiKey: data.apiKey,
+                            referenceImages: refs
                         });
                         state.image_results.push(b64 || "");
                         if (item) item.image_base64 = b64;

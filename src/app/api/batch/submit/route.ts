@@ -9,7 +9,7 @@ import {
     pipelineVisualIntelligence,
     stripHeavyData,
 } from "@/lib/pipeline";
-import { generateImage } from "@/lib/ai";
+import { generateImage, getShotMatrixReferences } from "@/lib/ai";
 import { pipelineSearchImages } from "@/lib/imageSearch";
 
 export const maxDuration = 300;
@@ -155,7 +155,8 @@ export async function POST(req: NextRequest) {
 
                 if (!finalPrompt) { image_results.push(""); continue; }
                 try {
-                    const b64 = await generateImage({ prompt: finalPrompt, apiKey });
+                    const refs = await getShotMatrixReferences();
+                    const b64 = await generateImage({ prompt: finalPrompt, apiKey, referenceImages: refs });
                     image_results.push(b64 || "");
                 } catch (imgErr: any) {
                     console.warn(`Image ${i + 1} failed: ${imgErr.message}`);

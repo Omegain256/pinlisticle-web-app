@@ -325,14 +325,78 @@ export async function generateContent(params: {
     }
 }
 
-export async function generateImage(params: { prompt: string; apiKey: string; preferredModel?: string }) {
-    const { prompt, apiKey, preferredModel } = params;
+export interface ImageReference {
+    mimeType: string;
+    data: string; // Base64 chunk
+}
+
+let cachedMatrixRefs: ImageReference[] | null = null;
+
+export async function getShotMatrixReferences(): Promise<ImageReference[]> {
+    if (cachedMatrixRefs) return cachedMatrixRefs;
+
+    try {
+        const refs: ImageReference[] = [];
+        
+        // Next.js server-side / Worker environment check for fs
+        const isNode = typeof process !== 'undefined' && process.versions && process.versions.node;
+
+        if (isNode) {
+            // Use eval to bypass webpack bundling issues with fs in browser builds
+            const fs = eval("require('fs')");
+            const path = eval("require('path')");
+            
+            const loadLocal = (relPath: string, mime: string) => {
+                try {
+                    const full = path.join(process.cwd(), 'public', 'assets', 'character_sheets', relPath);
+                    if (fs.existsSync(full)) {
+                        const buffer = fs.readFileSync(full);
+                        refs.push({ mimeType: mime, data: buffer.toString('base64') });
+                    }
+                } catch (e) { console.warn("Failed to load local asset:", relPath, e); }
+            };
+
+            loadLocal('c1_model/face.jpeg', 'image/jpeg');
+            loadLocal('c1_model/full_body.png', 'image/png');
+            loadLocal('e4_scene.jpeg', 'image/jpeg');
+        } else {
+            // Client-side fetch
+            const fetchRemote = async (url: string, mime: string) => {
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) return;
+                    const blob = await res.blob();
+                    const reader = new FileReader();
+                    await new Promise(r => {
+                        reader.onloadend = r;
+                        reader.readAsDataURL(blob);
+                    });
+                    const b64 = (reader.result as string).split(',')[1];
+                    refs.push({ mimeType: mime, data: b64 });
+                } catch (e) { console.warn("Failed to load remote asset:", url, e); }
+            };
+
+            await fetchRemote('/assets/character_sheets/c1_model/face.jpeg', 'image/jpeg');
+            await fetchRemote('/assets/character_sheets/c1_model/full_body.png', 'image/png');
+            await fetchRemote('/assets/character_sheets/e4_scene.jpeg', 'image/jpeg');
+        }
+
+        cachedMatrixRefs = refs;
+        return refs;
+    } catch (e) {
+        console.warn("[ShotMatrix] Could not load reference images", e);
+        return [];
+    }
+}
+
+export async function generateImage(params: { prompt: string; apiKey: string; preferredModel?: string; referenceImages?: ImageReference[] }) {
+    const { prompt, apiKey, preferredModel, referenceImages } = params;
 
     const cached = getCachedModels();
     
-    // 1. Identify ALL models that support Image Generation (containing "imagen")
+    // 1. Identify ALL models that support Image Generation (containing "imagen" or "nano-banana-2")
     const discoveredImagen = cached
-        .filter(m => m.id.includes("imagen"))
+        .filter(m => m.id.includes("imagen") || m.id === "nano-banana-2")
         .map(m => m.id);
 
     // 2. Determine rotation pool
@@ -349,7 +413,7 @@ export async function generateImage(params: { prompt: string; apiKey: string; pr
 
     // The prompt is now assembled using the 'New Master Structure' in the pipeline,
     // which is highly descriptive and expert-led. We pass it directly to Imagen.
-    const base64Image = await tryGenerateWithRotation(apiKey, prompt, modelsToTry);
+    const base64Image = await tryGenerateWithRotation(apiKey, prompt, modelsToTry, referenceImages);
     return base64Image;
 }
 
@@ -357,7 +421,7 @@ export async function generateImage(params: { prompt: string; apiKey: string; pr
  * Special rotation logic for Imagen sub-models (Standard, Fast, Ultra) 
  * to pool their independent quotas on a single key before moving to next key.
  */
-async function tryGenerateWithRotation(keysString: string, prompt: string, models: readonly string[]) {
+async function tryGenerateWithRotation(keysString: string, prompt: string, models: readonly string[], referenceImages?: ImageReference[]) {
     const keys = parseApiKeys(keysString);
     let lastError: any = null;
 
@@ -370,9 +434,19 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
                 : `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predict?key=${key}`;
 
             try {
+                let parts: any[] = [{ text: prompt }];
+
+                if (isNanoBanana && referenceImages && referenceImages.length > 0) {
+                    parts = [
+                        { text: "STRICT SHOT MATRIX CONSTRAINT. You must draw exactly the environments and subjects shown in the attached reference images. Character C1 and Environment E4 must be meticulously adhered to." },
+                        ...referenceImages.map(img => ({ inlineData: { mimeType: img.mimeType, data: img.data } })),
+                        { text: prompt }
+                    ];
+                }
+
                 const body = isNanoBanana
                     ? JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
+                        contents: [{ parts }],
                         generationConfig: { responseModalities: ["IMAGE", "TEXT"] }
                     })
                     : JSON.stringify({

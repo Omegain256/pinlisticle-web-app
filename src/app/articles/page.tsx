@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { regenerateText, generateImage, sanitizeModelId } from "@/lib/ai";
+import { regenerateText, generateImage, sanitizeModelId, getShotMatrixReferences } from "@/lib/ai";
 import {
     Trash2,
     Globe,
@@ -253,10 +253,12 @@ export default function ArticlesLibrary() {
         const settings = JSON.parse(localStorage.getItem("pinlisticle_settings") || "{}");
 
         try {
+            const refs = await getShotMatrixReferences();
             const rawImageBase64 = await generateImage({
                 prompt: item.image_prompt,
                 apiKey: settings.geminiKey,
-                preferredModel: settings.preferredImagenModel || "auto"
+                preferredModel: settings.preferredImagenModel || "auto",
+                referenceImages: refs
             });
 
             if (rawImageBase64) {
