@@ -161,10 +161,9 @@ export const VisualDNAItemSchema = {
     aesthetic:     { type: "STRING" }, // e.g. "quiet luxury, minimalist"
     composition:   { type: "STRING" }, // e.g. "full body, street style"
     lighting:      { type: "STRING" }, // e.g. "natural daylight, soft shadows"
-    background:    { type: "STRING" }, // e.g. "urban stone wall"
     image_prompt:  { type: "STRING" }, // fully assembled Imagen-ready prompt
   },
-  required: ["outfit_id", "title", "key_pieces", "color_palette", "aesthetic", "composition", "lighting", "background", "image_prompt"],
+  required: ["outfit_id", "title", "key_pieces", "color_palette", "aesthetic", "composition", "lighting", "image_prompt"],
 };
 
 export const VisualIntelligenceSchema = {

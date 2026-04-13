@@ -402,13 +402,29 @@ export async function generateImage(params: { prompt: string; apiKey: string; pr
     // 2. Determine rotation pool
     let modelsToTry: string[] = [];
 
+    const hasRefs = referenceImages && referenceImages.length > 0;
+
     if (preferredModel && preferredModel !== "auto") {
         // Priority: preferred model then others
         const fallbackPool = discoveredImagen.length > 0 ? discoveredImagen : IMAGEN_MODELS_DEFAULT;
         modelsToTry = Array.from(new Set([preferredModel, ...fallbackPool]));
     } else {
         // Full auto-rotation through all discovered models, falling back to defaults
-        modelsToTry = discoveredImagen.length > 0 ? discoveredImagen : [...IMAGEN_MODELS_DEFAULT];
+        let basePool = discoveredImagen.length > 0 ? Array.from(discoveredImagen) : [...IMAGEN_MODELS_DEFAULT];
+        
+        // If we have reference images, we MUST use a model that supports them (nano-banana-2)
+        if (hasRefs) {
+            const multiIdx = basePool.indexOf("nano-banana-2");
+            if (multiIdx > -1) {
+                // Move nano-banana-2 to the front
+                basePool.splice(multiIdx, 1);
+                basePool.unshift("nano-banana-2");
+            } else if (!basePool.includes("nano-banana-2")) {
+                // Force add it if it's missing but we have references
+                basePool.unshift("nano-banana-2");
+            }
+        }
+        modelsToTry = basePool;
     }
 
     // The prompt is now assembled using the 'New Master Structure' in the pipeline,

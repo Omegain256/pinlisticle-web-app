@@ -531,31 +531,31 @@ export async function pipelineVisualIntelligence(
     // ── Step C: Build VisualDNA for all items in a single Gemini Vision call ───
     const visionParts: any[] = [];
 
+    const C1_IDENTITY = "Character C1 (female model, sharp editorial features, pulled-back blonde hair, high cheekbones, natural skin texture)";
+    const E4_ENVIRONMENT = "Environment E4 (sterile neutral-toned brutalist studio, polished limestone floors, flat gray walls, minimalist cinematic top-lighting)";
+
     const systemText = `You are a professional fashion photo analyst and AI image prompt engineer.
-Your task:
-1. Analyze the provided reference fashion photographs (${validImages.length} images attached).
-2. For each of the ${itemCount} outfit items listed below, synthesize a Visual DNA JSON object.
-3. The "image_prompt" field MUST be a precision Imagen 4 prompt that produces a photorealistic,
-   full-body editorial fashion photograph. MANDATORY: frame from shoes to crown — feet always visible.
+STRICT SHOT MATRIX COMPLIANCE (MANDATORY):
+- SUBJECT: Always use ${C1_IDENTITY}. NO IDENTITY DRIFTING.
+- ENVIRONMENT: Always use ${E4_ENVIRONMENT}. NO ENVIRONMENTAL DRIFTING. Ignore all evidence pack location mentions.
+- COMPOSITION: Always use "Full-length editorial, shoes-to-crown frame, standing straight, front view (Pose P1, Angle A1)".
 
 RULES FOR EACH FIELD:
-- key_pieces: Name EXACT garments with fabric (e.g. "cream ribbed linen wide-leg trousers", "camel double-breasted blazer in boiled wool"). Be granular.
-- color_palette: 2-4 specific hex codes or precise color names (e.g. "#F2EDE4 warm cream", "#8B6F52 cognac brown")
-- aesthetic: 1-3 precise mood tags derived from the reference images (e.g. "old money coastal", "Parisian minimalist")
-- composition: ALWAYS "Full-length editorial, shoes-to-crown frame, mid-stride or 3/4 turn"
-- lighting: Exact lighting conditions (e.g. "golden hour sidelight, warm amber color grade")
-- background: Hyper-specific location (e.g. "Haussmann limestone building facade, Paris 8th arrondissement")
+- key_pieces: Name EXACT garments with fabric (e.g. "cream ribbed linen wide-leg trousers").
+- color_palette: 2-4 specific hex codes or precise color names.
+- aesthetic: 1-3 precise mood tags (e.g. "minimalist Parisian").
+- lighting: "Cinematic top-lighting matching Environment E4".
 - image_prompt: Assemble as:
-  "Full-length editorial fashion photograph, shoes-to-crown frame. A woman wearing [key_pieces — listed individually].
-   [background]. [lighting]. [aesthetic] mood. Shot on Sony A7RV with 85mm f/1.4 prime lens.
-   Photorealistic, 4K UHD, grain texture of 35mm film, skin pores visible, no AI artifacts,
-   no text, no watermarks, no cropped feet."
+  "Full-length editorial fashion photograph of ${C1_IDENTITY} in ${E4_ENVIRONMENT}. Standing straight, front (P1, A1). 
+   Wearing [key_pieces — listed individually]. 
+   [lighting]. [aesthetic] mood. Shot on Sony A7RV with 85mm f/1.4 lens.
+   Photorealistic, 4K UHD, 35mm film texture, visible pores, no AI artifacts, no text."
 
 SHOT MATRIX RULE (apply strictly across all outfits):
-Subject: Character ID C1. Must perfectly match facial structure, eye color, skin tone, and hair of the reference woman. NO IDENTITY DRIFTING.
-Environment: Environment ID E4. This is the absolute, mandatory background asset. NO ENVIRONMENTAL DRIFTING. Do not introduce furniture, plants, windows, or alternate settings.
+Subject: ${C1_IDENTITY}. NO IDENTITY DRIFTING.
+Environment: ${E4_ENVIRONMENT}. NO ENVIRONMENTAL DRIFTING. Do not introduce furniture, plants, windows, or alternate settings.
 Pose / Angle: Pose ID P1 (Standing straight, front), Angle ID A1 (Full body, head-to-toe).
-Outfit: Adapt the layers to fit naturally onto Character C1 in Environment E4.
+Outfit: Adapt the layers to fit naturally onto ${C1_IDENTITY} in ${E4_ENVIRONMENT}.
 
 RETURN ONLY a raw JSON array with exactly ${itemCount} VisualDNA objects. No markdown, no code fences, no extra text.`;
 
