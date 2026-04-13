@@ -295,6 +295,40 @@ Example: { "0": 4, "1": 0 }`;
 
 // ─── Main export: pipelineSearchImages ───────────────────────────────────────
 
+/** Uses Gemini Grounding to find image URLs specifically for one fashion item without needing Jina Search */
+async function sniperSearchKeyless(card: any, apiKey: string): Promise<ArticleImagePool[]> {
+    const query = `${card.item_name} fashion outfit blog photo`;
+    const now = new Date().toISOString().split("T")[0];
+    const urlTemplate = `${GEMINI_BASE}/${MODEL_VISION}:generateContent?key=API_KEY_PLACEHOLDER`;
+
+    try {
+        const searchData = await fetchWithKeyRotation(apiKey, urlTemplate, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: `You are a fashion photo researcher. Today is ${now}. Find real photo image URLs for the specific garment: "${card.item_name}".` }] },
+                contents: [{ parts: [{ text: `Search for high-quality real-world outfit photos of: "${card.item_name}". Return a list of 5-10 image URLs from blogs or Pinterest in the grounding metadata.` }] }],
+                tools: [{ googleSearch: {} }],
+                generationConfig: { temperature: 0.1 },
+            }),
+        });
+
+        const metadata = searchData?.candidates?.[0]?.groundingMetadata;
+        const stringified = JSON.stringify(metadata);
+        const imageUrls = extractImagesFromMarkdown(stringified);
+
+        return imageUrls.map(url => ({
+            imageUrl: url,
+            pageUrl: "https://www.google.com/search?q=" + encodeURIComponent(query),
+            siteName: "Search Engine",
+            articleTitle: `Sniper: ${card.item_name}`
+        }));
+    } catch (e) {
+        console.warn(`[Sniper] Keyless fallback failed for ${card.item_name}:`, e);
+        return [];
+    }
+}
+
 export async function pipelineSearchImages(
     keyword: string,
     itemCards: any[],
@@ -348,27 +382,19 @@ export async function pipelineSearchImages(
     }
 
     if (imagePool.length === 0) {
-        console.warn("[ImgSearch] Main research pool empty. TRIGGERING SNIPER MODE.");
-        // Try targeted searches for each item
+        console.warn("[ImgSearch] Main research pool empty. TRIGGERING KEYLESS SNIPER MODE.");
+        // Try targeted searches for each item using Gemini Grounding (Keyless)
         for (let i = 0; i < itemCards.length; i++) {
             if (imagePool.length >= 10) break; // cap
             const card = itemCards[i];
-            const query = `${card.item_name} fashion blog outfit photo inspiration`;
-            console.log(`[ImgSearch] Sniper search: "${query}"`);
-            const searchMd = await searchViaJina(query);
-            if (searchMd) {
-                const sniperUrls = extractImagesFromMarkdown(searchMd).slice(0, 3);
-                for (const url of sniperUrls) {
-                    const img = await downloadAndCompress({
-                        imageUrl: url,
-                        pageUrl: `https://s.jina.ai/${encodeURIComponent(query)}`,
-                        siteName: "Search Engine",
-                        articleTitle: `Sniper: ${card.item_name}`
-                    });
-                    if (img) imagePool.push(img);
-                }
+            console.log(`[ImgSearch] Sniper search (Grounded): "${card.item_name}"`);
+            const sniperCandidates = await sniperSearchKeyless(card, apiKey);
+
+            for (const cand of sniperCandidates.slice(0, 3)) {
+                const img = await downloadAndCompress(cand);
+                if (img) imagePool.push(img);
             }
-            await sleep(500);
+            await sleep(300);
         }
     }
 

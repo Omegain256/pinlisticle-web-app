@@ -187,7 +187,21 @@ export function extractImagesFromMarkdown(markdown: string): string[] {
     const lazyImgs = markdown.matchAll(/(?:data-src|data-lazy|data-original|data-srcset)=["'](https?:\/\/[^\s"']+)["']/gi);
     for (const m of lazyImgs) urls.push(m[1]);
 
-    return [...new Set(urls)].slice(0, 20); // deduplicate, cap at 20 per article
+    // Pinterest / Social "media=" parameter extraction (High-res source)
+    const mediaParams = markdown.matchAll(/[?&]media=([^&"'\s]+\.(?:jpg|jpeg|png|webp|avif)(?:\?[^&"'\s]*)?)/gi);
+    for (const m of mediaParams) {
+        try {
+            urls.push(decodeURIComponent(m[1]));
+        } catch {
+            urls.push(m[1]);
+        }
+    }
+
+    // Match CDN images that use parameters instead of extensions (e.g. ?format=webp)
+    const paramImgs = markdown.matchAll(/https?:\/\/[^\s"')(]+\.[a-z0-9]{2,5}(?:\?[^\s"')(]*?(?:format|width|height|width|resize)=[^&"'\s]+)/gi);
+    for (const m of paramImgs) urls.push(m[0]);
+
+    return [...new Set(urls)].slice(0, 40); // Increased cap to 40 for higher vision pool
 }
 
 /** Extract page URLs from Gemini groundingChunks and rank by fashion source priority */
@@ -281,6 +295,17 @@ export async function pipelineSearchEvidence(keyword: string, briefJson: any, ap
             console.log(`[S2] ✗ Jina could not read: ${url.slice(0, 60)}...`);
         }
         await sleep(300); // gentle pacing
+    }
+
+    // ── Step B.5: Harvest Grounding Images (Snippets) ────────────────────────
+    // These are "unblockable" thumbnails indexed by Google Search/Search metadata
+    if (groundingData) {
+        const metadata = groundingData?.candidates?.[0]?.groundingMetadata;
+        // Search suggestions often contain image thumbnails or references
+        const stringified = JSON.stringify(metadata);
+        const groundingImgs = extractImagesFromMarkdown(stringified);
+        allReferenceImageUrls.push(...groundingImgs);
+        console.log(`[S2] Harvested ${groundingImgs.length} images from grounding metadata.`);
     }
 
     // Deduplicate image URLs
