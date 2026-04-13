@@ -15,7 +15,7 @@
  */
 
 import { fetchWithKeyRotation } from "./ai";
-import { extractImagesFromMarkdown } from "./pipeline";
+import { extractImagesFromMarkdown, searchViaJina } from "./pipeline";
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const JINA_BASE = "https://r.jina.ai/";
@@ -166,7 +166,19 @@ async function downloadAndCompress(candidate: ArticleImagePool): Promise<WebImag
                 }
             }
         } catch {
-            return null;
+            // Jina proxy failed, try direct fetch
+            try {
+                const res = await fetch(imageUrl, {
+                    headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36" }
+                });
+                if (res.ok) {
+                    const buf = await res.arrayBuffer();
+                    imageBuffer = Buffer.from(buf);
+                    mimeType = res.headers.get("content-type")?.split(";")[0] || "image/jpeg";
+                }
+            } catch {
+                return null;
+            }
         }
     }
 
@@ -196,7 +208,7 @@ async function downloadAndCompress(candidate: ArticleImagePool): Promise<WebImag
             siteName,
             articleTitle,
             sourceUrl: pageUrl,
-            creditLine: `Image via <a href="${pageUrl}" target="_blank" rel="noopener">${siteName}</a>`,
+            creditLine: siteName, // Plain text for flexible UI rendering
         },
     };
 }
@@ -336,7 +348,32 @@ export async function pipelineSearchImages(
     }
 
     if (imagePool.length === 0) {
-        console.warn("[ImgSearch] All image pooled failed to download.");
+        console.warn("[ImgSearch] Main research pool empty. TRIGGERING SNIPER MODE.");
+        // Try targeted searches for each item
+        for (let i = 0; i < itemCards.length; i++) {
+            if (imagePool.length >= 10) break; // cap
+            const card = itemCards[i];
+            const query = `${card.item_name} fashion blog outfit photo inspiration`;
+            console.log(`[ImgSearch] Sniper search: "${query}"`);
+            const searchMd = await searchViaJina(query);
+            if (searchMd) {
+                const sniperUrls = extractImagesFromMarkdown(searchMd).slice(0, 3);
+                for (const url of sniperUrls) {
+                    const img = await downloadAndCompress({
+                        imageUrl: url,
+                        pageUrl: `https://s.jina.ai/${encodeURIComponent(query)}`,
+                        siteName: "Search Engine",
+                        articleTitle: `Sniper: ${card.item_name}`
+                    });
+                    if (img) imagePool.push(img);
+                }
+            }
+            await sleep(500);
+        }
+    }
+
+    if (imagePool.length === 0) {
+        console.warn("[ImgSearch] Sniper mode also failed. No real images found.");
         return itemCards;
     }
 

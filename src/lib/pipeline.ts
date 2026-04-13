@@ -143,6 +143,28 @@ async function fetchViaJina(pageUrl: string): Promise<string | null> {
     }
 }
 
+/** Fetch search results (with snippets and images) for a keyword via Jina AI Search */
+export async function searchViaJina(query: string): Promise<string | null> {
+    try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), JINA_TIMEOUT_MS);
+        const encodedQuery = encodeURIComponent(query);
+        const res = await fetch(`https://s.jina.ai/${encodedQuery}`, {
+            signal: controller.signal,
+            headers: {
+                "Accept": "text/markdown, text/plain, */*",
+                "X-Return-Format": "markdown"
+            },
+        });
+        clearTimeout(timer);
+        if (!res.ok) return null;
+        return await res.text();
+    } catch (e) {
+        console.warn(`[JinaSearch] failed for "${query}":`, e);
+        return null;
+    }
+}
+
 /** Extract image URLs from Jina-returned markdown */
 export function extractImagesFromMarkdown(markdown: string): string[] {
     const urls: string[] = [];
