@@ -28,6 +28,7 @@ import {
 // ─── Types ────────────────────────────────────────────────────
 
 type Tone = "Casual" | "Professional" | "Fun" | "Minimal";
+type ImageMode = "ai" | "web";
 
 interface QueueRow {
     id: string;
@@ -36,6 +37,7 @@ interface QueueRow {
     count: number;
     seoKeyword: string;
     amazonTag: string;
+    imageMode: ImageMode;
     status: "queued" | "processing" | "success" | "error";
     message?: string;
     articleId?: string;
@@ -124,12 +126,16 @@ function Step1({
     onChange,
     batchAmazonTag,
     onBatchAmazonTagChange,
+    imageMode,
+    onImageModeChange,
     onNext,
 }: {
     value: string;
     onChange: (v: string) => void;
     batchAmazonTag: string;
     onBatchAmazonTagChange: (v: string) => void;
+    imageMode: ImageMode;
+    onImageModeChange: (v: ImageMode) => void;
     onNext: () => void;
 }) {
     const keywordCount = value.split("\n").filter((l) => l.trim().length > 0).length;
@@ -189,13 +195,53 @@ function Step1({
                 />
             </div>
 
+            {/* Image Source */}
+            <div className="glass-panel p-6">
+                <div className="mb-4">
+                    <label className="text-sm font-semibold text-slate-800">Image Source</label>
+                    <p className="text-xs text-slate-500 mt-0.5">Choose how images are sourced for each article in this batch.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {(["ai", "web"] as ImageMode[]).map(mode => (
+                        <label
+                            key={mode}
+                            className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                                imageMode === mode
+                                    ? "border-purple-500 bg-purple-50"
+                                    : "border-slate-200 bg-white hover:border-slate-300"
+                            }`}
+                        >
+                            <input
+                                type="radio"
+                                name="imageMode"
+                                value={mode}
+                                checked={imageMode === mode}
+                                onChange={() => onImageModeChange(mode)}
+                                className="mt-0.5 accent-purple-600"
+                            />
+                            <div>
+                                <p className="text-sm font-semibold text-slate-800">
+                                    {mode === "ai" ? "🤖 AI Generated" : "🌐 Web Search"}
+                                </p>
+                                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                                    {mode === "ai"
+                                        ? "Imagen 4 generates original photorealistic outfit photos."
+                                        : "Finds real photos from competitor fashion blogs. Each image includes source attribution."
+                                    }
+                                </p>
+                            </div>
+                        </label>
+                    ))}
+                </div>
+            </div>
+
             <div className="flex justify-end">
                 <button
                     onClick={onNext}
                     disabled={keywordCount === 0}
                     className="premium-button premium-button-primary gap-2 h-11 px-7 text-sm"
                 >
-                    Preview & Edit Queue <ChevronRight size={16} />
+                    Preview &amp; Edit Queue <ChevronRight size={16} />
                 </button>
             </div>
         </div>
@@ -222,7 +268,7 @@ function Step2({
             <div className="glass-panel overflow-hidden">
                 <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                     <div>
-                        <h2 className="text-sm font-semibold text-slate-800">Review & Edit Queue</h2>
+                        <h2 className="text-sm font-semibold text-slate-800">Review &amp; Edit Queue</h2>
                         <p className="text-xs text-slate-500 mt-0.5">
                             Adjust tone, item count, or SEO keyword for each article before generating.
                         </p>
@@ -239,6 +285,7 @@ function Step2({
                                 <th>Amazon Tag</th>
                                 <th>Tone</th>
                                 <th># Items</th>
+                                <th>Images</th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -289,6 +336,16 @@ function Step2({
                                             onChange={(e) => onChange(row.id, "count", Number(e.target.value))}
                                             className="premium-input text-xs h-8 w-16"
                                         />
+                                    </td>
+                                    <td className="min-w-[90px]">
+                                        <select
+                                            value={row.imageMode}
+                                            onChange={(e) => onChange(row.id, "imageMode", e.target.value as ImageMode)}
+                                            className="premium-input text-xs h-8 pr-2"
+                                        >
+                                            <option value="ai">🤖 AI</option>
+                                            <option value="web">🌐 Web</option>
+                                        </select>
                                     </td>
                                     <td>
                                         <button
@@ -371,6 +428,7 @@ function Step3({
                             <tr>
                                 <th>Keyword</th>
                                 <th>Tone</th>
+                                <th>Images</th>
                                 <th>Status</th>
                                 <th>Action</th>
                             </tr>
@@ -380,6 +438,7 @@ function Step3({
                                 <tr key={row.id}>
                                     <td className="font-medium text-slate-800 text-xs">{row.keyword}</td>
                                     <td className="text-xs text-slate-500">{row.tone}</td>
+                                    <td className="text-xs text-slate-500">{row.imageMode === "web" ? "🌐 Web" : "🤖 AI"}</td>
                                     <td>
                                         <StatusBadge status={row.status} message={row.message} />
                                         {row.status === "error" && (
@@ -437,6 +496,7 @@ export default function BatchPage() {
     const [keywordText, setKeywordText] = useState("");
     const [batchAmazonTag, setBatchAmazonTag] = useState("");
     const [selectedModel, setSelectedModel] = useState<"pro" | "lite">("pro");
+    const [imageMode, setImageMode] = useState<ImageMode>("ai");
 
     // Step 2 state
     const [rows, setRows] = useState<QueueRow[]>([]);
@@ -465,10 +525,9 @@ export default function BatchPage() {
             count: 1,
             seoKeyword: "",
             amazonTag: batchAmazonTag,
+            imageMode,
             status: "queued",
         }));
-
-
 
         if (!settings.geminiKey) {
             toast.error("Gemini API key is missing. Go to Settings first.");
@@ -517,6 +576,7 @@ export default function BatchPage() {
                         apiKey,
                         modelPrefix: modelToUse,
                         amazonTag: current[i].amazonTag,
+                        imageMode: current[i].imageMode,
                     })
                 });
 
@@ -597,12 +657,14 @@ export default function BatchPage() {
 
             {step === 1 && (
                 <Step1
-                        value={keywordText}
-                        onChange={setKeywordText}
-                        batchAmazonTag={batchAmazonTag}
-                        onBatchAmazonTagChange={setBatchAmazonTag}
-                        onNext={handleKeywordsNext}
-                    />
+                    value={keywordText}
+                    onChange={setKeywordText}
+                    batchAmazonTag={batchAmazonTag}
+                    onBatchAmazonTagChange={setBatchAmazonTag}
+                    imageMode={imageMode}
+                    onImageModeChange={setImageMode}
+                    onNext={handleKeywordsNext}
+                />
             )}
 
             {step === 2 && (

@@ -192,8 +192,16 @@ export async function pipelineSearchEvidence(keyword: string, briefJson: any, ap
         pageUrls = fallbackUrls;
     }
 
-    const topUrls = pageUrls.slice(0, MAX_PAGES);
-    console.log(`[S2] Reading ${topUrls.length} articles via Jina AI...`);
+    // Filter for editorial article URLs — reject search pages, homepages, generic nav
+    const EDITORIAL_PATTERNS = [/\/\d{4}\//, /\/article\//i, /\/style\//i, /\/fashion\//i, /\/outfits?\//i, /\/lookbook\//i, /\/what-to-wear/i, /\/trend/i, /\d{1,2}-[a-z]+-/];
+    const REJECT_PATTERNS = [/\/search[/?]/i, /\?q=/i, /\?s=/i, /\/page\//i];
+    const editorialUrls = pageUrls.filter(u =>
+        !REJECT_PATTERNS.some(p => p.test(u)) &&
+        (EDITORIAL_PATTERNS.some(p => p.test(u)) || FASHION_SOURCE_PRIORITY.some(s => u.includes(s)))
+    );
+    const filteredUrls = editorialUrls.length >= 2 ? editorialUrls : pageUrls;
+    const topUrls = filteredUrls.slice(0, MAX_PAGES);
+    console.log(`[S2] Reading ${topUrls.length} editorial articles via Jina (${editorialUrls.length}/${pageUrls.length} editorial)...`);
 
     // Fetch pages sequentially to avoid rate limits
     for (const url of topUrls) {
@@ -522,12 +530,26 @@ export async function pipelineGenerateItemCards(keyword: string, count: number, 
     const modelId = resolveModelId(modelPrefix);
     const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
 
-    const systemInstruction = `You are an expert editor building a visual and editorial content plan.
-    
-    For IMAGE SEEDS:
-    - SHOT_TYPE: Must ALWAYS be 'Full-body (shoes to crown)'. No exceptions. The reader must see the entire silhouette from head to toe.
-    - Provide a specific, unposed POSE_INSTRUCTION for each item (e.g. weight shifting forward, hands in pockets, gaze off-camera).
-    - Define an OUTFIT_DESCRIPTION focused on materials and fabrics.`;
+    const systemInstruction = `You are a SHARP WARDROBE EDITOR building content skeleton cards for a fashion listicle. Audience: women 26-44.
+
+EDITORIAL MISSION: Help women make faster, smarter wardrobe decisions for real mornings, real budgets, real schedules.
+
+FOR EACH ITEM CARD:
+1. item_name: Specific named outfit — include the defining garment (e.g. "Belted Trench + Slim Ankle Pant" not "Rainy Look").
+2. why_it_works: 2-3 reasons grounded in Hook/Meaning/Utility/Direction logic — not aesthetic adjectives.
+3. trend_support: Quote SPECIFIC data from the evidence pack (source + stat). Do NOT invent statistics.
+4. styling_notes: Fabric-specific colors, fabrics, accessories. Colors as precise names or hex codes.
+5. reader_value: The concrete outcome — what becomes easier for the reader after reading this.
+6. freshness_signal: One angle most competitor articles on this keyword are missing.
+
+IMAGE SEED RULES (MANDATORY — these feed the Imagen prompt engine):
+- SHOT_TYPE: ALWAYS "Full-length frame, shoes to crown, mid-stride". Full silhouette including shoes MUST be visible. NO EXCEPTIONS.
+- OUTFIT_DESCRIPTION: Name FABRICS and DRAPE (e.g. "matte nylon rain jacket with cinched belt, straight-leg dark denim, lug-sole rubber Chelsea boot"). No colour-only descriptions.
+- POSE_INSTRUCTION: One specific unposed action (e.g. "stepping off a kerb, collar turned up, eyes ahead, mid-stride").
+
+STRICTLY BANNED WORDS (any field):
+obsessed, game-changer, must-have, stunning, viral, fashionista, flawlessly, look expensive, trendy girl, delve, elevate, chic, essential, timeless, effortless, versatile, curated, luxe, statement, iconic, investment piece.`;
+
     const prompt = `
 KEYWORD: "${keyword}"
 ARTICLE BRIEF:
@@ -726,61 +748,66 @@ async function executeDraftBatch(params: {
     const urlTemplate = `${GEMINI_BASE}/${primaryModelId}:generateContent?key=API_KEY_PLACEHOLDER`;
     const alternativeUrlTemplate = `${GEMINI_BASE}/${secondaryModelId}:generateContent?key=API_KEY_PLACEHOLDER`;
 
-    const systemInstruction = `You are a SHARP WARDROBE EDITOR. Your target audience is women (26-44) seeking style advice for real life.
-    
-    EDITORIAL PROMISE:
-    Every article must: 1. Name a real wardrobe problem; 2. Explain the style logic; 3. Leave the reader feeling more capable.
-    
-    VOICE RULES:
-    Intelligent but legible | Warm but not sugary | Opinionated but not arrogant. Practical but stylish.
+    const systemInstruction = `You are a SHARP WARDROBE EDITOR. Audience: women (26-44), real style decisions.
 
-    VOCABULARY GUIDE (MANDATORY):
-    USE OFTEN: polished, grounded, deliberate, versatile, sharp, soft structure, balance, proportion, visual weight, clean line.
-    STRICTLY BANNED: obsessed, game-changer, must-have, stunning, viral, Amazon hack, fashionista, flawlessly, look expensive, trendy girl, delve, elevate, chic, essential.
+════ EDITORIAL PROMISE ════
+Every item: (1) Names a real wardrobe problem. (2) Explains the style logic. (3) Leaves the reader MORE CAPABLE.
 
-    IMAGE GENERATION MASTER STRUCTURE (MANDATORY):
-    Assemble each "image_prompt" strictly following this formula:
-    [SHOT_TYPE] of [SUBJECT] wearing [OUTFIT]. [LOCATION]. [LIGHTING_AND_WEATHER]. [CAMERA_AND_AESTHETIC]. [TEXTURE_AND_FINISH].
+════ BANNED WORDS — CHECK BEFORE RETURNING ════
+chic, elevate, essential, game-changer, viral, obsessed, timeless, effortless, versatile,
+statement, curated, luxe, chicness, wardrobe staple, must-have, stunning, take your look,
+style moment, fashion-forward, trendy, delve, look expensive, fashionista, flawlessly,
+elevated, iconic, investment piece, Amazon hack, trendy girl.
 
-    - SHOT_TYPE: Must ALWAYS be 'Full-length frame showing shoes to crown, mid-stride'. The feet and shoes MUST be visible.
-    - SUBJECT: ${styleDNA?.subject_definition || "A woman (26-44) with a modern, unforced personal style"}
-    - OUTFIT: Focus on fabrics and material drape.
-    - LOCATION: Ensure high variety. Choose settings like [Minimalist loft, cobblestone street, sun-drenched cafe, architectural library, flower market, art gallery, brutalist courtyard, moonlit garden]. Mix these throughout the list.
-    - LIGHTING: ${styleDNA?.lighting_and_weather || "Natural cinematic lighting"}
-    - CAMERA: ${styleDNA?.camera_and_aesthetic || "Shot on 35mm film"}
-    - TEXTURE: ${styleDNA?.texture_and_finish || "Visible skin texture, authentic film grain"}
+USE INSTEAD: polished, grounded, deliberate, sharp, balanced, clean line, sensible,
+intentional, practical, specific, honest, considered.
 
-    AESTHETIC: 100% human, unposed, realistic skin texture, candid photography.
-    
-    EDITORIAL BANNED ACTIONS:
-    - DO NOT drift into influencer tone.
-    - DO NOT over-explain trends without utility.
-    - DO NOT write long intros.
-    - DO NOT promise wear-tests unless verified.
-    - DO NOT INCLUDE ANY NUMBERING IN THE "title" FIELD.
-    `;
+════ SENTENCE FORMULA — MANDATORY ════
+EXACTLY 3 sentences per item content. No more, no less:
+  S1 HOOK: Name the real wardrobe tension or problem the reader is experiencing.
+  S2 MEANING + UTILITY: Explain the style logic AND give a specific action.
+  S3 DIRECTION: Brand the outcome. What does the reader now have or understand?
 
-    const instructions = isFirst ? `You are drafting the START of a ${totalItems}-item listicle. Generate the SEO metadata, Introduction, and the first ${batch.length} items.`
-        : isLast ? `You are drafting the END of a ${totalItems}-item listicle. Generate the final ${batch.length} items and the Outro.`
-        : `You are drafting a MIDDLE section of a ${totalItems}-item listicle. Generate content for ${batch.length} items.`;
+════ FORMATTING ════
+- title: NO NUMBERS. Specific. Name a garment or outfit combo.
+- article_intro: MAX 2 sentences. State the real wardrobe problem this article solves.
+- No padding sentences. No vague opener ("This look is perfect for...").
 
-    const hasVisualDNA = batch.some((card: any) => card.image_prompt_seed?.engineered_image_prompt);
+════ IMAGE PROMPT MASTER STRUCTURE ════
+Formula: [SHOT_TYPE] of [SUBJECT] wearing [FABRICS+DRAPE]. [LOCATION]. [LIGHTING]. [CAMERA]. [TEXTURE]. [QUALITY].
+
+  SHOT_TYPE: "Full-length frame, shoes to crown, mid-stride" — ALWAYS. Feet MUST be visible. No exceptions.
+  SUBJECT: ${styleDNA?.subject_definition || "A woman, 28-40, natural makeup, modern unforced style"}
+  FABRICS+DRAPE: Name specific fabrics (e.g. "matte nylon anorak, straight-leg dark denim, rubber Cherokee boots").
+  LOCATION: Specific + varied — ROTATE across list. Do NOT repeat. Pool: [fog-slicked cobblestone, timber-clad coffee shop doorway, brutalist concrete stair, moss-covered stone wall, rail platform at rush hour, wet asphalt parking garage, candlelit bistro window, art museum marble hallway, sun-drenched conservatory].
+  LIGHTING: ${styleDNA?.lighting_and_weather || "Overcast daylight, soft even shadows, no blown highlights"}
+  CAMERA: ${styleDNA?.camera_and_aesthetic || "Sony A7RV 85mm f/1.4, ISO 800"}
+  TEXTURE: ${styleDNA?.texture_and_finish || "Visible pores, honest skin, subtle halation on highlights"}
+  QUALITY: Photorealistic, 4K UHD, no AI artifacts, no text, no watermarks, no cropped feet.
+
+If a batch item has "image_prompt_seed.engineered_image_prompt", use it VERBATIM for that item's image_prompt. Do NOT modify.
+`;
+
+    const instructions = isFirst
+        ? `Draft the START of a ${totalItems}-item listicle. Generate: SEO metadata, article_intro (max 2 sentences), first ${batch.length} items.`
+        : isLast
+        ? `Draft the END of a ${totalItems}-item listicle. Generate: final ${batch.length} items + article_outro.`
+        : `Draft a MIDDLE section of a ${totalItems}-item listicle. Generate ${batch.length} items only.`;
 
     const prompt = `
 ${instructions}
 KEYWORD: "${keyword}"
-EVIDENCE: ${JSON.stringify(evidencePack)}
+EVIDENCE (cite specific facts — not summaries): ${JSON.stringify(evidencePack)}
 BATCH ITEMS: ${JSON.stringify(batch, null, 2)}
 
-OUTPUT REQUIREMENTS:
-- "title": Specific, compelling headline. NO NUMBERS.
-- "content": Exactly 3 SHORT sentences. FORMULA: Hook (tension/problem) → Meaning (logic) → Utility (action) → Direction (branding).
-- "image_prompt": ${hasVisualDNA
-    ? `For each item: if the BATCH ITEM has an "image_prompt_seed.engineered_image_prompt" field, copy it VERBATIM as the image_prompt — do NOT modify or shorten it. If no engineered_image_prompt is present, ASSEMBLE using the MASTER STRUCTURE.`
-    : `ASSEMBLE the prompt using the MASTER STRUCTURE.`
-}
+CRITICAL OUTPUT RULES:
+1. title: Specific. NO NUMBERS. Name a garment or outfit combo.
+2. content: EXACTLY 3 sentences. Hook → Meaning+Utility → Direction.
+3. image_prompt: If item has image_prompt_seed.engineered_image_prompt, copy it VERBATIM. Otherwise use MASTER STRUCTURE.
+4. Scan every field for BANNED WORDS before returning. Replace any found.
+5. article_intro (first batch only): Max 2 sentences naming the wardrobe problem.
 
-Return a JSON matching the appropriate schema parts.
+Return JSON matching the schema.
     `.trim();
 
     const data = (await fetchWithKeyRotation(apiKey, urlTemplate, {

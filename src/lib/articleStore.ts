@@ -22,6 +22,18 @@ export interface GeneratedArticle {
             image_base64?: string;
             wp_attachment_id?: number;
             wp_source_url?: string;
+            web_image?: {
+                image_base64: string;
+                mime_type: string;
+                original_url: string;
+                file_size_kb: number;
+                attribution: {
+                    siteName: string;
+                    articleTitle: string;
+                    sourceUrl: string;
+                    creditLine: string;
+                };
+            };
             product_recommendations?: Array<{
                 product_name: string;
                 amazon_search_term: string;
@@ -98,9 +110,21 @@ export function buildArticleHtml(data: GeneratedArticle["data"], amazonTag?: str
         // 1. H2 Title
         html += `<!-- wp:heading -->\n<h2 class="wp-block-heading" style="text-transform: uppercase;">${index + 1}. ${item.title}</h2>\n<!-- /wp:heading -->\n\n`;
 
-        // 2. Image
+        // 2. Image (priority: WP uploaded > web_image with attribution > AI-generated base64)
         if (item.wp_attachment_id && item.wp_source_url) {
             html += `<!-- wp:image {"id":${item.wp_attachment_id},"sizeSlug":"large","linkDestination":"none","className":"pinlisticle-item-img"} -->\n<figure class="wp-block-image size-large pinlisticle-item-img"><img src="${item.wp_source_url}" alt="${item.title}" class="wp-image-${item.wp_attachment_id}"/></figure>\n<!-- /wp:image -->\n`;
+        } else if (item.web_image?.image_base64) {
+            // Web image: render with attribution figcaption
+            const mimeType = item.web_image.mime_type || "image/jpeg";
+            const credit = item.web_image.attribution?.creditLine || "";
+            html += `<!-- wp:html -->\n`;
+            html += `<figure class="wp-block-image pinlisticle-item-img" style="margin-bottom:0.5rem">\n`;
+            html += `  <img src="data:${mimeType};base64,${item.web_image.image_base64}" alt="${item.title}" style="width:100%;height:auto;display:block;"/>\n`;
+            if (credit) {
+                html += `  <figcaption style="font-size:0.7rem;color:#888;margin-top:0.25rem;text-align:right;">${credit}</figcaption>\n`;
+            }
+            html += `</figure>\n`;
+            html += `<!-- /wp:html -->\n`;
         } else if (item.image_base64) {
             html += `<!-- wp:image {"className":"pinlisticle-item-img"} -->\n<figure class="wp-block-image pinlisticle-item-img"><img src="data:image/jpeg;base64,${item.image_base64}" alt="${item.title}"/></figure>\n<!-- /wp:image -->\n`;
         }
