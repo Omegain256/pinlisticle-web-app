@@ -422,12 +422,12 @@ export async function generateImage(params: { prompt: string; apiKey: string; pr
         if (hasRefs) {
             const multiIdx = basePool.indexOf("nano-banana-2");
             if (multiIdx > -1) {
-                // Move nano-banana-2 to the front
+                // Move nano-banana-2 to the END of the rotation
                 basePool.splice(multiIdx, 1);
-                basePool.unshift("nano-banana-2");
+                basePool.push("nano-banana-2");
             } else if (!basePool.includes("nano-banana-2")) {
-                // Force add it if it's missing but we have references
-                basePool.unshift("nano-banana-2");
+                // Add it as a last resort
+                basePool.push("nano-banana-2");
             }
         }
         modelsToTry = basePool;
@@ -456,7 +456,7 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
                 : `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predict?key=${key}`;
 
             try {
-                const NEGATIVE_PROMPT = "multiple arms, extra arms, fan of hands, spider-like limbs, deity arms, hindu goddess arms, duplicate shoulders, extra forearms, mutated anatomy, unnatural number of limbs, unnatural limb placement, fused body parts, warped hands, extra fingers, duplicate limbs, broken wrists, distorted reflection, incorrect mirror geometry, floating feet, fake shadows, exaggerated curves, unrealistic body proportions, over-sharpened pores, fake fabric sheen, unnatural hair, perfect showroom interior, surreal luxury bedroom, overexposed whites, crushed shadows, extreme HDR halos, glossy skin, anime features, doll-like face, merged silhouette, overlapping limbs, extra appendages";
+                const NEGATIVE_PROMPT = "multiple arms, extra limbs, extra hands, fan of arms, spider limbs, deity arms, merged body parts, duplicate shoulders, three arms, four arms, six arms, eight arms, uncanny valley anatomy, broken bones, multiple phones, floating fingers, editorial fashion shoot, studio lighting, DSLR bokeh, cinematic color grading, beauty filter skin, plastic skin, waxy face, overly airbrushed texture, CGI smoothness, unrealistic symmetry, uncanny eyes, mutated anatomy, unnatural number of limbs, unnatural limb placement, fused body parts, warped hands, extra fingers, duplicate limbs, broken wrists, distorted reflection, incorrect mirror geometry, floating feet, fake shadows, exaggerated curves, unrealistic body proportions, over-sharpened pores, fake fabric sheen, unnatural hair, perfect showroom interior, overexposed whites, crushed shadows, extreme HDR halos, glossy skin, anime features, doll-like face, merged silhouette, overlapping limbs, extra appendages";
                 const hardenedPrompt = `${prompt}\n\nNegative prompt: ${NEGATIVE_PROMPT}`;
 
                 let parts: any[] = [{ text: hardenedPrompt }];
