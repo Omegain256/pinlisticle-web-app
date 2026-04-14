@@ -165,17 +165,21 @@ export async function fetchWithKeyRotation(
                         lastError = data.error;
                         break; // rotate key
                     } else if (isOverloadError) {
-                        if (retryAttempt < maxRetriesPerKey) {
-                            // Exponential backoff: 2s, 4s, 8s...
+                        lastError = data.error;
+                        // EAGER ROTATION: If a key is overloaded, don't wait on it. 
+                        // Move to the next key immediately. We only wait if we've 
+                        // tried ALL keys and all are overloaded.
+                        if (attempts < maxKeys) {
+                            console.warn(`[Demand] ${modelConfig.label} overloaded on key ...${key.slice(-4)}. Rotating to next key immediately.`);
+                            break; // break retry loop to rotate key
+                        } else {
+                            // We have already tried every single key in the rotation.
+                            // NOW we perform the exponential backoff sleep.
                             const waitTime = Math.pow(2, retryAttempt + 1) * 1000 + (Math.random() * 500);
-                            console.warn(`[Demand] ${modelConfig.label} overloaded on key ...${key.slice(-4)}. Retrying in ${Math.round(waitTime)}ms... (${retryAttempt + 1}/${maxRetriesPerKey})`);
+                            console.warn(`[Demand] ALL KEYS overloaded. Waiting ${Math.round(waitTime)}ms then retrying full rotation... (${retryAttempt + 1}/${maxRetriesPerKey})`);
                             await sleep(waitTime);
                             retryAttempt++;
-                            continue; // retry same key
-                        } else {
-                            console.warn(`[Demand] ${modelConfig.label} failed after retries on key ...${key.slice(-4)}. Rotating.`);
-                            lastError = data.error;
-                            break; // rotate key
+                            continue; // retry this same circuit (will wrap back to keys[0])
                         }
                     } else {
                         throw new Error(errorMsg); // Fatal error (syntax, auth, etc.)
@@ -452,7 +456,7 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
                 : `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predict?key=${key}`;
 
             try {
-                const NEGATIVE_PROMPT = "editorial fashion shoot, studio lighting, DSLR bokeh, cinematic color grading, beauty filter skin, plastic skin, waxy face, overly airbrushed texture, CGI smoothness, unrealistic symmetry, uncanny eyes, multiple arms, extra arms, fan of hands, spider-like limbs, deity arms, hindu goddess arms, duplicate shoulders, extra forearms, mutated anatomy, unnatural number of limbs, unnatural limb placement, fused body parts, warped hands, extra fingers, duplicate limbs, broken wrists, distorted reflection, incorrect mirror geometry, floating feet, fake shadows, exaggerated curves, unrealistic body proportions, over-sharpened pores, fake fabric sheen, unnatural hair, perfect showroom interior, surreal luxury bedroom, overexposed whites, crushed shadows, extreme HDR halos, glossy skin, anime features, doll-like face";
+                const NEGATIVE_PROMPT = "multiple arms, extra arms, fan of hands, spider-like limbs, deity arms, hindu goddess arms, duplicate shoulders, extra forearms, mutated anatomy, unnatural number of limbs, unnatural limb placement, fused body parts, warped hands, extra fingers, duplicate limbs, broken wrists, distorted reflection, incorrect mirror geometry, floating feet, fake shadows, exaggerated curves, unrealistic body proportions, over-sharpened pores, fake fabric sheen, unnatural hair, perfect showroom interior, surreal luxury bedroom, overexposed whites, crushed shadows, extreme HDR halos, glossy skin, anime features, doll-like face, merged silhouette, overlapping limbs, extra appendages";
                 const hardenedPrompt = `${prompt}\n\nNegative prompt: ${NEGATIVE_PROMPT}`;
 
                 let parts: any[] = [{ text: hardenedPrompt }];

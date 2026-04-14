@@ -221,7 +221,11 @@ function extractAndRankPageUrls(groundingData: any): string[] {
     const urls: string[] = [];
     for (const chunk of chunks) {
         const uri: string = chunk?.web?.uri || "";
-        if (uri && uri.startsWith("http")) urls.push(uri);
+        // EXCLUSION: Filter out internal Google Search grounding redirect URLs.
+        // These URLs are not scrapeable by Jina and result in 403 or hang errors.
+        if (uri && uri.startsWith("http") && !uri.includes("vertexaisearch.cloud.google.com")) {
+            urls.push(uri);
+        }
     }
     // Also pull from search suggestions
     const suggestions = groundingData?.candidates?.[0]?.groundingMetadata?.webSearchQueries || [];
@@ -303,7 +307,8 @@ export async function pipelineSearchEvidence(keyword: string, briefJson: any, ap
             allReferenceImageUrls.push(...imgUrls);
             console.log(`[S2] ✓ Jina read ${url.slice(0, 60)}... (${markdown.length} chars, ${imgUrls.length} images)`);
         } else {
-            console.log(`[S2] ✗ Jina could not read: ${url.slice(0, 60)}...`);
+            const reason = !markdown ? "Empty/Null Response" : `Too short (${markdown.length} chars)`;
+            console.log(`[S2] ✗ Jina could not read: ${url.slice(0, 60)}... [${reason}]`);
         }
         await sleep(300); // gentle pacing
     }
@@ -534,26 +539,26 @@ export async function pipelineVisualIntelligence(
     const archetype = (briefJson?.style_archetype || "casual").toLowerCase();
     
     const C1_IDENTITY = "Character C1 (female model, middle-parted deep brunette hair, hazel-brown eyes, prominent high cheekbones, natural fair skin texture)";
-    const E4_ENVIRONMENT = "Environment E4 (tidy minimalist bedroom, white walls, light oak wood floors, a neatly made low bed with white duvet, and a monstera plant in the corner)";
+    const E4_ENVIRONMENT = "Environment E4 (sterile minimalist bedroom, white walls, light oak wood floors, a neatly made low bed with white duvet, and a clean empty corner to ensure a sharp body silhouette)";
 
     const TEMPLATES = {
         casual: `Full-body mirror selfie of ${C1_IDENTITY} modeling a casual everyday outfit, captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16.
-She is standing in ${E4_ENVIRONMENT}, in front of a thin-framed floor mirror. One monstera plant is in the far corner, clearly separated from her silhouette.
-She has exactly two arms and two hands. One hand is holding the phone, the other is at her side or in a pocket.
+She is standing in ${E4_ENVIRONMENT}, in front of a thin-framed floor mirror.
+STRICT ANATOMY: She has exactly two arms and two hands. One hand is holding the phone, the other is at her side or in a pocket. Masterfully rendered human limbs with no merging to background.
 The framing is straight-on at chest height with a realistic handheld phone perspective.
 She is wearing [OUTFIT] and holding a [PHONE_COLOR] iPhone 16 Pro. Her pose is [POSE].
-Keep the image looking like a real social media outfit mirror selfie. Preserve realistic skin texture, accurate hands with five fingers, and natural anatomical symmetry.`,
+Keep the image looking like a real social media outfit mirror selfie. Preserve realistic skin texture, accurate hands with five fingers, and perfect anatomical symmetry.` ,
         
         luxury: `Full-body mirror selfie of ${C1_IDENTITY} modeling a quiet luxury outfit, captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16.
-She is standing in ${E4_ENVIRONMENT}, in front of a thin-framed floor mirror. The room decor is minimal and kept away from her body.
-She has exactly two arms and two hands. One hand is holding the phone, the other is elegantly at her side.
+She is standing in ${E4_ENVIRONMENT}, in front of a thin-framed floor mirror. The room decor is minimal and kept well away from her body.
+STRICT ANATOMY: She has exactly two arms and two hands. One hand is holding the phone, the other is elegantly at her side. Masterfully rendered human limbs with zero phantom reflections or extra fingers.
 The framing is centered and natural at chest height.
 She is wearing [OUTFIT] and holding a [PHONE_COLOR] iPhone 16 Pro. Her pose is [POSE].
 The result should feel like a genuine high-end personal outfit post. Preserve realistic skin texture, natural facial asymmetry, accurate five-finger hands, and zero extra limbs.`,
         
         sporty: `Full-body mirror selfie of ${C1_IDENTITY} modeling a sporty streetwear outfit, captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16.
-She is standing in ${E4_ENVIRONMENT}, in front of a thin-framed floor mirror. Background plants are far in the corner to avoid silhouette overlap.
-She has exactly two arms and two hands. One hand is holding the phone, the other is resting naturally or in a pocket.
+She is standing in ${E4_ENVIRONMENT}, in front of a thin-framed floor mirror.
+STRICT ANATOMY: She has exactly two arms and two hands. One hand is holding the phone, the other is resting naturally or in a pocket. Masterfully rendered human limbs with no anatomical distortions.
 The framing is slightly casual and handheld at chest height.
 She is wearing [OUTFIT] and holding a [PHONE_COLOR] iPhone 16 Pro. Her pose is [POSE].
 Keep the result looking like a real mirror selfie taken for social media. Preserve realistic skin texture, accurate hand anatomy, five fingers, and perfect anatomical symmetry with two arms only.`
