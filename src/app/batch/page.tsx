@@ -129,6 +129,8 @@ function Step1({
     onBatchAmazonTagChange,
     imageMode,
     onImageModeChange,
+    category,
+    onCategoryChange,
     onNext,
 }: {
     value: string;
