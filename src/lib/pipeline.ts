@@ -605,13 +605,21 @@ Hair finish: [HAIR_FINISH]. Texture: individual strand definition, realistic shi
 Style: [STYLE_ANCHOR]. Emotion: [EMOTION]. Aspect ratio 9:16.
 This is ONE single continuous photograph. No collage. No composite. No multiple angles. No split panels.`,
 
-        nails: `Macro close-up of two well-groomed human hands against a neutral seamless background. FRAMING: Hands fill the lower two-thirds of the frame. NO face visible. Hands are NOT covering the face or obscuring any body part. Hands rest flat or are gently posed AGAINST A NEUTRAL SURFACE — not layered over another body part.
-Each hand has exactly 5 fingers with correct anatomical proportions. Nails are [NAIL_SHAPE] shaped and finished in [NAIL_FINISH]. Posed in [HAND_POSE] against a clean background.
-Lighting: [LIGHTING] with controlled specular highlights to show polish reflectivity without clipping.
-Camera: High-resolution full-frame digital camera, 100mm macro lens, f/8, [ANGLE] angle.
-Texture: Cuticle detail, polish surface realism, [SURFACE_OBJECTION].
+        nails: `Professional nail photography. [NAIL_SHAPE] nails finished in [NAIL_FINISH].
+MANDATORY HAND GEOMETRY (NON-NEGOTIABLE):
+- Both hands placed flat, palms facing DOWN on a neutral matte surface.
+- Hands positioned SIDE BY SIDE, not stacked, not overlapping, not crossing.
+- All fingers fully extended and spread apart so every individual finger is clearly visible and countable.
+- Left hand on the left side of frame, right hand on the right side of frame.
+- Each hand has exactly 5 fingers. Ten fingers total are visible in the image.
+- No hand is placed on top of the other hand. No fingers are obscured by another hand.
+FRAMING: Top-down or slight 30-degree overhead angle. Crop from mid-forearm down. NO face, NO body, NO background objects.
+BACKGROUND: Flat neutral matte surface (cream, white, or light stone). Clean and uncluttered.
+Lighting: [LIGHTING] with soft specular highlights showing polish finish without clipping.
+Camera: High-resolution full-frame digital camera, 100mm macro lens, f/8.
+Texture: Cuticle definition, [NAIL_FINISH] polish surface realism, skin texture visible.
 Style: [STYLE_ANCHOR]. Aspect ratio 9:16.
-Exactly two hands. Exactly ten fingers total. No extra limbs. Clean background visible.`
+FINAL CHECK: If any finger is hidden or any hand is stacked on the other, the image is wrong.`
     };
 
     const activeTemplate = category === "beauty" 
@@ -658,8 +666,8 @@ ADDITIONAL BEAUTY VARS (Replace if applicable):
 - [AIRFLOW_MOTION]: "static" or "subtle wind-blown motion"
 - [NAIL_SHAPE]: "almond", "square", or "stiletto"
 - [NAIL_FINISH]: "gel color", "chrome effect", or "matte polish"
-- [HAND_POSE]: "resting flat on a neutral surface", "fingers fanned outward on a surface", or "gentle side-by-side placement"
 - [SURFACE_OBJECTION]: "glass interaction", "fabric resting", or "skin contact"
+NOTE: Hand positioning for nail shots is FIXED in the template — do NOT invent or override hand poses.
 
 - image_prompt: Assemble the prompt EXACTLY using the active template below. Replace ALL bracketed placeholders with specific details.
 ${activeTemplate}`;
