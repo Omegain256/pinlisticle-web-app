@@ -581,25 +581,37 @@ The final result must be indistinguishable from a real social media photo with p
     };
 
     const TEMPLATES_BEAUTY = {
-        face: `Tier 1: [SUBJECT_DETAILS] wearing [MAKEUP_PHILOSOPHY]. Crop at forehead and collarbone, center-focused framing, 9:16 ratio.
-Tier 2: [LIGHTING] paired with [FILL_TYPE]. High-resolution full-frame digital camera with an 85mm lens at f/5.6, captured from a [ANGLE].
-Tier 3: Fine cinematic grain layered with an Ian Buosi-inspired paperscan texture to preserve pore-level realism. Textures emphasized in [MICRO_DETAILS], post processes restrained.
-Tier 4: Photographer style blending [STYLE_ANCHOR] with contemporary beauty realism. Emotion conveyed is [EMOTION].`,
+        face: `Close-up beauty portrait of a young adult woman. FRAMING: Crop from top of forehead to collarbone only. NO full body. NO feet. NO legs. Neutral seamless background. Single subject, single face, centered.
+[SUBJECT_DETAILS] wearing [MAKEUP_PHILOSOPHY].
+Lighting: [LIGHTING] paired with [FILL_TYPE] to flatter skin texture without overexposure.
+Camera: High-resolution full-frame digital camera, 85mm lens, f/5.6, [ANGLE] angle.
+Texture: Fine cinematic grain, pore-level realism, no beauty filter smoothing.
+Style: [STYLE_ANCHOR]. Emotion: [EMOTION]. Aspect ratio 9:16.
+This is a single-subject close-up photograph of one human face. Exactly one head, two eyes, one nose, one mouth.`,
 
-        eye: `Tier 1: [PRODUCT_TYPE] with [FORMULATION_COLOR], held [APPLICATION_POSITION]. Extreme close-up isolating the eye, centered iris, 9:16 ratio. [SUBJECT_DETAILS]. 
-Tier 2: [LIGHTING] paired with [FILL_TYPE] to preserve lash definition. High-resolution full-frame digital camera with a 100mm macro lens at f/8, captured from a [ANGLE].
-Tier 3: Fine cinematic grain layered with an Ian Buosi-inspired paperscan texture to preserve pore-level realism. Textures emphasized in lash fibers, product texture, and skin detail.
-Tier 4: Photographer style blending [STYLE_ANCHOR] with precision-driven beauty advertising. Emotion conveyed is [EMOTION].`,
+        eye: `Extreme macro close-up of a single eye and surrounding skin. FRAMING: Fill the frame with the eye area only — from brow to upper cheek, temple to temple. NO face, NO body, NO hands in frame.
+[PRODUCT_TYPE] with [FORMULATION_COLOR]. [SUBJECT_DETAILS].
+Lighting: [LIGHTING] to preserve lash definition and iris texture.
+Camera: High-resolution full-frame digital camera, 100mm macro lens, f/8, [ANGLE] angle.
+Texture: Fine cinematic grain, lash fiber detail, skin pore texture visible.
+Style: [STYLE_ANCHOR]. Aspect ratio 9:16.
+One eye only, centered. No multiple perspectives. Single continuous photograph.`,
 
-        hair: `Tier 1: [HAIR_TYPE] hair styled as [SPECIFIC_STYLE] showing [AIRFLOW_MOTION]. Framing captures head sequence and flow direction, 9:16. [SUBJECT_DETAILS].
-Tier 2: [LIGHTING] paired with rim/back light to sculpt strand separation, frizz control, and highlight natural sheen. High-resolution full-frame digital camera with an 85mm lens at f/5.6, captured from a [ANGLE].
-Tier 3: Fine cinematic grain layered with an Ian Buosi-inspired paperscan texture. Hair finish is [HAIR_FINISH]. Textures emphasized in individual strands and reflections.
-Tier 4: Photographer style blending [STYLE_ANCHOR] with high-fashion hair editorial. Emotion conveyed is [EMOTION].`,
+        hair: `Portrait-framed hair photograph of a young adult woman. FRAMING: Head and shoulders only — crop from top of hair down to the upper chest. NO full body. NO arms extended. NO bare feet. NO legs. Neutral seamless background.
+[HAIR_TYPE] hair styled as [SPECIFIC_STYLE], [AIRFLOW_MOTION].
+Lighting: [LIGHTING] with rim light to sculpt strand separation and highlight sheen.
+Camera: High-resolution full-frame digital camera, 85mm lens, f/5.6, [ANGLE] angle.
+Hair finish: [HAIR_FINISH]. Texture: individual strand definition, realistic shine, no plastic sheen.
+Style: [STYLE_ANCHOR]. Emotion: [EMOTION]. Aspect ratio 9:16.
+This is ONE single continuous photograph. No collage. No composite. No multiple angles. No split panels.`,
 
-        nails: `Tier 1: Well-groomed hands with [NAIL_SHAPE] nails finished in [NAIL_FINISH]. Hands posed in [HAND_POSE]. Tightly framed with emphasis on symmetry, 9:16.
-Tier 2: [LIGHTING] with controlled specular highlights to accentuate polish reflectivity without clipping. High-resolution full-frame digital camera with a 100mm macro lens at f/8, captured from a [ANGLE].
-Tier 3: Fine cinematic grain layered with an Ian Buosi-inspired paperscan texture. Textures emphasized in cuticle detail, polish surface, and [SURFACE_OBJECTION].
-Tier 4: Photographer style blending [STYLE_ANCHOR] with luxury beauty advertising. Emotion conveyed is controlled and refined.`
+        nails: `Macro close-up of two well-groomed human hands against a neutral seamless background. FRAMING: Hands fill the lower two-thirds of the frame. NO face visible. Hands are NOT covering the face or obscuring any body part. Hands rest flat or are gently posed AGAINST A NEUTRAL SURFACE — not layered over another body part.
+Each hand has exactly 5 fingers with correct anatomical proportions. Nails are [NAIL_SHAPE] shaped and finished in [NAIL_FINISH]. Posed in [HAND_POSE] against a clean background.
+Lighting: [LIGHTING] with controlled specular highlights to show polish reflectivity without clipping.
+Camera: High-resolution full-frame digital camera, 100mm macro lens, f/8, [ANGLE] angle.
+Texture: Cuticle detail, polish surface realism, [SURFACE_OBJECTION].
+Style: [STYLE_ANCHOR]. Aspect ratio 9:16.
+Exactly two hands. Exactly ten fingers total. No extra limbs. Clean background visible.`
     };
 
     const activeTemplate = category === "beauty" 
@@ -624,28 +636,33 @@ ${activeTemplate}
 ...where [OUTFIT] is a specific description of the garments, [PHONE_COLOR] is the assigned color, and [POSE] is the pose described above.`;
 
     const systemTextBeauty = `You are a professional beauty photo analyst and AI image prompt engineer.
-STRICT CATEGORY ISOLATION: 
-- SUBJECT: Always a "young adult woman".
-- DO NOT invent accessories unless specific to the beauty product. Keep backgrounds neutral and isolated. NO mirroring, NO full-body shots.
+STRICT CATEGORY ISOLATION (NON-NEGOTIABLE):
+- SUBJECT: Always a single young adult woman. One person only.
+- FRAMING: NEVER full-body. NEVER show feet or legs. NEVER show multiple angles or collages.
+  - face/eye/makeup items → close-up portrait from forehead to collarbone only
+  - hair items → head and shoulders only, no extended arms, no body below chest
+  - nail items → hands only against a neutral background; hands must NOT cover the face or any body part
+- BACKGROUND: Always neutral, seamless, and uncluttered. No props, no furniture, no scene.
+- ANATOMY: Exactly one head, exactly two arms, exactly two hands, exactly ten fingers total. No extra limbs.
 
 VARIABLE SELECTION RULES:
-For each item, strictly rotate and select exactly ONE option from these arrays and inject into the activeTemplate placeholders:
+For each item, strictly rotate and select exactly ONE option from these arrays:
 - [ANGLE]: "straight-on", "15° tilt", or "side-frontal"
 - [LIGHTING]: "flat beauty", "top clinical", or "rim sculpted"
+- [FILL_TYPE]: "silver reflector fill", "white card bounce", or "ambient diffusion"
 - [EMOTION]: "neutral", "detached", or "assertive"
 - [STYLE_ANCHOR]: "clinical beauty", "luxury campaign", "backstage editorial", or "dermal macro realism"
 
 ADDITIONAL BEAUTY VARS (Replace if applicable):
 - [HAIR_FINISH]: "wet", "matte", or "glossy"
-- [AIRFLOW_MOTION]: "static" or "wind-blown"
+- [AIRFLOW_MOTION]: "static" or "subtle wind-blown motion"
 - [NAIL_SHAPE]: "almond", "square", or "stiletto"
 - [NAIL_FINISH]: "gel color", "chrome effect", or "matte polish"
-- [HAND_POSE]: "delicate grip", "resting gracefully", or "gentle overlap"
+- [HAND_POSE]: "resting flat on a neutral surface", "fingers fanned outward on a surface", or "gentle side-by-side placement"
 - [SURFACE_OBJECTION]: "glass interaction", "fabric resting", or "skin contact"
 
-- image_prompt: Assemble the prompt EXACTLY using the 4-Tier structure:
-${activeTemplate}
-Replace ALL uppercase bracketed placeholders with specific details matching the item.`;
+- image_prompt: Assemble the prompt EXACTLY using the active template below. Replace ALL bracketed placeholders with specific details.
+${activeTemplate}`;
 
     const systemText = category === "beauty" ? systemTextBeauty : systemTextFashion;
     const systemPromptSuffix = `\nRETURN ONLY a raw JSON array with exactly ${itemCount} VisualDNA objects. No markdown, no code fences, no extra text.`;
