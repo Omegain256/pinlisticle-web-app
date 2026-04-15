@@ -10,11 +10,11 @@ export const redisConnection: ConnectionOptions = {
     tls: process.env.REDIS_TLS === "true" ? {} : undefined,
     maxRetriesPerRequest: null,
     retryStrategy(times) {
-        if (times > 3) {
+        if (times > 20) {
             console.error("Redis connection failed. Max retries reached.");
             return null; // Stop retrying and throw error
         }
-        return Math.min(times * 500, 2000);
+        return Math.min(times * 1000, 5000); // Wait up to 5 seconds between retries
     }
 };
 
