@@ -605,21 +605,17 @@ Hair finish: [HAIR_FINISH]. Texture: individual strand definition, realistic shi
 Style: [STYLE_ANCHOR]. Emotion: [EMOTION]. Aspect ratio 9:16.
 This is ONE single continuous photograph. No collage. No composite. No multiple angles. No split panels.`,
 
-        nails: `Professional nail photography. [NAIL_SHAPE] nails finished in [NAIL_FINISH].
-MANDATORY HAND GEOMETRY (NON-NEGOTIABLE):
-- Both hands placed flat, palms facing DOWN on a neutral matte surface.
-- Hands positioned SIDE BY SIDE, not stacked, not overlapping, not crossing.
-- All fingers fully extended and spread apart so every individual finger is clearly visible and countable.
-- Left hand on the left side of frame, right hand on the right side of frame.
-- Each hand has exactly 5 fingers. Ten fingers total are visible in the image.
-- No hand is placed on top of the other hand. No fingers are obscured by another hand.
-FRAMING: Top-down or slight 30-degree overhead angle. Crop from mid-forearm down. NO face, NO body, NO background objects.
-BACKGROUND: Flat neutral matte surface (cream, white, or light stone). Clean and uncluttered.
-Lighting: [LIGHTING] with soft specular highlights showing polish finish without clipping.
-Camera: High-resolution full-frame digital camera, 100mm macro lens, f/8.
-Texture: Cuticle definition, [NAIL_FINISH] polish surface realism, skin texture visible.
-Style: [STYLE_ANCHOR]. Aspect ratio 9:16.
-FINAL CHECK: If any finger is hidden or any hand is stacked on the other, the image is wrong.`
+        nails: `Professional close-up nail photograph. [NAIL_SHAPE] nails finished in [NAIL_FINISH].
+SUBJECT: ONE single hand only. Not two hands. One hand fills the frame.
+HAND POSE: Hand is slightly cupped or lightly fisted with fingers angled toward the camera so all five nails face forward and are fully visible. Similar to a natural relaxed curl — not flat, not splayed. Wrist visible at bottom of frame.
+FRAMING: Extreme close-up macro. The hand fills 80% of the frame. Shot from a slight front-overhead angle (30–45 degrees). Crop at mid-forearm. NO face, NO body, NO second hand.
+BACKGROUND: Soft blurred neutral background (cream, marble, or light stone). Background should be out of focus to emphasize the nails.
+ANATOMY: Exactly ONE hand. Exactly FIVE fingers. Each finger is separate, clearly defined, naturally spaced. No finger is hidden behind another.
+FINGER INTEGRITY (MANDATORY): Do not generate extra fingers, missing fingers, fused fingers, mutated hands, deformed anatomy, duplicate fingers, or blurry finger edges. Every finger must have a clean, sharp, anatomically correct nail bed.
+Lighting: [LIGHTING] with controlled specular highlights on polish surface. No clipping.
+Camera: High-resolution full-frame digital camera, 100mm macro lens, f/4 to f/5.6 for slight background separation.
+Texture: Cuticle detail, skin texture, [NAIL_FINISH] polish surface realism.
+Style: [STYLE_ANCHOR]. Aspect ratio 9:16.`
     };
 
     const activeTemplate = category === "beauty" 

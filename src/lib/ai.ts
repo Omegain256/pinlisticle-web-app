@@ -437,13 +437,15 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
                 // Imagen 4.0 no longer supports negativePrompt as a parameter.
                 // Fold critical anatomical exclusions directly into the prompt text instead.
                 const baseExclusions = "Do not include: barefoot feet, extra limbs, extra hands, merged body parts, distorted anatomy, warped hands, extra fingers, broken wrists, overlapping limbs, anime features, doll-like face, plastic skin, overly airbrushed texture, text overlays, logos.";
-                const beautyExclusions = " Do not include: background elements, text, logos, overlays, exaggerated makeup, stylized illustration, painterly effects.";
-                // Beauty-specific positive anatomical directive — Imagen responds better to 
-                // explicit "must have" instructions than negations for hand anatomy.
-                const beautyHandDirective = " Every hand must have exactly 5 naturally shaped fingers, correct finger proportions, natural knuckle definition, realistic nail beds, and anatomically accurate finger spacing. Hands must look like a real human hand photographed in natural light.";
+
+                // Beauty-only: aggressive finger failure pattern suppression + general beauty exclusions.
+                // These do NOT apply to fashion.
+                const beautyFingerExclusions = " FINGER ANOMALY SUPPRESSION: Do not generate extra fingers, missing fingers, fused fingers, mutated hands, deformed anatomy, duplicate fingers, blurry finger edges, malformed knuckles, or incorrect finger count. Every finger must be anatomically distinct and correctly formed.";
+                const beautyGeneralExclusions = " Do not include: background clutter, props, text overlays, logos, exaggerated makeup, stylized illustration, painterly effects, second hand unless specified.";
+                const beautyHandDirective = " One hand only in the frame. Exactly five fingers. Each finger separate and clearly visible. Realistic skin texture, visible knuckle structure, natural nail beds.";
 
                 const exclusionSuffix = category === "beauty" 
-                    ? `${baseExclusions}${beautyExclusions}${beautyHandDirective}`
+                    ? `${baseExclusions}${beautyFingerExclusions}${beautyGeneralExclusions}${beautyHandDirective}`
                     : baseExclusions;
 
                 const hardenedPrompt = `${prompt} ${exclusionSuffix}`;
