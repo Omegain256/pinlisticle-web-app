@@ -543,13 +543,15 @@ export async function pipelineVisualIntelligence(
 
     const TEMPLATES = {
         casual: `Full-body mirror selfie of ${C1_IDENTITY} modeling a casual everyday outfit.
+PHOTOGRAPHY STYLE (SHOES TO CROWN): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from shoes to the top of her head. Handheld perspective at chest height.
 STRICT ANATOMY: This is a natural human with exactly two arms and two hands. One hand is holding the phone with a realistic grip, visible knuckles, and five distinct fingers. The other hand is at her side or in a pocket.
-AESTHETIC: High-quality unedited smartphone photo, authentic social media post style, handheld perspective at chest height. Natural indoor lighting with subtle shadows.
+AESTHETIC: High-quality unedited smartphone photo, authentic social media post style. Natural indoor lighting with subtle shadows.
 She is standing in ${E4_ENVIRONMENT}. There is clear white empty space between her body and the background to ensure a sharp, clean silhouette.
 OUTFIT: [OUTFIT] | PHONE: [PHONE_COLOR] iPhone 16 Pro | POSE: [POSE].
 Result must look like a real, non-AI person's mirror selfie with authentic skin texture and 100% correct human limb placement.`,
         
         luxury: `Full-body mirror selfie of ${C1_IDENTITY} modeling a quiet luxury outfit.
+PHOTOGRAPHY STYLE (SHOES TO CROWN): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from shoes to the top of her head. Centered and natural at chest height.
 STRICT ANATOMY: Perfectly rendered human anatomy with exactly two arms. One hand holds the phone naturally; the other is at her side. Zero extra limbs, zero ghosting, zero phantom reflections.
 AESTHETIC: Premium unedited smartphone photography, authentic personal outfit post aesthetic. Soft natural lighting, realistic skin with visible pores, no smoothing.
 She is standing in ${E4_ENVIRONMENT} with clear separation from all furniture.
@@ -557,6 +559,7 @@ OUTFIT: [OUTFIT] | PHONE: [PHONE_COLOR] iPhone 16 Pro | POSE: [POSE].
 Ensure the final image looks like a genuine high-end smartphone capture with 100% anatomical accuracy.`,
         
         sporty: `Full-body mirror selfie of ${C1_IDENTITY} modeling a sporty streetwear outfit.
+PHOTOGRAPHY STYLE (SHOES TO CROWN): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from shoes to the top of her head. Slightly casual and handheld at chest height.
 STRICT ANATOMY: Human blueprint with exactly two arms. One hand holding the phone, hand is anatomically correct with five fingers. Silhouette is sharp and clean.
 AESTHETIC: Candid unedited smartphone selfie, authentic handheld photo aesthetic. Authentic iPhone color processing, natural daylight, no AI smoothing.
 She is standing in ${E4_ENVIRONMENT}. Body is clearly separated from background walls.
