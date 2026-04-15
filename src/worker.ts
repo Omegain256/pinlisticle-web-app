@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Worker, Job } from "bullmq";
-import { GENERATION_QUEUE_NAME, PublishPipelineData } from "./lib/queue";
+import { GENERATION_QUEUE_NAME, PublishPipelineData, redisConnection } from "./lib/queue";
 import {
     pipelineClassifyTopic,
     pipelineSearchEvidence,
@@ -16,11 +16,6 @@ import { pipelineSearchImages } from "./lib/imageSearch";
 import { generateImage, getShotMatrixReferences } from "./lib/ai";
 
 console.log("Starting PinListicle BullMQ Worker...");
-
-// Default to local redis if REDIS_URL isn't set
-const redisConnection = process.env.REDIS_URL ? 
-    new URL(process.env.REDIS_URL) : 
-    { host: "localhost", port: 6379 };
 
 
 interface ArticleDraft {
@@ -140,7 +135,7 @@ const worker = new Worker<PublishPipelineData>(
                     const evidencePack = state.evidence_pack as any;
                     const referenceImgUrls: string[] = evidencePack?.reference_image_urls ?? [];
                     const enriched = await pipelineVisualIntelligence(
-                        targetToken, state.item_cards, data.apiKey, state.style_dna, referenceImgUrls, state.brief
+                        targetToken, state.item_cards, data.apiKey, state.style_dna, referenceImgUrls, state.brief, (data as any).category
                     );
                     if (enriched && enriched.length > 0) {
                         state.item_cards = enriched as WorkerState["item_cards"];
@@ -226,7 +221,8 @@ const worker = new Worker<PublishPipelineData>(
                         const b64 = await generateImage({ 
                             prompt: item.image_prompt, 
                             apiKey: data.apiKey,
-                            referenceImages: refs
+                            referenceImages: refs,
+                            category: (data as any).category
                         });
                         state.image_results.push(b64 || "");
                         if (item) item.image_base64 = b64;

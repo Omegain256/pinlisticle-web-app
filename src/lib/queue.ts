@@ -10,7 +10,7 @@ export const redisConnection: ConnectionOptions = {
     tls: process.env.REDIS_TLS === "true" ? {} : undefined,
     maxRetriesPerRequest: null,
     retryStrategy(times) {
-        if (times > 20) {
+        if (times > 50) {
             console.error("Redis connection failed. Max retries reached.");
             return null; // Stop retrying and throw error
         }
@@ -42,6 +42,7 @@ export interface PublishPipelineData {
     count: number;
     apiKey: string; 
     modelPrefix: "pro" | "lite";
+    category?: "fashion" | "beauty";
     
     // Internal state carried across jobs within a pipeline execution
     pipeline_state?: {
