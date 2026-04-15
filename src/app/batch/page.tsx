@@ -608,7 +608,7 @@ export default function BatchPage() {
         for (let i = 0; i < current.length; i++) {
             if (current[i].status !== "queued") continue;
 
-            current[i] = { ...current[i], status: "processing", message: "Running pipeline…" };
+            current[i] = { ...current[i], status: "processing", message: "Starting pipeline…" };
             setRows([...current]);
 
             try {
@@ -628,19 +628,48 @@ export default function BatchPage() {
                     })
                 });
 
-                let data: any;
-                try {
-                    data = await response.json();
-                } catch {
-                    throw new Error(`Server error (HTTP ${response.status}) — check Render logs for details.`);
+                if (!response.ok || !response.body) {
+                    throw new Error(`Server error (HTTP ${response.status}) — check Render logs.`);
                 }
 
-                if (!data.success) {
-                    const stageInfo = data.stage ? ` [Stage: ${data.stage}]` : "";
-                    throw new Error((data.error || "Unknown pipeline error") + stageInfo);
+                // ── Read the SSE stream line by line ────────────────────────────
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = "";
+                let finalData: any = null;
+
+                streamLoop: while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const chunks = buffer.split("\n\n");
+                    buffer = chunks.pop() ?? "";
+
+                    for (const chunk of chunks) {
+                        const eventMatch = chunk.match(/^event: (\w+)/m);
+                        const dataMatch  = chunk.match(/^data: (.+)$/m);
+                        if (!dataMatch) continue;
+
+                        let payload: any;
+                        try { payload = JSON.parse(dataMatch[1]); } catch { continue; }
+
+                        const eventType = eventMatch?.[1];
+                        if (eventType === "progress") {
+                            current[i] = { ...current[i], message: payload.message || "Working…" };
+                            setRows([...current]);
+                        } else if (eventType === "done") {
+                            finalData = payload;
+                            break streamLoop;
+                        } else if (eventType === "error") {
+                            throw new Error(payload.error || "Pipeline error");
+                        }
+                    }
                 }
 
-                const articleData = data.article;
+                if (!finalData?.success) throw new Error(finalData?.error || "Pipeline returned no result.");
+
+                const articleData = finalData.article;
                 if (!articleData) throw new Error("Pipeline returned no article data.");
 
                 const html = buildArticleHtml(articleData, current[i].amazonTag, settings.internalLinks);

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import {
     pipelineClassifyTopic,
     pipelineSearchEvidence,
@@ -14,174 +14,157 @@ import { pipelineSearchImages } from "@/lib/imageSearch";
 
 export const maxDuration = 300;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// STREAMING SUBMIT ROUTE
+// Converts the pipeline to a Server-Sent Events stream so that Render's
+// 30-second HTTP idle timeout never triggers. Each pipeline stage sends a
+// progress event, keeping the socket alive. The final event carries the full
+// article payload. The browser reads this with a streaming fetch loop.
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function POST(req: NextRequest) {
-    try {
-        const body = await req.json();
-        const { topic, keyword, tone, count, apiKey, modelPrefix, amazonTag, imageMode, category } = body;
-        // imageMode: "ai" (default) | "web" (real images from competitor articles, credited)
+    const body = await req.json();
+    const { topic, keyword, tone, count, apiKey, modelPrefix, amazonTag, imageMode, category } = body;
 
-        if (!topic && !keyword) {
-            return NextResponse.json({ success: false, error: "Topic or keyword required" }, { status: 400 });
-        }
-        if (!apiKey) {
-            return NextResponse.json({ success: false, error: "API Key required" }, { status: 400 });
-        }
-
-        const targetKeyword = keyword || topic;
-        const itemCount = count || 7;
-        const useWebImages = imageMode === "web";
-
-        // ── Stage 1: Brief / Classify ───────────────────────────────────────
-        let brief: any;
-        try {
-            brief = await pipelineClassifyTopic(targetKeyword, apiKey, category || "fashion");
-        } catch (e: any) {
-            return NextResponse.json({ success: false, stage: "classify", error: e.message }, { status: 500 });
-        }
-
-        // ── Stage 2: Evidence via Web Search (Jina AI enhanced) ─────────────
-        let evidence_pack: any;
-        try {
-            evidence_pack = await pipelineSearchEvidence(targetKeyword, brief, apiKey, category || "fashion");
-        } catch (e: any) {
-            console.warn("Evidence search failed, using fallback:", e.message);
-            evidence_pack = { trending_angles: [], top_sources: [], seasonal_context: "", audience_pain_points: [], competitive_gaps: "", key_statistics: [], reference_image_urls: [] };
-        }
-
-        // ── Stage 3: Style DNA ───────────────────────────────────────────────
-        let style_dna: any;
-        try {
-            style_dna = await pipelineGenerateStyleDNA(targetKeyword, brief, apiKey);
-        } catch (e: any) {
-            console.warn("Style DNA failed, using fallback:", e.message);
-            style_dna = { style_family: "editorial", realism_constraints: ["hyper-realistic", "photographic"], color_story: "neutral" };
-        }
-
-        // ── Stage 4: Item Evidence Cards ────────────────────────────────────
-        let item_cards: any[];
-        try {
-            item_cards = await pipelineGenerateItemCards(targetKeyword, itemCount, brief, evidence_pack, apiKey, modelPrefix || "pro");
-        } catch (e: any) {
-            return NextResponse.json({ success: false, stage: "item_cards", error: e.message }, { status: 500 });
-        }
-        if (!item_cards || item_cards.length === 0) {
-            return NextResponse.json({ success: false, stage: "item_cards", error: "No item cards generated." }, { status: 500 });
-        }
-
-        // ── Stage 4.5: Image Enrichment (mode-dependent) ────────────────────
-        let enriched_item_cards = item_cards;
-
-        if (useWebImages) {
-            // WEB IMAGE MODE: scrape competitor articles → real photos + attribution
-            console.log("[S4.5] Web Image Mode: searching competitor articles for real outfit photos...");
-            try {
-                const webResult = await pipelineSearchImages(targetKeyword, item_cards, evidence_pack, apiKey);
-                if (webResult && webResult.length > 0) {
-                    enriched_item_cards = webResult;
-                    const matched = webResult.filter((c: any) => c.web_image).length;
-                    console.log(`[S4.5] Web images: ${matched}/${item_cards.length} items matched.`);
-                }
-            } catch (e: any) {
-                console.warn("Web image search skipped:", e.message);
-            }
-        } else {
-            // AI IMAGE MODE: VisualDNA analysis → engineered Imagen prompts
-            console.log("[S4.5] AI Image Mode: running Visual Intelligence...");
-            try {
-                const referenceImgUrls: string[] = evidence_pack?.reference_image_urls ?? [];
-                const visualResult = await pipelineVisualIntelligence(
-                    targetKeyword, item_cards, apiKey, style_dna, referenceImgUrls, brief, category || "fashion"
-                );
-                if (visualResult && visualResult.length > 0) {
-                    enriched_item_cards = visualResult;
-                    console.log(`[S4.5] AI Visual Intelligence: ${referenceImgUrls.length} reference images used.`);
-                }
-            } catch (e: any) {
-                console.warn("Visual Intelligence skipped:", e.message);
-            }
-        }
-
-        // ── Stage 5: Draft Article ───────────────────────────────────────────
-        let article_draft: any;
-        try {
-            // STRIP HEAVY DATA: remove base64 strings before sending to LLM for writing
-            const strippedCards = stripHeavyData(enriched_item_cards);
-            article_draft = await pipelineDraftArticle(targetKeyword, tone || "conversational", brief, strippedCards, evidence_pack, apiKey, modelPrefix || "pro");
-        } catch (e: any) {
-            return NextResponse.json({ success: false, stage: "draft", error: e.message }, { status: 500 });
-        }
-
-        // ── Stage 6: QA Score (soft-gate, non-blocking) ─────────────────────
-        let qa_score: any = { pass: true };
-        try {
-            qa_score = await pipelineScoreEditorialQA(article_draft, item_cards, apiKey);
-            if (!qa_score?.pass) console.warn("QA soft-fail:", qa_score?.weak_sections);
-        } catch (e: any) {
-            console.warn("QA scorer skipped:", e.message);
-        }
-
-        // ── Stage 7: Finalize Images ─────────────────────────────────────────
-        if (useWebImages) {
-            // WEB MODE: copy web_image data from enriched_item_cards into article_draft using item_index
-            if (article_draft?.listicle_items) {
-                article_draft.listicle_items = article_draft.listicle_items.map((item: any) => {
-                    const index = item.item_index;
-                    const enriched = enriched_item_cards.find((c: any) => c.item_index === index);
-                    if (enriched?.web_image) {
-                        return { 
-                            ...item, 
-                            web_image: enriched.web_image,
-                            image_base64: enriched.web_image.image_base64,
-                            image_prompt: enriched.image_prompt_seed?.engineered_image_prompt || item.image_prompt
-                        };
-                    }
-                    return item;
-                });
-                const firstWebImg = enriched_item_cards.find((c: any) => c.web_image);
-                if (firstWebImg?.web_image && !article_draft.featured_image_base64) {
-                    article_draft.featured_image_base64 = firstWebImg.web_image.image_base64;
-                }
-            }
-        } else {
-            // AI MODE: generate images via Imagen for each item
-            const image_results: string[] = [];
-            const imageSources = article_draft?.listicle_items || item_cards;
-            for (let i = 0; i < imageSources.length; i++) {
-                const draftItem = article_draft?.listicle_items?.[i];
-                const card = item_cards[i];
-                const seed = card?.image_prompt_seed;
-                const finalPrompt = draftItem?.image_prompt
-                    || (seed ? `${seed.subject}. ${seed.setting}. ${seed.shot} shot. ${seed.lighting}. Hyper-realistic editorial photography.` : null);
-
-                if (!finalPrompt) { image_results.push(""); continue; }
-                try {
-                    const refs = await getShotMatrixReferences();
-                    const b64 = await generateImage({ prompt: finalPrompt, apiKey, referenceImages: refs, category: category || "fashion" });
-                    image_results.push(b64 || "");
-                } catch (imgErr: any) {
-                    console.warn(`Image ${i + 1} failed: ${imgErr.message}`);
-                    image_results.push("");
-                }
-            }
-
-            if (article_draft?.listicle_items) {
-                for (let j = 0; j < article_draft.listicle_items.length; j++) {
-                    if (image_results[j]) article_draft.listicle_items[j].image_base64 = image_results[j];
-                }
-                if (image_results[0]) article_draft.featured_image_base64 = image_results[0];
-            }
-        }
-
-        return NextResponse.json({
-            success: true,
-            article: article_draft,
-            qa_score,
-            image_mode: useWebImages ? "web" : "ai",
-            stages_completed: ["classify", "evidence", "style_dna", "item_cards", "visual_intelligence", "draft", "qa", "images"],
-        });
-
-    } catch (error: any) {
-        console.error("Pipeline error:", error);
-        return NextResponse.json({ success: false, error: error.message || "Unknown pipeline error" }, { status: 500 });
+    if ((!topic && !keyword) || !apiKey) {
+        return new Response(
+            JSON.stringify({ success: false, error: "Topic/keyword and API Key required" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+        );
     }
+
+    const targetKeyword = keyword || topic;
+    const itemCount     = count || 7;
+    const useWebImages  = imageMode === "web";
+    const cat           = category || "fashion";
+
+    const encoder = new TextEncoder();
+
+    const stream = new ReadableStream({
+        async start(controller) {
+            const send = (event: string, data: unknown) => {
+                try {
+                    controller.enqueue(
+                        encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+                    );
+                } catch { /* stream already closed */ }
+            };
+
+            try {
+                // Stage 1 ──────────────────────────────────────────────────
+                send("progress", { stage: "classify", pct: 5, message: "Classifying topic…" });
+                const brief = await pipelineClassifyTopic(targetKeyword, apiKey, cat);
+                send("progress", { stage: "classify", pct: 12, message: "Topic classified." });
+
+                // Stage 2 ──────────────────────────────────────────────────
+                send("progress", { stage: "evidence", pct: 15, message: "Gathering research…" });
+                let evidence_pack: any;
+                try {
+                    evidence_pack = await pipelineSearchEvidence(targetKeyword, brief, apiKey, cat);
+                } catch {
+                    evidence_pack = { trending_angles: [], top_sources: [], seasonal_context: "", audience_pain_points: [], competitive_gaps: "", key_statistics: [], reference_image_urls: [] };
+                }
+                send("progress", { stage: "evidence", pct: 25, message: "Research gathered." });
+
+                // Stage 3 ──────────────────────────────────────────────────
+                send("progress", { stage: "style_dna", pct: 27, message: "Building style DNA…" });
+                let style_dna: any;
+                try {
+                    style_dna = await pipelineGenerateStyleDNA(targetKeyword, brief, apiKey);
+                } catch {
+                    style_dna = { style_family: "editorial", realism_constraints: ["hyper-realistic"], color_story: "neutral" };
+                }
+                send("progress", { stage: "style_dna", pct: 33, message: "Style DNA ready." });
+
+                // Stage 4 ──────────────────────────────────────────────────
+                send("progress", { stage: "item_cards", pct: 35, message: `Generating ${itemCount} item cards…` });
+                const item_cards = await pipelineGenerateItemCards(targetKeyword, itemCount, brief, evidence_pack, apiKey, modelPrefix || "pro");
+                if (!item_cards?.length) throw new Error("No item cards generated.");
+                send("progress", { stage: "item_cards", pct: 50, message: "Item cards ready." });
+
+                // Stage 4.5 ────────────────────────────────────────────────
+                let enriched_item_cards = item_cards;
+                if (useWebImages) {
+                    send("progress", { stage: "images_web", pct: 53, message: "Searching web images…" });
+                    try {
+                        const webResult = await pipelineSearchImages(targetKeyword, item_cards, evidence_pack, apiKey);
+                        if (webResult?.length) enriched_item_cards = webResult;
+                    } catch { /* non-fatal */ }
+                    send("progress", { stage: "images_web", pct: 60, message: "Web images fetched." });
+                } else {
+                    send("progress", { stage: "visual_intelligence", pct: 53, message: "Visual intelligence…" });
+                    try {
+                        const refUrls: string[] = evidence_pack?.reference_image_urls ?? [];
+                        const vis = await pipelineVisualIntelligence(targetKeyword, item_cards, apiKey, style_dna, refUrls, brief, cat);
+                        if (vis?.length) enriched_item_cards = vis;
+                    } catch { /* non-fatal */ }
+                    send("progress", { stage: "visual_intelligence", pct: 60, message: "Visual intelligence done." });
+                }
+
+                // Stage 5 ──────────────────────────────────────────────────
+                send("progress", { stage: "draft", pct: 62, message: "Drafting article…" });
+                const strippedCards = stripHeavyData(enriched_item_cards);
+                const article_draft = await pipelineDraftArticle(targetKeyword, tone || "conversational", brief, strippedCards, evidence_pack, apiKey, modelPrefix || "pro");
+                send("progress", { stage: "draft", pct: 78, message: "Draft complete." });
+
+                // Stage 6 ──────────────────────────────────────────────────
+                send("progress", { stage: "qa", pct: 80, message: "Quality check…" });
+                let qa_score: any = { pass: true };
+                try { qa_score = await pipelineScoreEditorialQA(article_draft, item_cards, apiKey); } catch { /* non-fatal */ }
+                send("progress", { stage: "qa", pct: 84, message: "QA done." });
+
+                // Stage 7 ──────────────────────────────────────────────────
+                if (useWebImages) {
+                    if (article_draft?.listicle_items) {
+                        article_draft.listicle_items = article_draft.listicle_items.map((item: any) => {
+                            const enriched = enriched_item_cards.find((c: any) => c.item_index === item.item_index);
+                            if (enriched?.web_image) return { ...item, web_image: enriched.web_image, image_base64: enriched.web_image.image_base64, image_prompt: enriched.image_prompt_seed?.engineered_image_prompt || item.image_prompt };
+                            return item;
+                        });
+                        const first = enriched_item_cards.find((c: any) => c.web_image);
+                        if (first?.web_image && !article_draft.featured_image_base64) article_draft.featured_image_base64 = first.web_image.image_base64;
+                    }
+                } else {
+                    const imageSources = article_draft?.listicle_items || item_cards;
+                    for (let i = 0; i < imageSources.length; i++) {
+                        send("progress", { stage: "images_ai", pct: 85 + Math.round((i / imageSources.length) * 12), message: `Generating image ${i + 1}/${imageSources.length}…` });
+                        const draftItem = article_draft?.listicle_items?.[i];
+                        const card      = item_cards[i];
+                        const seed      = card?.image_prompt_seed;
+                        const finalPrompt = draftItem?.image_prompt || (seed ? `${seed.subject}. ${seed.setting}. ${seed.shot} shot. ${seed.lighting}. Hyper-realistic editorial photography.` : null);
+                        if (!finalPrompt) continue;
+                        try {
+                            const refs = await getShotMatrixReferences();
+                            const b64  = await generateImage({ prompt: finalPrompt, apiKey, referenceImages: refs, category: cat });
+                            if (article_draft?.listicle_items?.[i]) article_draft.listicle_items[i].image_base64 = b64;
+                            if (i === 0 && article_draft && !article_draft.featured_image_base64) article_draft.featured_image_base64 = b64;
+                        } catch { /* non-fatal per image */ }
+                    }
+                }
+
+                // Done ─────────────────────────────────────────────────────
+                send("done", {
+                    success: true,
+                    article: article_draft,
+                    qa_score,
+                    image_mode: useWebImages ? "web" : "ai",
+                    stages_completed: ["classify", "evidence", "style_dna", "item_cards", "visual_intelligence", "draft", "qa", "images"],
+                });
+
+            } catch (err: any) {
+                send("error", { success: false, error: err.message || "Unknown pipeline error" });
+            } finally {
+                controller.close();
+            }
+        }
+    });
+
+    return new Response(stream, {
+        headers: {
+            "Content-Type":  "text/event-stream",
+            "Cache-Control": "no-cache, no-transform",
+            "Connection":    "keep-alive",
+            "X-Accel-Buffering": "no", // disable Nginx/proxy buffering on Render
+        },
+    });
 }
