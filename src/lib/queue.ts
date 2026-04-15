@@ -3,32 +3,38 @@
 import { Queue } from "bullmq";
 import Redis from "ioredis";
 
-// Create a robust IORedis client using the full URL, avoiding manual URL property extraction bugs.
-export const redisConnection = process.env.REDIS_URL
-    ? new Redis(process.env.REDIS_URL, {
-        maxRetriesPerRequest: null,
-        family: 0, // Force IPv4/IPv6 compatibility
-        tls: process.env.REDIS_URL.startsWith('rediss') ? { rejectUnauthorized: false } : undefined,
-        retryStrategy(times) {
-            if (times > 50) {
-                console.error("Redis connection failed. Max retries reached.");
-                return null;
+// Prevent connection attempts during static Next.js builds
+const isBuild = process.env.npm_lifecycle_event === 'build' || process.env.NEXT_PHASE === 'phase-production-build';
+
+export const createRedisClient = () => {
+    if (isBuild) return null as any;
+
+    return process.env.REDIS_URL
+        ? new Redis(process.env.REDIS_URL, {
+            maxRetriesPerRequest: null,
+            family: 0, 
+            tls: process.env.REDIS_URL.startsWith('rediss') ? { rejectUnauthorized: false } : undefined,
+            retryStrategy(times) {
+                if (times > 50) {
+                    console.error("Redis connection failed. Max retries reached.");
+                    return null;
+                }
+                return Math.min(times * 1000, 5000);
             }
-            return Math.min(times * 1000, 5000);
-        }
-    })
-    : new Redis({
-        host: process.env.REDIS_HOST || "localhost",
-        port: parseInt(process.env.REDIS_PORT || "6379", 10),
-        username: process.env.REDIS_USERNAME || "default",
-        password: process.env.REDIS_PASSWORD || "",
-        tls: process.env.REDIS_TLS === "true" ? { rejectUnauthorized: false } : undefined,
-        maxRetriesPerRequest: null,
-        retryStrategy(times) {
-            if (times > 50) return null;
-            return Math.min(times * 1000, 5000);
-        }
-    });
+        })
+        : new Redis({
+            host: process.env.REDIS_HOST || "localhost",
+            port: parseInt(process.env.REDIS_PORT || "6379", 10),
+            username: process.env.REDIS_USERNAME || "default",
+            password: process.env.REDIS_PASSWORD || "",
+            tls: process.env.REDIS_TLS === "true" ? { rejectUnauthorized: false } : undefined,
+            maxRetriesPerRequest: null,
+            retryStrategy(times) {
+                if (times > 50) return null;
+                return Math.min(times * 1000, 5000);
+            }
+        });
+};
 
 // Define Job Payload Types for strict typings in the worker Let's define
 export interface PublishPipelineData {
@@ -59,9 +65,12 @@ export interface PublishPipelineData {
 export const GENERATION_QUEUE_NAME = "pinlisticle-generation";
 
 // Singleton queue instance
-export const generationQueue = new Queue<PublishPipelineData>(GENERATION_QUEUE_NAME, {
-    connection: redisConnection,
-});
+// Mock during build to prevent Vercel/Render hanging on unreachable internal networks
+export const generationQueue = isBuild 
+    ? { on: () => {}, add: () => {} } as any
+    : new Queue<PublishPipelineData>(GENERATION_QUEUE_NAME, {
+        connection: createRedisClient(),
+    });
 
 // VERY IMPORTANT: Catch background Redis errors so Node doesn't trigger an Unhandled Exception crash
 // which causes Next.js to return the 500 HTML `<DOCTYPE...` page instead of our JSON.

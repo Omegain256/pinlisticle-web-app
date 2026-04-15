@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Worker, Job } from "bullmq";
-import { GENERATION_QUEUE_NAME, PublishPipelineData, redisConnection } from "./lib/queue";
+import { GENERATION_QUEUE_NAME, PublishPipelineData, createRedisClient } from "./lib/queue";
 import {
     pipelineClassifyTopic,
     pipelineSearchEvidence,
@@ -249,7 +249,7 @@ const worker = new Worker<PublishPipelineData>(
         }
     },
     {
-        connection: redisConnection as any,
+        connection: createRedisClient() as any,
         concurrency: 2, // process up to 2 heavy LLM pipelines at once
     }
 );
