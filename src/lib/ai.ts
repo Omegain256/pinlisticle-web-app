@@ -457,7 +457,10 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
 
             try {
                 const NEGATIVE_PROMPT = "barefoot, bare feet, toes, no shoes, multiple arms, extra limbs, extra hands, fan of arms, spider limbs, deity arms, merged body parts, duplicate shoulders, three arms, four arms, six arms, eight arms, uncanny valley anatomy, broken bones, multiple phones, floating fingers, editorial fashion shoot, studio lighting, DSLR bokeh, cinematic color grading, beauty filter skin, plastic skin, waxy face, overly airbrushed texture, CGI smoothness, unrealistic symmetry, uncanny eyes, mutated anatomy, unnatural number of limbs, unnatural limb placement, fused body parts, warped hands, extra fingers, duplicate limbs, broken wrists, distorted reflection, incorrect mirror geometry, floating feet, fake shadows, exaggerated curves, unrealistic body proportions, over-sharpened pores, fake fabric sheen, unnatural hair, perfect showroom interior, overexposed whites, crushed shadows, extreme HDR halos, glossy skin, anime features, doll-like face, merged silhouette, overlapping limbs, extra appendages";
-                const hardenedPrompt = `${prompt}\n\nNegative prompt: ${NEGATIVE_PROMPT}`;
+                
+                // Do NOT append the negative prompt to the positive prompt text.
+                // This causes the AI to actively process those words as desired features.
+                const hardenedPrompt = prompt;
 
                 let parts: any[] = [{ text: hardenedPrompt }];
 
@@ -478,7 +481,12 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
                     })
                     : JSON.stringify({
                         instances: [{ prompt: hardenedPrompt }],
-                        parameters: { sampleCount: 1, aspectRatio: "9:16", outputOptions: { mimeType: "image/jpeg" } }
+                        parameters: { 
+                            sampleCount: 1, 
+                            aspectRatio: "9:16", 
+                            outputOptions: { mimeType: "image/jpeg" },
+                            negativePrompt: NEGATIVE_PROMPT
+                        }
                     });
 
                 const res = await fetch(url, {
