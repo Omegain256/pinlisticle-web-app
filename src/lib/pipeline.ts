@@ -597,13 +597,7 @@ Texture: Fine cinematic grain, lash fiber detail, skin pore texture visible.
 Style: [STYLE_ANCHOR]. Aspect ratio 9:16.
 One eye only, centered. No multiple perspectives. Single continuous photograph.`,
 
-        hair: `Portrait-framed hair photograph of a young adult woman. FRAMING: Head and shoulders only — crop from top of hair down to the upper chest. NO full body. NO arms extended. NO bare feet. NO legs. Neutral seamless background.
-[HAIR_TYPE] hair styled as [SPECIFIC_STYLE], [AIRFLOW_MOTION].
-Lighting: [LIGHTING] with rim light to sculpt strand separation and highlight sheen.
-Camera: High-resolution full-frame digital camera, 85mm lens, f/5.6, [ANGLE] angle.
-Hair finish: [HAIR_FINISH]. Texture: individual strand definition, realistic shine, no plastic sheen.
-Style: [STYLE_ANCHOR]. Emotion: [EMOTION]. Aspect ratio 9:16.
-This is ONE single continuous photograph. No collage. No composite. No multiple angles. No split panels.`,
+        hair: `Shot on an iPhone 15 Pro using the native 48MP camera with a 24–28mm equivalent wide lens, deep depth of field and natural mobile perspective, captured handheld at eye-level or slightly above with slight framing imperfections. Lighting is natural or practical (window light or indoor ambient), with soft uneven falloff, mild highlight clipping, and real shadow noise, no studio lighting. Color follows iPhone Smart HDR with realistic skin tones, slight warmth, and true-to-life hair color with minor white balance shifts. Detail reflects mobile processing: subtle sharpening, slight softness, and authentic sensor noise in shadows, no artificial grain or overlays. Subject is a young adult woman with real human features, visible pores, minor blemishes, natural asymmetry, hair described as [HAIR_TYPE], styled as [SPECIFIC_STYLE] with imperfections like flyaways, irregular strands, and natural volume behavior. Skin is untreated, minimal makeup, natural texture and tonal variation preserved. Background is a real environment or simple wall with slight imperfections and depth. Pose is casual with small natural head movement, expression neutral or subtly engaged. Composition slightly off-center with loose framing and natural hair interaction with edges. Camera motion handheld with minor micro-blur or stabilization artifacts. Post-processing limited to native iPhone pipeline (Smart HDR, mild sharpening, light contrast), no cinematic grading or retouching. Aesthetic prioritizes realism through imperfection, texture variation, and natural light behavior. Aspect ratio 9:16.`,
 
         nails: `Professional close-up nail photograph. [NAIL_SHAPE] nails finished in [NAIL_FINISH].
 SUBJECT: ONE single hand only. Not two hands. One hand fills the frame.
