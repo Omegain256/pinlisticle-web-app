@@ -3,50 +3,94 @@
 import { Queue } from "bullmq";
 import Redis from "ioredis";
 
-// Prevent connection attempts during static Next.js builds
-const isBuild = process.env.npm_lifecycle_event === 'build' || process.env.NEXT_PHASE === 'phase-production-build';
+// ─────────────────────────────────────────────────────────────────────────────
+// LAZY REDIS FACTORY
+// NEVER create a Redis instance at module evaluation time.
+// Next.js evaluates every imported module during static build/prerender —
+// creating a socket here would fire connect attempts immediately, before any
+// environment variables are reliably set and before the network is reachable.
+// Instead, export a factory that callers invoke at request time.
+// ─────────────────────────────────────────────────────────────────────────────
 
-export const createRedisClient = () => {
-    if (isBuild) return null as any;
-
-    return process.env.REDIS_URL
-        ? new Redis(process.env.REDIS_URL, {
+export function createRedisClient(): Redis {
+    if (process.env.REDIS_URL) {
+        return new Redis(process.env.REDIS_URL, {
             maxRetriesPerRequest: null,
-            family: 0, 
-            tls: process.env.REDIS_URL.startsWith('rediss') ? { rejectUnauthorized: false } : undefined,
+            family: 0,           // support both IPv4 and IPv6
+            tls: process.env.REDIS_URL.startsWith("rediss")
+                ? { rejectUnauthorized: false }
+                : undefined,
             retryStrategy(times) {
-                if (times > 50) {
-                    console.error("Redis connection failed. Max retries reached.");
-                    return null;
-                }
+                if (times > 20) return null; // give up after ~100 s
                 return Math.min(times * 1000, 5000);
-            }
-        })
-        : new Redis({
-            host: process.env.REDIS_HOST || "localhost",
-            port: parseInt(process.env.REDIS_PORT || "6379", 10),
-            username: process.env.REDIS_USERNAME || "default",
-            password: process.env.REDIS_PASSWORD || "",
-            tls: process.env.REDIS_TLS === "true" ? { rejectUnauthorized: false } : undefined,
-            maxRetriesPerRequest: null,
-            retryStrategy(times) {
-                if (times > 50) return null;
-                return Math.min(times * 1000, 5000);
-            }
+            },
+            reconnectOnError(err) {
+                // Reconnect on READONLY errors (common on Redis replicas)
+                return err.message.includes("READONLY");
+            },
         });
-};
+    }
 
-// Define Job Payload Types for strict typings in the worker Let's define
+    return new Redis({
+        host: process.env.REDIS_HOST || "localhost",
+        port: parseInt(process.env.REDIS_PORT || "6379", 10),
+        username: process.env.REDIS_USERNAME || "default",
+        password: process.env.REDIS_PASSWORD || "",
+        tls: process.env.REDIS_TLS === "true" ? { rejectUnauthorized: false } : undefined,
+        maxRetriesPerRequest: null,
+        retryStrategy(times) {
+            if (times > 20) return null;
+            return Math.min(times * 1000, 5000);
+        },
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LAZY QUEUE SINGLETON
+// The Queue is only constructed once, on first demand, at actual request time.
+// ─────────────────────────────────────────────────────────────────────────────
+
+let _queue: Queue<PublishPipelineData> | null = null;
+
+export function getGenerationQueue(): Queue<PublishPipelineData> {
+    if (!_queue) {
+        _queue = new Queue<PublishPipelineData>(GENERATION_QUEUE_NAME, {
+            connection: createRedisClient(),
+        });
+
+        // Swallow background errors so they never crash the Next.js process.
+        // These fire when Redis temporarily drops the heartbeat connection.
+        _queue.on("error", (err) => {
+            console.error("BullMQ generationQueue background error:", err.message);
+        });
+    }
+    return _queue;
+}
+
+// Keep the old name as a compatibility shim so existing imports don't break.
+// It now delegates to the lazy getter instead of holding an open socket.
+/** @deprecated Use getGenerationQueue() instead */
+export const generationQueue = {
+    getJob: (...args: any[]) => getGenerationQueue().getJob(...args as [any]),
+    add:    (...args: any[]) => getGenerationQueue().add(...args as [any, any]),
+    on:     (...args: any[]) => getGenerationQueue().on(...args as [any, any]),
+} as unknown as Queue<PublishPipelineData>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TYPES
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const GENERATION_QUEUE_NAME = "pinlisticle-generation";
+
 export interface PublishPipelineData {
     topic: string;
     keyword?: string;
     tone: string;
     count: number;
-    apiKey: string; 
+    apiKey: string;
     modelPrefix: "pro" | "lite";
     category?: "fashion" | "beauty";
-    
-    // Internal state carried across jobs within a pipeline execution
+
     pipeline_state?: {
         brief?: any;
         evidence_pack?: any;
@@ -56,34 +100,7 @@ export interface PublishPipelineData {
         style_dna?: any;
         image_results?: string[];
     };
-    
-    // If the entire article generation failed or we want to abort early
+
     aborted?: boolean;
     abort_reason?: string;
 }
-
-export const GENERATION_QUEUE_NAME = "pinlisticle-generation";
-
-// Singleton queue instance
-// Mock during build to prevent Vercel/Render hanging on unreachable internal networks
-export const generationQueue = isBuild 
-    ? { on: () => {}, add: () => {} } as any
-    : new Queue<PublishPipelineData>(GENERATION_QUEUE_NAME, {
-        connection: createRedisClient(),
-    });
-
-// VERY IMPORTANT: Catch background Redis errors so Node doesn't trigger an Unhandled Exception crash
-// which causes Next.js to return the 500 HTML `<DOCTYPE...` page instead of our JSON.
-generationQueue.on('error', (error) => {
-    console.error("BullMQ generationQueue background error:", error.message);
-});
-
-/**
- * Helper to dispatch a full generation pipeline as a single parent job,
- * or we use BullMQ flows if we want to separate them.
- * Given we want independent retries, using BullMQ Flows (FlowProducer) is best,
- * but for simplicity and passing state easily, a single job that executes 
- * steps sequentially out of the worker.ts is sometimes easier.
- * However, the user specifically asked for an independent retryable job graph.
- * We'll use BullMQ Flows to sequence them if needed, or dispatch child jobs.
- */
