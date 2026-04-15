@@ -434,16 +434,16 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predict?key=${key}`;
 
             try {
-                const baseNegative = "barefoot, bare feet, toes, no shoes, multiple arms, extra limbs, extra hands, fan of arms, spider limbs, deity arms, merged body parts, duplicate shoulders, three arms, four arms, six arms, eight arms, uncanny valley anatomy, broken bones, multiple phones, floating fingers, editorial fashion shoot, studio lighting, DSLR bokeh, cinematic color grading, beauty filter skin, plastic skin, waxy face, overly airbrushed texture, CGI smoothness, unrealistic symmetry, uncanny eyes, mutated anatomy, unnatural number of limbs, unnatural limb placement, fused body parts, warped hands, extra fingers, duplicate limbs, broken wrists, distorted reflection, incorrect mirror geometry, floating feet, fake shadows, exaggerated curves, unrealistic body proportions, over-sharpened pores, fake fabric sheen, unnatural hair, perfect showroom interior, overexposed whites, crushed shadows, extreme HDR halos, glossy skin, anime features, doll-like face, merged silhouette, overlapping limbs, extra appendages";
-                const hardNegativeBeauty = "no additional accessories unless specified, no background elements, no text, no logos, no overlays, no exaggerated makeup unless specified, no stylized illustration, no painterly effect";
+                // Imagen 4.0 no longer supports negativePrompt as a parameter.
+                // Fold critical anatomical exclusions directly into the prompt text instead.
+                const baseExclusions = "Do not include: barefoot feet, extra limbs, extra hands, merged body parts, distorted anatomy, warped hands, extra fingers, broken wrists, overlapping limbs, anime features, doll-like face, plastic skin, overly airbrushed texture, text overlays, logos.";
+                const beautyExclusions = " Do not include: background elements, text, logos, overlays, exaggerated makeup, stylized illustration, painterly effects.";
                 
-                const NEGATIVE_PROMPT = category === "beauty" ? `${baseNegative}, ${hardNegativeBeauty}` : baseNegative;
-                
-                // Do NOT append the negative prompt to the positive prompt text.
-                // This causes the AI to actively process those words as desired features.
-                const hardenedPrompt = prompt;
+                const exclusionSuffix = category === "beauty" 
+                    ? `${baseExclusions}${beautyExclusions}`
+                    : baseExclusions;
 
-                const parts: any[] = [{ text: hardenedPrompt }];
+                const hardenedPrompt = `${prompt} ${exclusionSuffix}`;
 
                 const body = JSON.stringify({
                     instances: [{ prompt: hardenedPrompt }],
@@ -451,7 +451,6 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
                         sampleCount: 1, 
                         aspectRatio: "9:16", 
                         outputOptions: { mimeType: "image/jpeg" },
-                        negativePrompt: NEGATIVE_PROMPT
                     }
                 });
 
