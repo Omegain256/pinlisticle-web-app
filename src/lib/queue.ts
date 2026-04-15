@@ -1,38 +1,34 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Queue, ConnectionOptions } from "bullmq";
+import { Queue } from "bullmq";
+import Redis from "ioredis";
 
-export const redisConnection: ConnectionOptions = {
-    host: process.env.REDIS_HOST || "localhost",
-    port: parseInt(process.env.REDIS_PORT || "6379", 10),
-    username: process.env.REDIS_USERNAME || "default",
-    password: process.env.REDIS_PASSWORD || "",
-    tls: process.env.REDIS_TLS === "true" ? {} : undefined,
-    maxRetriesPerRequest: null,
-    retryStrategy(times) {
-        if (times > 50) {
-            console.error("Redis connection failed. Max retries reached.");
-            return null; // Stop retrying and throw error
+// Create a robust IORedis client using the full URL, avoiding manual URL property extraction bugs.
+export const redisConnection = process.env.REDIS_URL
+    ? new Redis(process.env.REDIS_URL, {
+        maxRetriesPerRequest: null,
+        family: 0, // Force IPv4/IPv6 compatibility
+        tls: process.env.REDIS_URL.startsWith('rediss') ? { rejectUnauthorized: false } : undefined,
+        retryStrategy(times) {
+            if (times > 50) {
+                console.error("Redis connection failed. Max retries reached.");
+                return null;
+            }
+            return Math.min(times * 1000, 5000);
         }
-        return Math.min(times * 1000, 5000); // Wait up to 5 seconds between retries
-    }
-};
-
-// Fallback to REDIS_URL if provided (common on Render)
-if (process.env.REDIS_URL) {
-    try {
-        const url = new URL(process.env.REDIS_URL);
-        redisConnection.host = url.hostname;
-        redisConnection.port = url.port ? parseInt(url.port, 10) : (url.protocol === 'rediss:' ? 6380 : 6379);
-        if (url.username) redisConnection.username = url.username;
-        if (url.password) redisConnection.password = url.password;
-        if (url.protocol === 'rediss:') {
-            redisConnection.tls = { rejectUnauthorized: false };
+    })
+    : new Redis({
+        host: process.env.REDIS_HOST || "localhost",
+        port: parseInt(process.env.REDIS_PORT || "6379", 10),
+        username: process.env.REDIS_USERNAME || "default",
+        password: process.env.REDIS_PASSWORD || "",
+        tls: process.env.REDIS_TLS === "true" ? { rejectUnauthorized: false } : undefined,
+        maxRetriesPerRequest: null,
+        retryStrategy(times) {
+            if (times > 50) return null;
+            return Math.min(times * 1000, 5000);
         }
-    } catch (e) {
-        console.error("Invalid REDIS_URL provided:", process.env.REDIS_URL);
-    }
-}
+    });
 
 // Define Job Payload Types for strict typings in the worker Let's define
 export interface PublishPipelineData {
