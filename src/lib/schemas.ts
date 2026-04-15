@@ -9,7 +9,7 @@ export const TopicClassificationSchema = {
     niche: { type: "STRING", enum: ["fashion", "home-decor", "beauty", "food", "travel", "wellness", "diy", "parenting"] },
     search_intent: { type: "STRING", enum: ["inspirational", "informational", "transactional", "mixed"] },
     recommended_article_archetype: { type: "STRING", enum: ["wearable-ideas", "mistakes-to-avoid", "capsule-wardrobe", "budget-vs-elevated", "occasion-based", "trend-explainer", "body-aware", "weather-specific"] },
-    style_archetype: { type: "STRING", enum: ["casual", "luxury", "sporty"] },
+    style_archetype: { type: "STRING", enum: ["casual", "luxury", "sporty", "face", "eye", "hair", "nails"] },
     recommended_list_length: { type: "INTEGER" },
     seasonality_notes: { type: "STRING" },
     risk_flags: { type: "ARRAY", items: { type: "STRING" } }

@@ -66,11 +66,11 @@ export function stripHeavyData(obj: any): any {
 }
 
 // Stage 1: Classify Topic (Brief)
-export async function pipelineClassifyTopic(keyword: string, apiKey: string) {
+export async function pipelineClassifyTopic(keyword: string, apiKey: string, category: "fashion" | "beauty" = "fashion") {
     const modelId = resolveModelId("lite", true); // Classification is simple, use flash
     const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
 
-    const systemInstruction = `You are a high-end fashion editor. Your job is to transform a simple keyword into a "Real Wardrobe Problem" worth solving.
+    const systemInstructionFashion = `You are a high-end fashion editor. Your job is to transform a simple keyword into a "Real Wardrobe Problem" worth solving.
     
     EDITORIAL MISSION: 
     Help women aged 26-44 make faster, smarter wardrobe decisions. Translate inspiration into wardrobes that work for real mornings, real budgets, and real schedules.
@@ -79,10 +79,25 @@ export async function pipelineClassifyTopic(keyword: string, apiKey: string) {
     1. Identify the core "Wardrobe Tension" or "Problem" behind this keyword.
     2. Determine the "Style Logic" required to solve it.
     3. Define the "Reader Outcome" (how they feel more capable).
-    4. Categorize the style archetype as "casual", "luxury", or "sporty".
+    4. Categorize the style archetype as ONLY ONE of: "casual", "luxury", or "sporty".
     
     Return a JSON brief.`;
-    const prompt = `Classify this keyword/topic: "${keyword}". Identify the real-life wardrobe problem it solves.`;
+
+    const systemInstructionBeauty = `You are a high-end beauty editor. Your job is to transform a simple beauty keyword into an expert technical execution guide.
+    
+    EDITORIAL MISSION:
+    Focus on macro details, performance, and technique. Identify technique clusters, finish types, and aesthetic categories.
+
+    OBJECTIVE:
+    1. Identify the core "Beauty Tension" or "Performance Goal".
+    2. Determine the "Technique/Product Logic" required.
+    3. Define the "Reader Outcome" (confidence, skill, or aesthetic perfection).
+    4. Categorize the style archetype as ONLY ONE of: "face", "eye", "hair", or "nails".
+    
+    Return a JSON brief.`;
+
+    const systemInstruction = category === "beauty" ? systemInstructionBeauty : systemInstructionFashion;
+    const prompt = `Classify this keyword/topic: "${keyword}". Identify the real-life problem it solves.`;
 
     const data = await fetchWithKeyRotation(apiKey, urlTemplate, {
         method: "POST",
@@ -462,23 +477,21 @@ async function fetchImageAsBase64WithFallback(
 
     return null;
 }
-
 export async function pipelineVisualIntelligence(
     keyword: string,
     itemCards: any[],
     apiKey: string,
-    styleDNA?: any,
-    referenceImageUrlsFromEvidence: string[] = [],
-    briefJson?: any,
+    styleDna: any,
+    referenceUrls: string[],
+    briefJson: any,
+    category: "fashion" | "beauty" = "fashion"
 ): Promise<any[]> {
     const modelId = resolveModelId("lite", true); // flash is sufficient for vision
     const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
     const itemCount = itemCards.length;
 
     // ── Step A: Use pre-harvested image URLs from Stage 2 (Evidence Pack) ──────
-    // No additional search needed — Stage 2 already ran Jina on real fashion articles
-    // and extracted all embedded image URLs.
-    let candidateUrls: string[] = [...referenceImageUrlsFromEvidence];
+    let candidateUrls: string[] = [...referenceUrls];
 
     // If evidence pack provided no images (e.g. fallback path), do a targeted Jina read
     if (candidateUrls.length === 0) {
@@ -535,13 +548,13 @@ export async function pipelineVisualIntelligence(
 
     console.log(`[S4.5] Successfully fetched ${validImages.length}/${MAX_IMAGES} reference images.`);
 
-    // ── Step C: Template selection for iPhone 16 Pro ──────────────────────────
+    // ── Step C: Template selection ──────────────────────────
     const archetype = (briefJson?.style_archetype || "casual").toLowerCase();
     
     const C1_IDENTITY = "Character C1 (female model, middle-parted deep brunette hair, hazel-brown eyes, prominent high cheekbones, natural fair skin texture)";
     const E4_ENVIRONMENT = "Environment E4 (sterile minimalist bedroom, white walls, light oak wood floors, a neatly made low bed with white duvet, and a clean empty corner to ensure a sharp body silhouette)";
 
-    const TEMPLATES = {
+    const TEMPLATES_FASHION = {
         casual: `Full-body mirror selfie of ${C1_IDENTITY} modeling a casual everyday outfit.
 PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is NEVER barefoot; she is ALWAYS wearing shoes. Handheld perspective at chest height.
 STRICT ANATOMY: This is a natural human with exactly two arms and two hands. One hand is holding the phone with a realistic grip, visible knuckles, and five distinct fingers. The other hand is at her side or in a pocket.
@@ -567,12 +580,36 @@ OUTFIT: [OUTFIT] | PHONE: [PHONE_COLOR] iPhone 16 Pro | POSE: [POSE].
 The final result must be indistinguishable from a real social media photo with perfect anatomical integrity.`,
     };
 
-    const activeTemplate = TEMPLATES[archetype as keyof typeof TEMPLATES] || TEMPLATES.casual;
+    const TEMPLATES_BEAUTY = {
+        face: `Tier 1: [SUBJECT_DETAILS] wearing [MAKEUP_PHILOSOPHY]. Crop at forehead and collarbone, center-focused framing, 9:16 ratio.
+Tier 2: [LIGHTING] paired with [FILL_TYPE]. High-resolution full-frame digital camera with an 85mm lens at f/5.6, captured from a [ANGLE].
+Tier 3: Fine cinematic grain layered with an Ian Buosi-inspired paperscan texture to preserve pore-level realism. Textures emphasized in [MICRO_DETAILS], post processes restrained.
+Tier 4: Photographer style blending [STYLE_ANCHOR] with contemporary beauty realism. Emotion conveyed is [EMOTION].`,
+
+        eye: `Tier 1: [PRODUCT_TYPE] with [FORMULATION_COLOR], held [APPLICATION_POSITION]. Extreme close-up isolating the eye, centered iris, 9:16 ratio. [SUBJECT_DETAILS]. 
+Tier 2: [LIGHTING] paired with [FILL_TYPE] to preserve lash definition. High-resolution full-frame digital camera with a 100mm macro lens at f/8, captured from a [ANGLE].
+Tier 3: Fine cinematic grain layered with an Ian Buosi-inspired paperscan texture to preserve pore-level realism. Textures emphasized in lash fibers, product texture, and skin detail.
+Tier 4: Photographer style blending [STYLE_ANCHOR] with precision-driven beauty advertising. Emotion conveyed is [EMOTION].`,
+
+        hair: `Tier 1: [HAIR_TYPE] hair styled as [SPECIFIC_STYLE] showing [AIRFLOW_MOTION]. Framing captures head sequence and flow direction, 9:16. [SUBJECT_DETAILS].
+Tier 2: [LIGHTING] paired with rim/back light to sculpt strand separation, frizz control, and highlight natural sheen. High-resolution full-frame digital camera with an 85mm lens at f/5.6, captured from a [ANGLE].
+Tier 3: Fine cinematic grain layered with an Ian Buosi-inspired paperscan texture. Hair finish is [HAIR_FINISH]. Textures emphasized in individual strands and reflections.
+Tier 4: Photographer style blending [STYLE_ANCHOR] with high-fashion hair editorial. Emotion conveyed is [EMOTION].`,
+
+        nails: `Tier 1: Well-groomed hands with [NAIL_SHAPE] nails finished in [NAIL_FINISH]. Hands posed in [HAND_POSE]. Tightly framed with emphasis on symmetry, 9:16.
+Tier 2: [LIGHTING] with controlled specular highlights to accentuate polish reflectivity without clipping. High-resolution full-frame digital camera with a 100mm macro lens at f/8, captured from a [ANGLE].
+Tier 3: Fine cinematic grain layered with an Ian Buosi-inspired paperscan texture. Textures emphasized in cuticle detail, polish surface, and [SURFACE_OBJECTION].
+Tier 4: Photographer style blending [STYLE_ANCHOR] with luxury beauty advertising. Emotion conveyed is controlled and refined.`
+    };
+
+    const activeTemplate = category === "beauty" 
+        ? (TEMPLATES_BEAUTY[archetype as keyof typeof TEMPLATES_BEAUTY] || TEMPLATES_BEAUTY.face)
+        : (TEMPLATES_FASHION[archetype as keyof typeof TEMPLATES_FASHION] || TEMPLATES_FASHION.casual);
 
     // ── Step D: Build VisualDNA for all items in a single Gemini Vision call ───
     const visionParts: any[] = [];
 
-    const systemText = `You are a professional fashion photo analyst and AI image prompt engineer.
+    const systemTextFashion = `You are a professional fashion photo analyst and AI image prompt engineer.
 STRICT SHOT MATRIX COMPLIANCE (MANDATORY):
 - SUBJECT: Always use ${C1_IDENTITY}. NO IDENTITY DRIFTING.
 - ENVIRONMENT: Always use ${E4_ENVIRONMENT}.
@@ -580,15 +617,40 @@ STRICT SHOT MATRIX COMPLIANCE (MANDATORY):
 - OUTFIT: Specific styling derived from reference images.
 
 RULES FOR EACH FIELD:
-- phone_color: Rotate between "White Titanium" and "Desert Titanium" to keep the set feeling dynamic.
-- pose: Accurate descriptions: "relaxed stance, weight on one leg", "casual stance, angled hips", or "easy mirror-selfie stance". 
+- phone_color: Rotate between "White Titanium" and "Desert Titanium".
+- pose: Accurate descriptions: "relaxed stance", "casual stance", or "easy mirror-selfie stance". 
 - image_prompt: Assemble as:
 ${activeTemplate}
-...where [OUTFIT] is a specific description of the garments, [PHONE_COLOR] is the assigned color, and [POSE] is the pose described above.
+...where [OUTFIT] is a specific description of the garments, [PHONE_COLOR] is the assigned color, and [POSE] is the pose described above.`;
 
-RETURN ONLY a raw JSON array with exactly ${itemCount} VisualDNA objects. No markdown, no code fences, no extra text.`;
+    const systemTextBeauty = `You are a professional beauty photo analyst and AI image prompt engineer.
+STRICT CATEGORY ISOLATION: 
+- SUBJECT: Always a "young adult woman".
+- DO NOT invent accessories unless specific to the beauty product. Keep backgrounds neutral and isolated. NO mirroring, NO full-body shots.
 
-    visionParts.push({ text: systemText });
+VARIABLE SELECTION RULES:
+For each item, strictly rotate and select exactly ONE option from these arrays and inject into the activeTemplate placeholders:
+- [ANGLE]: "straight-on", "15° tilt", or "side-frontal"
+- [LIGHTING]: "flat beauty", "top clinical", or "rim sculpted"
+- [EMOTION]: "neutral", "detached", or "assertive"
+- [STYLE_ANCHOR]: "clinical beauty", "luxury campaign", "backstage editorial", or "dermal macro realism"
+
+ADDITIONAL BEAUTY VARS (Replace if applicable):
+- [HAIR_FINISH]: "wet", "matte", or "glossy"
+- [AIRFLOW_MOTION]: "static" or "wind-blown"
+- [NAIL_SHAPE]: "almond", "square", or "stiletto"
+- [NAIL_FINISH]: "gel color", "chrome effect", or "matte polish"
+- [HAND_POSE]: "delicate grip", "resting gracefully", or "gentle overlap"
+- [SURFACE_OBJECTION]: "glass interaction", "fabric resting", or "skin contact"
+
+- image_prompt: Assemble the prompt EXACTLY using the 4-Tier structure:
+${activeTemplate}
+Replace ALL uppercase bracketed placeholders with specific details matching the item.`;
+
+    const systemText = category === "beauty" ? systemTextBeauty : systemTextFashion;
+    const systemPromptSuffix = `\nRETURN ONLY a raw JSON array with exactly ${itemCount} VisualDNA objects. No markdown, no code fences, no extra text.`;
+
+    visionParts.push({ text: systemText + systemPromptSuffix });
 
     // Attach real reference images inline (up to 3 for context window efficiency)
     for (const img of validImages.slice(0, 3)) {

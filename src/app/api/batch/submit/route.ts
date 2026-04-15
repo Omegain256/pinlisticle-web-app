@@ -17,7 +17,7 @@ export const maxDuration = 300;
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { topic, keyword, tone, count, apiKey, modelPrefix, amazonTag, imageMode } = body;
+        const { topic, keyword, tone, count, apiKey, modelPrefix, amazonTag, imageMode, category } = body;
         // imageMode: "ai" (default) | "web" (real images from competitor articles, credited)
 
         if (!topic && !keyword) {
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
         // ── Stage 1: Brief / Classify ───────────────────────────────────────
         let brief: any;
         try {
-            brief = await pipelineClassifyTopic(targetKeyword, apiKey);
+            brief = await pipelineClassifyTopic(targetKeyword, apiKey, category || "fashion");
         } catch (e: any) {
             return NextResponse.json({ success: false, stage: "classify", error: e.message }, { status: 500 });
         }
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
         // ── Stage 2: Evidence via Web Search (Jina AI enhanced) ─────────────
         let evidence_pack: any;
         try {
-            evidence_pack = await pipelineSearchEvidence(targetKeyword, brief, apiKey);
+            evidence_pack = await pipelineSearchEvidence(targetKeyword, brief, apiKey, category || "fashion");
         } catch (e: any) {
             console.warn("Evidence search failed, using fallback:", e.message);
             evidence_pack = { trending_angles: [], top_sources: [], seasonal_context: "", audience_pain_points: [], competitive_gaps: "", key_statistics: [], reference_image_urls: [] };
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
             try {
                 const referenceImgUrls: string[] = evidence_pack?.reference_image_urls ?? [];
                 const visualResult = await pipelineVisualIntelligence(
-                    targetKeyword, item_cards, apiKey, style_dna, referenceImgUrls, brief
+                    targetKeyword, item_cards, apiKey, style_dna, referenceImgUrls, brief, category || "fashion"
                 );
                 if (visualResult && visualResult.length > 0) {
                     enriched_item_cards = visualResult;
@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
                 if (!finalPrompt) { image_results.push(""); continue; }
                 try {
                     const refs = await getShotMatrixReferences();
-                    const b64 = await generateImage({ prompt: finalPrompt, apiKey, referenceImages: refs });
+                    const b64 = await generateImage({ prompt: finalPrompt, apiKey, referenceImages: refs, category: category || "fashion" });
                     image_results.push(b64 || "");
                 } catch (imgErr: any) {
                     console.warn(`Image ${i + 1} failed: ${imgErr.message}`);

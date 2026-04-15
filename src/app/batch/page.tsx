@@ -42,6 +42,7 @@ interface QueueRow {
     message?: string;
     articleId?: string;
     jobId?: string;
+    category?: "fashion" | "beauty";
 }
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -136,6 +137,8 @@ function Step1({
     onBatchAmazonTagChange: (v: string) => void;
     imageMode: ImageMode;
     onImageModeChange: (v: ImageMode) => void;
+    category: "fashion" | "beauty";
+    onCategoryChange: (v: "fashion" | "beauty") => void;
     onNext: () => void;
 }) {
     const keywordCount = value.split("\n").filter((l) => l.trim().length > 0).length;
@@ -193,6 +196,46 @@ function Step1({
                     value={batchAmazonTag}
                     onChange={(e) => onBatchAmazonTagChange(e.target.value)}
                 />
+            </div>
+
+            {/* Category Selection */}
+            <div className="glass-panel p-6">
+                <div className="mb-4">
+                    <label className="text-sm font-semibold text-slate-800">Content Category</label>
+                    <p className="text-xs text-slate-500 mt-0.5">Select the aesthetic focus for this batch.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {(["fashion", "beauty"] as const).map(cat => (
+                        <label
+                            key={cat}
+                            className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                                category === cat
+                                    ? "border-purple-500 bg-purple-50"
+                                    : "border-slate-200 bg-white hover:border-slate-300"
+                            }`}
+                        >
+                            <input
+                                type="radio"
+                                name="category"
+                                value={cat}
+                                checked={category === cat}
+                                onChange={() => onCategoryChange(cat)}
+                                className="mt-0.5 accent-purple-600"
+                            />
+                            <div>
+                                <p className="text-sm font-semibold text-slate-800 capitalize">
+                                    {cat === "fashion" ? "👗 Fashion" : "✨ Beauty"}
+                                </p>
+                                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                                    {cat === "fashion"
+                                        ? "Full-body outfit focus, style combinations, and wardrobe concepts."
+                                        : "Macro detailing, hairstyles, nail precision, and makeup applications."
+                                    }
+                                </p>
+                            </div>
+                        </label>
+                    ))}
+                </div>
             </div>
 
             {/* Image Source */}
@@ -497,6 +540,7 @@ export default function BatchPage() {
     const [batchAmazonTag, setBatchAmazonTag] = useState("");
     const [selectedModel, setSelectedModel] = useState<"pro" | "lite">("pro");
     const [imageMode, setImageMode] = useState<ImageMode>("ai");
+    const [category, setCategory] = useState<"fashion" | "beauty">("fashion");
 
     // Step 2 state
     const [rows, setRows] = useState<QueueRow[]>([]);
@@ -526,6 +570,7 @@ export default function BatchPage() {
             seoKeyword: "",
             amazonTag: batchAmazonTag,
             imageMode,
+            category,
             status: "queued",
         }));
 
@@ -577,6 +622,7 @@ export default function BatchPage() {
                         modelPrefix: modelToUse,
                         amazonTag: current[i].amazonTag,
                         imageMode: current[i].imageMode,
+                        category: current[i].category || "fashion",
                     })
                 });
 
@@ -663,6 +709,8 @@ export default function BatchPage() {
                     onBatchAmazonTagChange={setBatchAmazonTag}
                     imageMode={imageMode}
                     onImageModeChange={setImageMode}
+                    category={category}
+                    onCategoryChange={setCategory}
                     onNext={handleKeywordsNext}
                 />
             )}

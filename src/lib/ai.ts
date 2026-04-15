@@ -395,8 +395,8 @@ export async function getShotMatrixReferences(): Promise<ImageReference[]> {
     }
 }
 
-export async function generateImage(params: { prompt: string; apiKey: string; preferredModel?: string; referenceImages?: ImageReference[] }) {
-    const { prompt, apiKey, preferredModel, referenceImages } = params;
+export async function generateImage(params: { prompt: string; apiKey: string; preferredModel?: string; referenceImages?: ImageReference[], category?: "fashion" | "beauty" }) {
+    const { prompt, apiKey, preferredModel, referenceImages, category = "fashion" } = params;
 
     const cached = getCachedModels();
     
@@ -435,7 +435,7 @@ export async function generateImage(params: { prompt: string; apiKey: string; pr
 
     // The prompt is now assembled using the 'New Master Structure' in the pipeline,
     // which is highly descriptive and expert-led. We pass it directly to Imagen.
-    const base64Image = await tryGenerateWithRotation(apiKey, prompt, modelsToTry, referenceImages);
+    const base64Image = await tryGenerateWithRotation(apiKey, prompt, modelsToTry, referenceImages, category);
     return base64Image;
 }
 
@@ -443,7 +443,7 @@ export async function generateImage(params: { prompt: string; apiKey: string; pr
  * Special rotation logic for Imagen sub-models (Standard, Fast, Ultra) 
  * to pool their independent quotas on a single key before moving to next key.
  */
-async function tryGenerateWithRotation(keysString: string, prompt: string, models: readonly string[], referenceImages?: ImageReference[]) {
+async function tryGenerateWithRotation(keysString: string, prompt: string, models: readonly string[], referenceImages?: ImageReference[], category: "fashion" | "beauty" = "fashion") {
     const keys = parseApiKeys(keysString);
     let lastError: any = null;
 
@@ -456,7 +456,10 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
                 : `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predict?key=${key}`;
 
             try {
-                const NEGATIVE_PROMPT = "barefoot, bare feet, toes, no shoes, multiple arms, extra limbs, extra hands, fan of arms, spider limbs, deity arms, merged body parts, duplicate shoulders, three arms, four arms, six arms, eight arms, uncanny valley anatomy, broken bones, multiple phones, floating fingers, editorial fashion shoot, studio lighting, DSLR bokeh, cinematic color grading, beauty filter skin, plastic skin, waxy face, overly airbrushed texture, CGI smoothness, unrealistic symmetry, uncanny eyes, mutated anatomy, unnatural number of limbs, unnatural limb placement, fused body parts, warped hands, extra fingers, duplicate limbs, broken wrists, distorted reflection, incorrect mirror geometry, floating feet, fake shadows, exaggerated curves, unrealistic body proportions, over-sharpened pores, fake fabric sheen, unnatural hair, perfect showroom interior, overexposed whites, crushed shadows, extreme HDR halos, glossy skin, anime features, doll-like face, merged silhouette, overlapping limbs, extra appendages";
+                const baseNegative = "barefoot, bare feet, toes, no shoes, multiple arms, extra limbs, extra hands, fan of arms, spider limbs, deity arms, merged body parts, duplicate shoulders, three arms, four arms, six arms, eight arms, uncanny valley anatomy, broken bones, multiple phones, floating fingers, editorial fashion shoot, studio lighting, DSLR bokeh, cinematic color grading, beauty filter skin, plastic skin, waxy face, overly airbrushed texture, CGI smoothness, unrealistic symmetry, uncanny eyes, mutated anatomy, unnatural number of limbs, unnatural limb placement, fused body parts, warped hands, extra fingers, duplicate limbs, broken wrists, distorted reflection, incorrect mirror geometry, floating feet, fake shadows, exaggerated curves, unrealistic body proportions, over-sharpened pores, fake fabric sheen, unnatural hair, perfect showroom interior, overexposed whites, crushed shadows, extreme HDR halos, glossy skin, anime features, doll-like face, merged silhouette, overlapping limbs, extra appendages";
+                const hardNegativeBeauty = "no additional accessories unless specified, no background elements, no text, no logos, no overlays, no exaggerated makeup unless specified, no stylized illustration, no painterly effect";
+                
+                const NEGATIVE_PROMPT = category === "beauty" ? `${baseNegative}, ${hardNegativeBeauty}` : baseNegative;
                 
                 // Do NOT append the negative prompt to the positive prompt text.
                 // This causes the AI to actively process those words as desired features.
