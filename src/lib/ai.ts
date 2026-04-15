@@ -30,14 +30,11 @@ export function sanitizeModelId(modelId: string): string {
     return DEPRECATED_MODEL_MAP[modelId] || modelId;
 }
 
-// These will be used as fallbacks if no dynamic models are discovered
+// Confirmed working Imagen 4.0 models — ordered fast→quality for best quota usage
 const IMAGEN_MODELS_DEFAULT = [
-    "imagen-4.0-ultra-generate-001",
-    "imagen-4.0-generate-001",
     "imagen-4.0-fast-generate-001",
-    "imagen-3.0-generate-001",
-    "imagen-3.0-fast-generate-001",
-    "nano-banana-2",
+    "imagen-4.0-generate-001",
+    "imagen-4.0-ultra-generate-001",
 ] as const;
 
 export interface DiscoveredModel {
@@ -400,9 +397,9 @@ export async function generateImage(params: { prompt: string; apiKey: string; pr
 
     const cached = getCachedModels();
     
-    // 1. Identify ALL models that support Image Generation (containing "imagen" or "nano-banana-2")
+    // 1. Identify ALL models that support Image Generation (those containing "imagen")
     const discoveredImagen = cached
-        .filter(m => m.id.includes("imagen") || m.id === "nano-banana-2")
+        .filter(m => m.id.includes("imagen"))
         .map(m => m.id);
 
     // 2. Determine rotation pool
@@ -411,26 +408,10 @@ export async function generateImage(params: { prompt: string; apiKey: string; pr
     const hasRefs = referenceImages && referenceImages.length > 0;
 
     if (preferredModel && preferredModel !== "auto") {
-        // Priority: preferred model then others
-        const fallbackPool = discoveredImagen.length > 0 ? discoveredImagen : IMAGEN_MODELS_DEFAULT;
+        const fallbackPool = discoveredImagen.length > 0 ? discoveredImagen : [...IMAGEN_MODELS_DEFAULT];
         modelsToTry = Array.from(new Set([preferredModel, ...fallbackPool]));
     } else {
-        // Full auto-rotation through all discovered models, falling back to defaults
-        let basePool = discoveredImagen.length > 0 ? Array.from(discoveredImagen) : [...IMAGEN_MODELS_DEFAULT];
-        
-        // If we have reference images, we MUST use a model that supports them (nano-banana-2)
-        if (hasRefs) {
-            const multiIdx = basePool.indexOf("nano-banana-2");
-            if (multiIdx > -1) {
-                // Move nano-banana-2 to the END of the rotation
-                basePool.splice(multiIdx, 1);
-                basePool.push("nano-banana-2");
-            } else if (!basePool.includes("nano-banana-2")) {
-                // Add it as a last resort
-                basePool.push("nano-banana-2");
-            }
-        }
-        modelsToTry = basePool;
+        modelsToTry = discoveredImagen.length > 0 ? Array.from(discoveredImagen) : [...IMAGEN_MODELS_DEFAULT];
     }
 
     // The prompt is now assembled using the 'New Master Structure' in the pipeline,
@@ -449,11 +430,8 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
 
     for (const key of keys) {
         for (const modelId of models) {
-            // nano-banana-2 uses generateContent endpoint, not predict
-            const isNanoBanana = modelId === "nano-banana-2";
-            const url = isNanoBanana
-                ? `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${key}`
-                : `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predict?key=${key}`;
+            // All Imagen models use the :predict endpoint
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predict?key=${key}`;
 
             try {
                 const baseNegative = "barefoot, bare feet, toes, no shoes, multiple arms, extra limbs, extra hands, fan of arms, spider limbs, deity arms, merged body parts, duplicate shoulders, three arms, four arms, six arms, eight arms, uncanny valley anatomy, broken bones, multiple phones, floating fingers, editorial fashion shoot, studio lighting, DSLR bokeh, cinematic color grading, beauty filter skin, plastic skin, waxy face, overly airbrushed texture, CGI smoothness, unrealistic symmetry, uncanny eyes, mutated anatomy, unnatural number of limbs, unnatural limb placement, fused body parts, warped hands, extra fingers, duplicate limbs, broken wrists, distorted reflection, incorrect mirror geometry, floating feet, fake shadows, exaggerated curves, unrealistic body proportions, over-sharpened pores, fake fabric sheen, unnatural hair, perfect showroom interior, overexposed whites, crushed shadows, extreme HDR halos, glossy skin, anime features, doll-like face, merged silhouette, overlapping limbs, extra appendages";
@@ -465,51 +443,37 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
                 // This causes the AI to actively process those words as desired features.
                 const hardenedPrompt = prompt;
 
-                let parts: any[] = [{ text: hardenedPrompt }];
+                const parts: any[] = [{ text: hardenedPrompt }];
 
-                if (isNanoBanana && referenceImages && referenceImages.length > 0) {
-                    parts = [
-                        { text: "STRICT SHOT MATRIX CONSTRAINT. You must draw exactly the environments and subjects shown in the attached reference images. Character C1 and Environment E4 must be meticulously adhered to." },
-                        ...referenceImages.map(img => ({ inlineData: { mimeType: img.mimeType, data: img.data } })),
-                        { text: hardenedPrompt }
-                    ];
-                }
-
-                const body = isNanoBanana
-                    ? JSON.stringify({
-                        contents: [{ parts }],
-                        generationConfig: { 
-                            responseModalities: ["IMAGE", "TEXT"],
-                        }
-                    })
-                    : JSON.stringify({
-                        instances: [{ prompt: hardenedPrompt }],
-                        parameters: { 
-                            sampleCount: 1, 
-                            aspectRatio: "9:16", 
-                            outputOptions: { mimeType: "image/jpeg" },
-                            negativePrompt: NEGATIVE_PROMPT
-                        }
-                    });
-
-                const res = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body
+                const body = JSON.stringify({
+                    instances: [{ prompt: hardenedPrompt }],
+                    parameters: { 
+                        sampleCount: 1, 
+                        aspectRatio: "9:16", 
+                        outputOptions: { mimeType: "image/jpeg" },
+                        negativePrompt: NEGATIVE_PROMPT
+                    }
                 });
+
+                // Abort the request if it hangs for more than 55 seconds (RESULT_CODE_HUNG)
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 55_000);
+
+                let res: Response;
+                try {
+                    res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body,
+                        signal: controller.signal,
+                    });
+                } finally {
+                    clearTimeout(timeoutId);
+                }
 
                 const data = await res.json();
 
                 if (res.ok) {
-                    // nano-banana-2 returns inlineData in candidates
-                    if (isNanoBanana) {
-                        const parts = data.candidates?.[0]?.content?.parts || [];
-                        const imgPart = parts.find((p: any) => p.inlineData?.mimeType?.startsWith("image"));
-                        if (imgPart?.inlineData?.data) return imgPart.inlineData.data;
-                        // no image part — fall through to next model
-                        lastError = new Error("nano-banana-2 returned no image part");
-                        continue;
-                    }
                     const bytes = data.predictions?.[0]?.bytesBase64Encoded;
                     if (bytes) return bytes;
                     const isBlocked = data.predictions?.[0]?.safetyAttributes?.blocked;
