@@ -608,7 +608,8 @@ COMPOSITION: Slightly off-center, loose framing, natural head position. Expressi
 POST-PROCESSING: Native iPhone pipeline only. Mild sharpening, light contrast. No cinematic grading, no retouching, no artificial grain overlays.
 Aspect ratio 9:16. Single continuous photograph. No collage, no composite, no split panels.`,
 
-        nails: `Professional close-up nail photograph. [NAIL_SHAPE] nails finished in [NAIL_FINISH].
+        nails: `Professional close-up nail photograph. Nail style: [NAIL_COLOR] [NAIL_DESIGN] design, [NAIL_SHAPE] nails finished in [NAIL_FINISH].
+VISUAL MATCH REQUIREMENT: The nail color and design in the image MUST exactly match the item name. [NAIL_COLOR] is the dominant color of the polish. [NAIL_DESIGN] is the specific pattern or technique (e.g. half-moon, ombre, French tip, glazed, marble). This is non-negotiable.
 SUBJECT: ONE single hand only. Not two hands. One hand fills the frame.
 HAND POSE: Hand is slightly cupped or lightly fisted with fingers angled toward the camera so all five nails face forward and are fully visible. Similar to a natural relaxed curl — not flat, not splayed. Wrist visible at bottom of frame.
 FRAMING: Extreme close-up macro. The hand fills 80% of the frame. Shot from a slight front-overhead angle (30–45 degrees). Crop at mid-forearm. NO face, NO body, NO second hand.
@@ -653,22 +654,29 @@ STRICT CATEGORY ISOLATION (NON-NEGOTIABLE):
 - ANATOMY: Exactly one head, exactly two arms, exactly two hands, exactly ten fingers total. No extra limbs.
 
 VARIABLE SELECTION RULES:
-For each item, strictly rotate and select exactly ONE option from these arrays:
+For each item, strictly rotate and select exactly ONE option from these arrays for AESTHETIC vars only:
 - [ANGLE]: "straight-on", "15° tilt", or "side-frontal"
 - [LIGHTING]: "flat beauty", "top clinical", or "rim sculpted"
 - [FILL_TYPE]: "silver reflector fill", "white card bounce", or "ambient diffusion"
 - [EMOTION]: "neutral", "detached", or "assertive"
 - [STYLE_ANCHOR]: "clinical beauty", "luxury campaign", "backstage editorial", or "dermal macro realism"
 
+NAIL ITEMS — CRITICAL RULE (NON-NEGOTIABLE):
+For nail items, [NAIL_SHAPE], [NAIL_FINISH], and [NAIL_COLOR] MUST be extracted directly from the item_name. The item name IS the specification. Do NOT use a generic pool.
+- Example: item_name "Cherry Red Half-Moon Nails" → [NAIL_COLOR] = "cherry red", [NAIL_DESIGN] = "half-moon", [NAIL_FINISH] = "glossy gel"
+- Example: item_name "Sage Green Matte Square Nails" → [NAIL_COLOR] = "sage green", [NAIL_SHAPE] = "square", [NAIL_FINISH] = "matte"
+- Example: item_name "Glazed Donut Chrome Nails" → [NAIL_FINISH] = "glazed chrome", [NAIL_SHAPE] = "almond"
+The generated image MUST visually match the item_name. A reader seeing the image must immediately recognize it as that specific style.
+
 ADDITIONAL BEAUTY VARS (Replace if applicable):
+- [HAIR_TYPE]: specific description derived from item_name (e.g. "long wavy brunette")
+- [SPECIFIC_STYLE]: specific style derived from item_name (e.g. "loose beach waves", "sleek low bun")
 - [HAIR_FINISH]: "wet", "matte", or "glossy"
 - [AIRFLOW_MOTION]: "static" or "subtle wind-blown motion"
-- [NAIL_SHAPE]: "almond", "square", or "stiletto"
-- [NAIL_FINISH]: "gel color", "chrome effect", or "matte polish"
 - [SURFACE_OBJECTION]: "glass interaction", "fabric resting", or "skin contact"
 NOTE: Hand positioning for nail shots is FIXED in the template — do NOT invent or override hand poses.
 
-- image_prompt: Assemble the prompt EXACTLY using the active template below. Replace ALL bracketed placeholders with specific details.
+- image_prompt: Assemble the prompt EXACTLY using the active template below. Replace ALL bracketed placeholders with specific details derived from the item_name.
 ${activeTemplate}`;
 
     const systemText = category === "beauty" ? systemTextBeauty : systemTextFashion;
