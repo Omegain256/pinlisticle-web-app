@@ -1,51 +1,85 @@
-import { pipelineSearchImages } from '../src/lib/imageSearch';
+ISimport { pipelineSearchImages } from '../src/lib/imageSearch';
 
-// We do NOT mock `fetch` entirely this time. We will let DDG traffic go through to the internet!
-// We only mock Gemini's Vision Matcher since we don't have the API key to do multimodal LLM calls.
-
+// Minimal fetch mock
 const originalFetch = global.fetch;
 global.fetch = async (url: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const urlStr = url.toString();
 
-    // Let DDG search through natively
-    if (urlStr.includes('duckduckgo')) return originalFetch(url, init);
+    // 1. Mock Jina Image Download
+    if (urlStr.includes('r.jina.ai')) {
+        return new Response(Buffer.from('mock_image_data_that_is_large_enough_to_pass_validation_mock_image_data_that_is_large_enough_to_pass_validation'.repeat(200)), {
+            status: 200,
+            headers: new Headers({ 'content-type': 'image/jpeg' })
+        });
+    }
 
-    // Mock Gemini Vision Verification
+    // 2. Mock Gemini Vision Matching
     if (urlStr.includes('gemini-1.5-flash:generateContent')) {
-        // Always pick image at index 1 for the demo, showing it works!
+        const isSniper = typeof init?.body === 'string' && init.body.includes('Sniper');
+        if (isSniper) {
+            return new Response(JSON.stringify({
+                candidates: [{
+                    groundingMetadata: { searchQueries: ["test fashion photo"] }
+                }]
+            }), { status: 200, headers: new Headers({ 'content-type': 'application/json' }) });
+        }
+
+        const mockAssignments = { "0": 0 }; // Only matched item 0 with image 0
+        const fakeMarkdown = `\`\`\`json\n${JSON.stringify(mockAssignments)}\n\`\`\``;
         return new Response(JSON.stringify({
-            candidates: [{ content: { parts: [{ text: "1" }] } }]
+            candidates: [{ content: { parts: [{ text: fakeMarkdown }] } }]
         }), { status: 200, headers: new Headers({ 'content-type': 'application/json' }) });
+    }
+
+    if (urlStr.includes('test-image')) {
+        return new Response(Buffer.from('mock_image_data'.repeat(200)), {
+            status: 200,
+            headers: new Headers({ 'content-type': 'image/jpeg' })
+        });
     }
 
     return originalFetch(url, init);
 };
 
 async function runDemo() {
-    console.log("🚀 Running Sniper 5.1 Local Test (Targeted DDG + Vision Verification)...\n");
+    console.log("🚀 Running Local Zero-Fail Demo...\n");
 
     const itemCards = [
-        { item_index: 0, item_name: "Silk Bias-Cut Midi Dress with Sneakers", styling_notes: "..." },
+        { item_index: 0, item_name: "Denim Tank Top", styling_notes: "..." },
+        { item_index: 1, item_name: "Pleated Trousers", styling_notes: "..." },
+        { item_index: 2, item_name: "Ballet Flats", styling_notes: "..." }
     ];
 
-    // Intentionally pass an empty article_pool to force SNIPER DDG to run
     const evidencePack = {
-        article_pool: [] 
+        article_pool: [
+            {
+                url: "https://www.vogue.com/test-article",
+                title: "Vogue Denim Top Looks",
+                markdown: "Here are some styles. ![Look 1](https://www.vogue.com/test-image1.jpg) ![Look 2](https://www.vogue.com/test-image2.jpg)"
+            }
+        ]
     };
 
+    console.log("📦 INPUT DATA:");
+    console.log(`- Items to enrich: ${itemCards.length}`);
+    console.log(`- Sources provided: ${evidencePack.article_pool.length}`);
+    console.log("--------------------------------------------------\n");
+
     try {
-        const result = await pipelineSearchImages("Trench Fall", itemCards, evidencePack, "fake-api-key");
-        
-        console.log("\n✅ PIPELINE COMPLETED");
-        
+        const result = await pipelineSearchImages("Denim outfit", itemCards, evidencePack, "fake-api-key");
+
+        console.log("\n✅ PIPELINE COMPLETED SUCCESSFULLY");
+        console.log("📊 RESULT ANALYSIS:");
+
         const withImages = result.filter((c: any) => c.web_image !== null);
-        console.log(`- Items with images: ${withImages.length}/${itemCards.length}`);
-        
-        if (withImages.length > 0 && withImages[0].web_image.image_base64) {
-             const base64Len = withImages[0].web_image.image_base64.length;
-             console.log(`\n🎉 SUCCESS! Real image downloaded from DDG Sniper! Base64 Length: ${base64Len} bytes.`);
-             console.log(`- Source URL: ${withImages[0].web_image.original_url}`);
-             console.log(`- Size: ${withImages[0].web_image.file_size_kb} KB`);
+        console.log(`- Items with images: ${withImages.length}/${itemCards.length} (Expected 100% due to Zero-Fail Fallback)`);
+
+        if (withImages.length === itemCards.length) {
+            console.log("\n✅ ZERO-FAIL POLICY IS WORKING PERFECTLY.");
+            console.log("Resulting output structure:");
+            console.log(JSON.stringify(result, null, 2));
+        } else {
+            console.error("\n❌ ZERO-FAIL POLICY FAILED. Missing images.");
         }
 
     } catch (e) {
