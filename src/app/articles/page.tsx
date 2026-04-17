@@ -17,7 +17,8 @@ import {
     Image as ImageIcon
 } from "lucide-react";
 import Link from "next/link";
-import { listArticles, deleteArticle, saveArticle, buildArticleHtml, type GeneratedArticle } from "@/lib/articleStore";
+import { listArticles, deleteArticle, saveArticle, getArticle, buildArticleHtml, type GeneratedArticle, type ArticleMetadata } from "@/lib/articleStore";
+import { compressImageBase64 } from "@/lib/image";
 
 function formatDate(iso: string) {
     return new Date(iso).toLocaleDateString("en-US", {
@@ -35,37 +36,32 @@ function copyHtml(article: GeneratedArticle) {
     toast.success("HTML copied to clipboard!");
 }
 
-async function compressImageBase64(base64: string, maxWidth = 800, quality = 0.8): Promise<string> {
-    // Strip prefix if present
-    const cleanBase64 = base64.includes(",") ? base64.split(",")[1] : base64;
-    
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-            let width = img.width;
-            let height = img.height;
-            if (width > maxWidth) {
-                height = Math.round((height * maxWidth) / width);
-                width = maxWidth;
-            }
-            const canvas = document.createElement("canvas");
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext("2d");
-            if (!ctx) return resolve(cleanBase64);
-            ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL("image/jpeg", quality).split(",")[1]);
-        };
-        img.onerror = () => resolve(cleanBase64);
-        img.src = `data:image/jpeg;base64,${cleanBase64}`;
-    });
+function sanitizeTitle(title: string) {
+    // Strip leading numbers like "1. ", "5. ", or "Article 1: "
+    return title.replace(/^(\d+[\.\s\-:]*|Article\s+\d+[\.\s\-:]*)/i, "").trim();
 }
 
+
+
 export default function ArticlesLibrary() {
-    const [articles, setArticles] = useState<GeneratedArticle[]>([]);
+    const [articles, setArticles] = useState<ArticleMetadata[]>([]);
     const [search, setSearch] = useState("");
     const [selected, setSelected] = useState<GeneratedArticle | null>(null);
+    const [isLoadingDetail, setIsLoadingDetail] = useState(false);
     const [regeneratingIdx, setRegeneratingIdx] = useState<{ type: 'text' | 'image', idx: number } | null>(null);
+    const [imageUrls, setImageUrls] = useState<{ [key: string]: string }>({});
+
+    // Cleanup Blob URLs to prevent memory leaks
+    useEffect(() => {
+        return () => {
+            Object.values(imageUrls).forEach(url => URL.revokeObjectURL(url));
+        };
+    }, [imageUrls]);
+
+    const cleanupBlobs = () => {
+        Object.values(imageUrls).forEach(url => URL.revokeObjectURL(url));
+        setImageUrls({});
+    };
 
     const load = async () => {
         const data = await listArticles();
@@ -89,7 +85,7 @@ export default function ArticlesLibrary() {
 
     const filtered = articles.filter((a) =>
         a.topic.toLowerCase().includes(search.toLowerCase()) ||
-        (a.data?.seo_title || "").toLowerCase().includes(search.toLowerCase())
+        (a.seoTitle || "").toLowerCase().includes(search.toLowerCase())
     );
 
     const handleDelete = async (id: string) => {
@@ -164,7 +160,7 @@ export default function ArticlesLibrary() {
                 const settings = JSON.parse(localStorage.getItem("pinlisticle_settings") || "{}");
                 updatedArticle.html = buildArticleHtml(updatedArticle.data!, settings.amazonTag, settings.internalLinks);
                 await saveArticle(updatedArticle);
-                if (selected?.id === updatedArticle.id) setSelected(updatedArticle);
+                // REMOVED: Intermediate setSelected(updatedArticle) to prevent heavy re-render
             }
 
             if (!updatedArticle.html) throw new Error("Article has no HTML body.");
@@ -202,7 +198,10 @@ export default function ArticlesLibrary() {
             if (json.success) {
                 updatedArticle.wpPostUrl = json.data?.link;
                 await saveArticle(updatedArticle);
-                if (selected?.id === updatedArticle.id) setSelected(updatedArticle);
+                // Update UI only at the very end
+                if (selected?.id === updatedArticle.id) {
+                    setSelected(updatedArticle);
+                }
                 toast.success(`Draft created successfully in ${targetSite.name}!`, { id: loadingId });
             } else {
                 toast.error(json.error || "WordPress Post API error.", { id: loadingId });
@@ -327,7 +326,36 @@ export default function ArticlesLibrary() {
                             {filtered.map((a) => (
                                 <button
                                     key={a.id}
-                                    onClick={() => setSelected(a)}
+                                    onClick={async () => {
+                                        setIsLoadingDetail(true);
+                                        cleanupBlobs(); // clear old blobs
+                                        const detail = await getArticle(a.id);
+                                        
+                                        if (detail?.data?.listicle_items) {
+                                            const newUrls: { [key: string]: string } = {};
+                                            detail.data.listicle_items.forEach((item, idx) => {
+                                                const b64 = item.image_base64 || item.web_image?.image_base64;
+                                                if (b64 && b64 !== "[STRIPPED]" && b64 !== "[STRIPPED_FOR_LLM]") {
+                                                    try {
+                                                        const byteCharacters = atob(b64.includes(",") ? b64.split(",")[1] : b64);
+                                                        const byteNumbers = new Array(byteCharacters.length);
+                                                        for (let i = 0; i < byteCharacters.length; i++) {
+                                                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                                        }
+                                                        const byteArray = new Uint8Array(byteNumbers);
+                                                        const blob = new Blob([byteArray], { type: "image/jpeg" });
+                                                        newUrls[`item-${idx}`] = URL.createObjectURL(blob);
+                                                    } catch (e) {
+                                                        console.error("Failed to create blob for item", idx, e);
+                                                    }
+                                                }
+                                            });
+                                            setImageUrls(newUrls);
+                                        }
+
+                                        setSelected(detail || null);
+                                        setIsLoadingDetail(false);
+                                    }}
                                     className={`w-full text-left px-4 py-3 border-b border-slate-50 transition-colors ${selected?.id === a.id
                                         ? "bg-purple-50 border-l-2 border-l-purple-500"
                                         : "hover:bg-slate-50 border-l-2 border-l-transparent"
@@ -336,7 +364,7 @@ export default function ArticlesLibrary() {
                                     <div className="flex items-start justify-between gap-2">
                                         <div className="min-w-0">
                                             <p className="text-xs font-semibold text-slate-800 truncate">
-                                                {a.data?.seo_title || a.topic}
+                                                {sanitizeTitle(a.seoTitle || a.topic)}
                                             </p>
                                             <p className="text-xs text-slate-500 mt-0.5 truncate">{a.topic}</p>
                                         </div>
@@ -357,7 +385,12 @@ export default function ArticlesLibrary() {
 
                     {/* Detail panel */}
                     <div className="lg:col-span-3">
-                        {!selected ? (
+                        {isLoadingDetail ? (
+                            <div className="glass-panel p-10 text-center text-slate-400">
+                                <span className="spinner w-8 h-8 border-purple-500 border-t-transparent mx-auto mb-3" />
+                                <p className="text-sm">Loading article details...</p>
+                            </div>
+                        ) : !selected ? (
                             <div className="glass-panel p-10 text-center text-slate-400">
                                 <FileText size={32} className="mx-auto mb-2 opacity-30" />
                                 <p className="text-sm">Select an article to preview</p>
@@ -368,7 +401,7 @@ export default function ArticlesLibrary() {
                                     <div className="flex items-start justify-between gap-3">
                                         <div>
                                             <h2 className="text-sm font-semibold text-slate-800">
-                                                {selected.data?.seo_title || selected.topic}
+                                                {sanitizeTitle(selected.data?.seo_title || selected.topic)}
                                             </h2>
                                             <p className="text-xs text-slate-500 mt-0.5">{formatDate(selected.generatedAt)}</p>
                                         </div>
@@ -451,7 +484,7 @@ export default function ArticlesLibrary() {
                                                                 {/* Title at the top */}
                                                                 <div className="w-full">
                                                                     <h3 className="text-lg font-bold text-slate-900 mb-2 leading-tight">
-                                                                        {idx + 1}. {item.title}
+                                                                        {idx + 1}. {sanitizeTitle(item.title)}
                                                                     </h3>
                                                                 </div>
 
@@ -461,7 +494,7 @@ export default function ArticlesLibrary() {
                                                                         <div className="space-y-2">
                                                                             <div className="rounded-2xl overflow-hidden shadow-md aspect-[9/16] bg-slate-100">
                                                                                 <img
-                                                                                    src={`data:image/jpeg;base64,${item.image_base64}`}
+                                                                                    src={imageUrls[`item-${idx}`] || `data:image/jpeg;base64,${item.image_base64}`}
                                                                                     alt={item.title}
                                                                                     className="w-full h-full object-cover"
                                                                                 />

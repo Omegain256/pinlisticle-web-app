@@ -554,10 +554,17 @@ export async function pipelineVisualIntelligence(
     const C1_IDENTITY = "Character C1 (female model, middle-parted deep brunette hair, hazel-brown eyes, prominent high cheekbones, natural fair skin texture)";
     const E4_ENVIRONMENT = "Environment E4 (sterile minimalist bedroom, white walls, light oak wood floors, a neatly made low bed with white duvet, and a clean empty corner to ensure a sharp body silhouette)";
 
+    const ANATOMY_LOCKDOWN_FASHION = `
+STRICT ANATOMY (NON-NEGOTIABLE): This is a natural human with exactly two arms and two hands. 
+- ONE hand holds the phone with a realistic grip (visible knuckles, five fingers).
+- The OTHER hand is either at her side, in a pocket, or resting naturally.
+- STOP: Do not generate extra arms, phantom limbs, spider-like appendages, or mirrored hand hallucinations.
+- Silhouette must be sharp and continuous. No ghosting.`;
+
     const TEMPLATES_FASHION = {
         casual: `Full-body mirror selfie of ${C1_IDENTITY} modeling a casual everyday outfit.
 PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is NEVER barefoot; she is ALWAYS wearing shoes. Handheld perspective at chest height.
-STRICT ANATOMY: This is a natural human with exactly two arms and two hands. One hand is holding the phone with a realistic grip, visible knuckles, and five distinct fingers. The other hand is at her side or in a pocket.
+${ANATOMY_LOCKDOWN_FASHION}
 AESTHETIC: High-quality unedited smartphone photo, authentic social media post style. Natural indoor lighting with subtle shadows.
 She is standing in ${E4_ENVIRONMENT}. There is clear white empty space between her body and the background to ensure a sharp, clean silhouette.
 OUTFIT: [OUTFIT] | PHONE: [PHONE_COLOR] iPhone 16 Pro | POSE: [POSE].
@@ -565,7 +572,7 @@ Result must look like a real, non-AI person's mirror selfie with authentic skin 
         
         luxury: `Full-body mirror selfie of ${C1_IDENTITY} modeling a quiet luxury outfit.
 PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is NEVER barefoot; she is ALWAYS wearing shoes. Centered and natural at chest height.
-STRICT ANATOMY: Perfectly rendered human anatomy with exactly two arms. One hand holds the phone naturally; the other is at her side. Zero extra limbs, zero ghosting, zero phantom reflections.
+${ANATOMY_LOCKDOWN_FASHION}
 AESTHETIC: Premium unedited smartphone photography, authentic personal outfit post aesthetic. Soft natural lighting, realistic skin with visible pores, no smoothing.
 She is standing in ${E4_ENVIRONMENT} with clear separation from all furniture.
 OUTFIT: [OUTFIT] | PHONE: [PHONE_COLOR] iPhone 16 Pro | POSE: [POSE].
@@ -573,7 +580,7 @@ Ensure the final image looks like a genuine high-end smartphone capture with 100
         
         sporty: `Full-body mirror selfie of ${C1_IDENTITY} modeling a sporty streetwear outfit.
 PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is NEVER barefoot; she is ALWAYS wearing shoes. Slightly casual and handheld at chest height.
-STRICT ANATOMY: Human blueprint with exactly two arms. One hand holding the phone, hand is anatomically correct with five fingers. Silhouette is sharp and clean.
+${ANATOMY_LOCKDOWN_FASHION}
 AESTHETIC: Candid unedited smartphone selfie, authentic handheld photo aesthetic. Authentic iPhone color processing, natural daylight, no AI smoothing.
 She is standing in ${E4_ENVIRONMENT}. Body is clearly separated from background walls.
 OUTFIT: [OUTFIT] | PHONE: [PHONE_COLOR] iPhone 16 Pro | POSE: [POSE].
@@ -997,6 +1004,8 @@ EXACTLY 3 sentences per item content. No more, no less:
 
 ════ FORMATTING ════
 - title: NO NUMBERS. Specific. Name a garment or outfit combo.
+- seo_title: NO NUMBERS. (Example: "Winter Outfits With Trench Coats").
+- pinterest_title: NO NUMBERS.
 - article_intro: MAX 2 sentences. State the real wardrobe problem this article solves.
 - No padding sentences. No vague opener ("This look is perfect for...").
 

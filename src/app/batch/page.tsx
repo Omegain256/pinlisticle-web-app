@@ -20,7 +20,6 @@ import {
 import Link from "next/link";
 import {
     saveArticle,
-    getArticle,
     buildArticleHtml,
     type GeneratedArticle,
 } from "@/lib/articleStore";
@@ -55,28 +54,7 @@ function getSettings() {
     }
 }
 
-async function compressImageBase64(base64: string, maxWidth = 800, quality = 0.7): Promise<string> {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-            let width = img.width;
-            let height = img.height;
-            if (width > maxWidth) {
-                height = Math.round((height * maxWidth) / width);
-                width = maxWidth;
-            }
-            const canvas = document.createElement("canvas");
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext("2d");
-            if (!ctx) return resolve(base64);
-            ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL("image/jpeg", quality).split(",")[1]);
-        };
-        img.onerror = () => resolve(base64);
-        img.src = `data:image/jpeg;base64,${base64}`;
-    });
-}
+
 
 // ─── Sub-components ───────────────────────────────────────────
 
@@ -643,11 +621,16 @@ export default function BatchPage() {
                     throw new Error(`Server error (HTTP ${response.status}) — check Render logs.`);
                 }
 
-                // ── Read the SSE stream line by line ────────────────────────────
+                // ── Read the SSE stream ────────────────────────────────────────────
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = "";
                 let finalData: any = null;
+
+                // Images arrive as individual 'image' events. We compress each immediately
+                // and store in this Map. Peak memory = 1 compressed image (~300KB) at a time.
+                const imageMap = new Map<number, string>(); // idx -> compressed base64
+                let featuredImageB64: string | undefined;
 
                 streamLoop: while (true) {
                     const { done, value } = await reader.read();
@@ -666,9 +649,30 @@ export default function BatchPage() {
                         try { payload = JSON.parse(dataMatch[1]); } catch { continue; }
 
                         const eventType = eventMatch?.[1];
+
                         if (eventType === "progress") {
                             current[i] = { ...current[i], message: payload.message || "Working…" };
                             setRows([...current]);
+
+                        } else if (eventType === "image") {
+                            // CRITICAL: Compress immediately, store result only, drop raw b64
+                            const rawB64: string = payload.image_base64;
+                            if (rawB64) {
+                                try {
+                                    const { compressImageBase64 } = await import("@/lib/image");
+                                    const compressed = await compressImageBase64(rawB64);
+                                    if (payload.isFeatured) {
+                                        featuredImageB64 = compressed;
+                                    } else {
+                                        imageMap.set(payload.idx, compressed);
+                                    }
+                                } catch {
+                                    // Compression failed — store raw as fallback (rare)
+                                    if (payload.isFeatured) featuredImageB64 = rawB64;
+                                    else imageMap.set(payload.idx, rawB64);
+                                }
+                            }
+
                         } else if (eventType === "done") {
                             finalData = payload;
                             break streamLoop;
@@ -680,24 +684,26 @@ export default function BatchPage() {
 
                 if (!finalData?.success) throw new Error(finalData?.error || "Pipeline returned no result.");
 
-                const articleData = finalData.article;
+                let articleData = finalData.article;
                 if (!articleData) throw new Error("Pipeline returned no article data.");
 
-                // Strip raw base64 image data before saving to IndexedDB.
-                // These blobs are the primary cause of OOM (Error code: 5).
-                // The HTML already has the images embedded or WP URLs are stored separately.
-                const articleDataStripped = {
-                    ...articleData,
-                    featured_image_base64: undefined,
-                    listicle_items: (articleData.listicle_items || []).map((item: any) => ({
-                        ...item,
-                        image_base64: undefined,
-                        web_image: item.web_image ? {
-                            ...item.web_image,
-                            image_base64: "[STRIPPED]", // keep attribution but drop the blob
-                        } : undefined,
-                    })),
-                };
+                // Merge compressed images back into the article (images are already small)
+                if (articleData.listicle_items) {
+                    articleData.listicle_items = articleData.listicle_items.map((item: any, idx: number) => {
+                        const compressed = imageMap.get(idx);
+                        if (compressed) {
+                            return { ...item, image_base64: compressed };
+                        }
+                        return item;
+                    });
+                }
+                if (featuredImageB64) {
+                    articleData.featured_image_base64 = featuredImageB64;
+                }
+
+                // Clear image map immediately — free memory
+                imageMap.clear();
+                featuredImageB64 = undefined;
 
                 const html = buildArticleHtml(articleData, current[i].amazonTag, settings.internalLinks);
                 const articleId = `article-${Date.now()}-${i}`;
@@ -708,7 +714,7 @@ export default function BatchPage() {
                     count: current[i].count,
                     generatedAt: new Date().toISOString(),
                     status: "success",
-                    data: articleDataStripped,
+                    data: articleData,
                     html,
                 } as any);
                 current[i] = { ...current[i], status: "success", message: "Done ✓", articleId };

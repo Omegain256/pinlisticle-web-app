@@ -113,16 +113,27 @@ export async function POST(req: NextRequest) {
                 try { qa_score = await pipelineScoreEditorialQA(article_draft, item_cards, apiKey); } catch { /* non-fatal */ }
                 send("progress", { stage: "qa", pct: 84, message: "QA done." });
 
-                // Stage 7 ──────────────────────────────────────────────────
+                // Stage 7 — Images ───────────────────────────────────────
+                // CRITICAL: Each image is sent as its OWN SSE event immediately.
+                // The client saves it straight to IndexedDB and discards the reference.
+                // This prevents the browser from ever holding a 40-80MB JSON blob in memory.
                 if (useWebImages) {
                     if (article_draft?.listicle_items) {
-                        article_draft.listicle_items = article_draft.listicle_items.map((item: any) => {
+                        article_draft.listicle_items = article_draft.listicle_items.map((item: any, idx: number) => {
                             const enriched = enriched_item_cards.find((c: any) => c.item_index === item.item_index);
-                            if (enriched?.web_image) return { ...item, web_image: enriched.web_image, image_base64: enriched.web_image.image_base64, image_prompt: enriched.image_prompt_seed?.engineered_image_prompt || item.image_prompt };
+                            if (enriched?.web_image) {
+                                const b64 = enriched.web_image.image_base64;
+                                // Stream image out immediately, then remove from article object
+                                send("image", { idx, image_base64: b64, mime_type: enriched.web_image.mime_type || "image/jpeg" });
+                                return { ...item, web_image: { ...enriched.web_image, image_base64: "[streamed]" }, image_base64: undefined, image_prompt: enriched.image_prompt_seed?.engineered_image_prompt || item.image_prompt };
+                            }
                             return item;
                         });
                         const first = enriched_item_cards.find((c: any) => c.web_image);
-                        if (first?.web_image && !article_draft.featured_image_base64) article_draft.featured_image_base64 = first.web_image.image_base64;
+                        if (first?.web_image?.image_base64 && !article_draft.featured_image_base64) {
+                            send("image", { idx: -1, image_base64: first.web_image.image_base64, mime_type: "image/jpeg", isFeatured: true });
+                            article_draft.featured_image_base64 = undefined;
+                        }
                     }
                 } else {
                     const imageSources = article_draft?.listicle_items || item_cards;
@@ -136,16 +147,33 @@ export async function POST(req: NextRequest) {
                         try {
                             const refs = await getShotMatrixReferences();
                             const b64  = await generateImage({ prompt: finalPrompt, apiKey, referenceImages: refs, category: cat });
-                            if (article_draft?.listicle_items?.[i]) article_draft.listicle_items[i].image_base64 = b64;
-                            if (i === 0 && article_draft && !article_draft.featured_image_base64) article_draft.featured_image_base64 = b64;
+                            if (b64) {
+                                // Stream image immediately — do NOT accumulate in article_draft
+                                send("image", { idx: i, image_base64: b64, mime_type: "image/jpeg" });
+                                if (i === 0) send("image", { idx: -1, image_base64: b64, mime_type: "image/jpeg", isFeatured: true });
+                                // Keep b64 in article_draft for html building, but it will be stripped in done event
+                                if (article_draft?.listicle_items?.[i]) article_draft.listicle_items[i].image_base64 = b64;
+                                if (i === 0 && article_draft && !article_draft.featured_image_base64) article_draft.featured_image_base64 = b64;
+                            }
                         } catch { /* non-fatal per image */ }
                     }
                 }
 
-                // Done ─────────────────────────────────────────────────────
+                // Done — send article WITHOUT image payloads to keep the event small
+                // Images were already individually streamed above.
+                const articleForClient = {
+                    ...article_draft,
+                    featured_image_base64: undefined, // strip — already streamed
+                    listicle_items: article_draft?.listicle_items?.map((item: any) => ({
+                        ...item,
+                        image_base64: undefined, // strip — already streamed
+                        web_image: item.web_image ? { ...item.web_image, image_base64: undefined } : undefined,
+                    }))
+                };
+
                 send("done", {
                     success: true,
-                    article: article_draft,
+                    article: articleForClient,
                     qa_score,
                     image_mode: useWebImages ? "web" : "ai",
                     stages_completed: ["classify", "evidence", "style_dna", "item_cards", "visual_intelligence", "draft", "qa", "images"],
