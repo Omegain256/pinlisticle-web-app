@@ -272,8 +272,24 @@ export default function ArticlesLibrary() {
                     newArticle.data.listicle_items[idx].image_base64 = compressedBase64;
                     delete newArticle.data.listicle_items[idx].wp_attachment_id;
                     delete newArticle.data.listicle_items[idx].wp_source_url;
-                        newArticle.html = buildArticleHtml(newArticle.data, settings.amazonTag, settings.internalLinks);
+                    newArticle.html = buildArticleHtml(newArticle.data, settings.amazonTag, settings.internalLinks);
                     await saveArticle(newArticle);
+
+                    // CRITICAL FIX: Revoke old Blob URL and replace with new one.
+                    // Without this, imageUrls[item-${idx}] still shows the old image.
+                    const oldUrl = imageUrls[`item-${idx}`];
+                    if (oldUrl) URL.revokeObjectURL(oldUrl);
+
+                    let newBlobUrl = `data:image/jpeg;base64,${compressedBase64}`;
+                    try {
+                        const bytes = atob(compressedBase64);
+                        const byteArray = new Uint8Array(bytes.length);
+                        for (let b = 0; b < bytes.length; b++) byteArray[b] = bytes.charCodeAt(b);
+                        const blob = new Blob([byteArray], { type: "image/jpeg" });
+                        newBlobUrl = URL.createObjectURL(blob);
+                    } catch { /* fallback to data URI */ }
+
+                    setImageUrls(prev => ({ ...prev, [`item-${idx}`]: newBlobUrl }));
                     setSelected(newArticle);
                     toast.success("Image regenerated successfully!");
                 }
