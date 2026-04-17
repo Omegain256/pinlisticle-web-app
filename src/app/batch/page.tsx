@@ -550,6 +550,13 @@ export default function BatchPage() {
     // Step 3 state
     const [isProcessing, setIsProcessing] = useState(false);
     const [progress, setProgress] = useState(0);
+    // Track active stream controller so it can be aborted on navigation
+    const [activeController, setActiveController] = useState<AbortController | null>(null);
+
+    // Abort any in-flight stream when the component unmounts (page navigation)
+    useEffect(() => {
+        return () => { activeController?.abort(); };
+    }, [activeController]);
 
     // Pre-fill from settings
     useEffect(() => {
@@ -612,9 +619,13 @@ export default function BatchPage() {
             setRows([...current]);
 
             try {
+                const controller = new AbortController();
+                setActiveController(controller);
+
                 const response = await fetch('/api/batch/submit', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    signal: controller.signal,
                     body: JSON.stringify({
                         topic: current[i].keyword,
                         keyword: current[i].seoKeyword || current[i].keyword,
@@ -672,6 +683,22 @@ export default function BatchPage() {
                 const articleData = finalData.article;
                 if (!articleData) throw new Error("Pipeline returned no article data.");
 
+                // Strip raw base64 image data before saving to IndexedDB.
+                // These blobs are the primary cause of OOM (Error code: 5).
+                // The HTML already has the images embedded or WP URLs are stored separately.
+                const articleDataStripped = {
+                    ...articleData,
+                    featured_image_base64: undefined,
+                    listicle_items: (articleData.listicle_items || []).map((item: any) => ({
+                        ...item,
+                        image_base64: undefined,
+                        web_image: item.web_image ? {
+                            ...item.web_image,
+                            image_base64: "[STRIPPED]", // keep attribution but drop the blob
+                        } : undefined,
+                    })),
+                };
+
                 const html = buildArticleHtml(articleData, current[i].amazonTag, settings.internalLinks);
                 const articleId = `article-${Date.now()}-${i}`;
                 await saveArticle({
@@ -681,10 +708,11 @@ export default function BatchPage() {
                     count: current[i].count,
                     generatedAt: new Date().toISOString(),
                     status: "success",
-                    data: articleData,
+                    data: articleDataStripped,
                     html,
                 } as any);
                 current[i] = { ...current[i], status: "success", message: "Done ✓", articleId };
+                setActiveController(null);
 
             } catch (e: any) {
                 current[i] = { ...current[i], status: "error", message: e.message };
