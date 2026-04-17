@@ -144,6 +144,11 @@ export default function ArticlesLibrary() {
                     if (uploadJson.success) {
                         item.wp_attachment_id = uploadJson.data.id;
                         item.wp_source_url = uploadJson.data.source_url;
+                        // CRITICAL: Strip base64 immediately after upload succeeds.
+                        // Without this, buildArticleHtml embeds raw images in the post body
+                        // causing a multi-MB request that crashes the browser.
+                        delete item.image_base64;
+                        if (item.web_image) item.web_image.image_base64 = undefined as any;
                         hasNewUploads = true;
                         if (!firstAttachmentId) firstAttachmentId = uploadJson.data.id;
                     } else {
