@@ -556,13 +556,13 @@ export async function pipelineVisualIntelligence(
 
     const ANATOMY_LOCKDOWN_FASHION = `
 STRICT ANATOMY (NON-NEGOTIABLE): This is a natural human with exactly two arms, two hands, and two legs. 
-- Both hands must be placed naturally (e.g., resting at her sides or in pockets).
+- One hand holds the smartphone taking the picture in the mirror, while the other hand rests naturally.
 - Ensure sharp, continuous silhouette.
 - The image must feature exactly one person.`;
 
     const TEMPLATES_FASHION = {
         casual: `Full-body candid portrait of ${C1_IDENTITY} modeling a casual everyday outfit.
-PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is wearing stylish shoes. Captured by a friend at chest height (NOT a mirror selfie).
+PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is wearing stylish shoes. Captured as a mirror selfie holding a [PHONE_COLOR] smartphone; the mirror frame is clearly visible.
 ${ANATOMY_LOCKDOWN_FASHION}
 AESTHETIC: High-quality unedited smartphone photo, authentic social media post style. Natural indoor lighting with subtle shadows.
 She is standing in ${E4_ENVIRONMENT}. There is clear white empty space between her body and the background to ensure a sharp, clean silhouette.
@@ -570,7 +570,7 @@ OUTFIT: [OUTFIT] | POSE: [POSE].
 Result must look like a real, non-AI person's candid photo with authentic skin texture and perfect anatomical limb placement.`,
         
         luxury: `Full-body candid portrait of ${C1_IDENTITY} modeling a quiet luxury outfit.
-PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is wearing stylish shoes. Captured by a friend at chest height (NOT a mirror selfie).
+PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is wearing stylish shoes. Captured as a mirror selfie holding a [PHONE_COLOR] smartphone; the mirror frame is clearly visible.
 ${ANATOMY_LOCKDOWN_FASHION}
 AESTHETIC: Premium unedited smartphone photography, authentic personal outfit post aesthetic. Soft natural lighting, realistic skin with visible pores, no smoothing.
 She is standing in ${E4_ENVIRONMENT} with clear separation from all furniture.
@@ -578,7 +578,7 @@ OUTFIT: [OUTFIT] | POSE: [POSE].
 Ensure the final image looks like a genuine high-end smartphone capture with perfect anatomical accuracy.`,
         
         sporty: `Full-body candid portrait of ${C1_IDENTITY} modeling a sporty streetwear outfit.
-PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is wearing stylish shoes. Captured by a friend at chest height (NOT a mirror selfie).
+PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is wearing stylish shoes. Captured as a mirror selfie holding a [PHONE_COLOR] smartphone; the mirror frame is clearly visible.
 ${ANATOMY_LOCKDOWN_FASHION}
 AESTHETIC: Candid unedited smartphone photo, authentic handheld street-style aesthetic. Authentic iPhone color processing, natural daylight, no AI smoothing.
 She is standing in ${E4_ENVIRONMENT}. Body is clearly separated from background walls.
