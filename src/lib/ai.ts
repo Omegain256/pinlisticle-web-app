@@ -434,19 +434,25 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predict?key=${key}`;
 
             try {
-                // Imagen 4.0 no longer supports negativePrompt as a parameter.
-                // Fold critical anatomical exclusions directly into the prompt text instead.
-                const baseExclusions = "Do not include: barefoot feet, extra limbs, extra hands, merged body parts, distorted anatomy, warped hands, extra fingers, broken wrists, overlapping limbs, anime features, doll-like face, plastic skin, overly airbrushed texture, text overlays, logos.";
+                // Imagen 4.0 handles positive reinforcement better than negative lists which can trigger hallucinations.
+                const baseExclusions = " Ensure anatomically correct human anatomy, exactly two arms, two legs, and natural features. Clean, realistic photographic texture.";
 
-                // Beauty-only: aggressive finger failure pattern suppression + general beauty exclusions.
-                // These do NOT apply to fashion.
-                const beautyFingerExclusions = " FINGER ANOMALY SUPPRESSION: Do not generate extra fingers, missing fingers, fused fingers, mutated hands, deformed anatomy, duplicate fingers, blurry finger edges, malformed knuckles, or incorrect finger count. Every finger must be anatomically distinct and correctly formed.";
-                const beautyGeneralExclusions = " Do not include: background clutter, props, text overlays, logos, exaggerated makeup, stylized illustration, painterly effects, second hand unless specified.";
-                const beautyHandDirective = " One hand only in the frame. Exactly five fingers. Each finger separate and clearly visible. Realistic skin texture, visible knuckle structure, natural nail beds.";
-
-                const exclusionSuffix = category === "beauty" 
-                    ? `${baseExclusions}${beautyFingerExclusions}${beautyGeneralExclusions}${beautyHandDirective}`
-                    : baseExclusions;
+                let exclusionSuffix = "";
+                if (category === "beauty") {
+                    const isNails = prompt.toLowerCase().includes("nail");
+                    const isHair = prompt.toLowerCase().includes("hair");
+                    
+                    if (isNails) {
+                        exclusionSuffix = " Ensure anatomically perfect hands with exactly five human fingers. Clean background, highly realistic texture. One hand only. Exactly five fingers, naturally spaced.";
+                    } else if (isHair) {
+                        exclusionSuffix = " Clean background. Realistic human features. Ensure only the head and shoulders or upper torso are visible. Ensure exactly one person.";
+                    } else {
+                        // Face or eye
+                        exclusionSuffix = " Clean background. Realistic human features, pore-level texture. Ensure tight cropping.";
+                    }
+                } else {
+                    exclusionSuffix = baseExclusions;
+                }
 
                 const hardenedPrompt = `${prompt} ${exclusionSuffix}`;
 

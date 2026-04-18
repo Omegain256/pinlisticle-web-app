@@ -555,76 +555,75 @@ export async function pipelineVisualIntelligence(
     const E4_ENVIRONMENT = "Environment E4 (sterile minimalist bedroom, white walls, light oak wood floors, a neatly made low bed with white duvet, and a clean empty corner to ensure a sharp body silhouette)";
 
     const ANATOMY_LOCKDOWN_FASHION = `
-STRICT ANATOMY (NON-NEGOTIABLE): This is a natural human with exactly two arms and two hands. 
-- ONE hand holds the phone with a realistic grip (visible knuckles, five fingers).
-- The OTHER hand is either at her side, in a pocket, or resting naturally.
-- STOP: Do not generate extra arms, phantom limbs, spider-like appendages, or mirrored hand hallucinations.
-- Silhouette must be sharp and continuous. No ghosting.`;
+STRICT ANATOMY (NON-NEGOTIABLE): This is a natural human with exactly two arms, two hands, and two legs. 
+- Both hands must be placed naturally (e.g., resting at her sides or in pockets).
+- Ensure sharp, continuous silhouette.
+- The image must feature exactly one person.`;
 
     const TEMPLATES_FASHION = {
-        casual: `Full-body mirror selfie of ${C1_IDENTITY} modeling a casual everyday outfit.
-PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is NEVER barefoot; she is ALWAYS wearing shoes. Handheld perspective at chest height.
+        casual: `Full-body candid portrait of ${C1_IDENTITY} modeling a casual everyday outfit.
+PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is wearing stylish shoes. Captured by a friend at chest height (NOT a mirror selfie).
 ${ANATOMY_LOCKDOWN_FASHION}
 AESTHETIC: High-quality unedited smartphone photo, authentic social media post style. Natural indoor lighting with subtle shadows.
 She is standing in ${E4_ENVIRONMENT}. There is clear white empty space between her body and the background to ensure a sharp, clean silhouette.
-OUTFIT: [OUTFIT] | PHONE: [PHONE_COLOR] iPhone 16 Pro | POSE: [POSE].
-Result must look like a real, non-AI person's mirror selfie with authentic skin texture and 100% correct human limb placement.`,
+OUTFIT: [OUTFIT] | POSE: [POSE].
+Result must look like a real, non-AI person's candid photo with authentic skin texture and perfect anatomical limb placement.`,
         
-        luxury: `Full-body mirror selfie of ${C1_IDENTITY} modeling a quiet luxury outfit.
-PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is NEVER barefoot; she is ALWAYS wearing shoes. Centered and natural at chest height.
+        luxury: `Full-body candid portrait of ${C1_IDENTITY} modeling a quiet luxury outfit.
+PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is wearing stylish shoes. Captured by a friend at chest height (NOT a mirror selfie).
 ${ANATOMY_LOCKDOWN_FASHION}
 AESTHETIC: Premium unedited smartphone photography, authentic personal outfit post aesthetic. Soft natural lighting, realistic skin with visible pores, no smoothing.
 She is standing in ${E4_ENVIRONMENT} with clear separation from all furniture.
-OUTFIT: [OUTFIT] | PHONE: [PHONE_COLOR] iPhone 16 Pro | POSE: [POSE].
-Ensure the final image looks like a genuine high-end smartphone capture with 100% anatomical accuracy.`,
+OUTFIT: [OUTFIT] | POSE: [POSE].
+Ensure the final image looks like a genuine high-end smartphone capture with perfect anatomical accuracy.`,
         
-        sporty: `Full-body mirror selfie of ${C1_IDENTITY} modeling a sporty streetwear outfit.
-PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is NEVER barefoot; she is ALWAYS wearing shoes. Slightly casual and handheld at chest height.
+        sporty: `Full-body candid portrait of ${C1_IDENTITY} modeling a sporty streetwear outfit.
+PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is wearing stylish shoes. Captured by a friend at chest height (NOT a mirror selfie).
 ${ANATOMY_LOCKDOWN_FASHION}
-AESTHETIC: Candid unedited smartphone selfie, authentic handheld photo aesthetic. Authentic iPhone color processing, natural daylight, no AI smoothing.
+AESTHETIC: Candid unedited smartphone photo, authentic handheld street-style aesthetic. Authentic iPhone color processing, natural daylight, no AI smoothing.
 She is standing in ${E4_ENVIRONMENT}. Body is clearly separated from background walls.
-OUTFIT: [OUTFIT] | PHONE: [PHONE_COLOR] iPhone 16 Pro | POSE: [POSE].
+OUTFIT: [OUTFIT] | POSE: [POSE].
 The final result must be indistinguishable from a real social media photo with perfect anatomical integrity.`,
     };
 
     const TEMPLATES_BEAUTY = {
-        face: `Close-up beauty portrait of a young adult woman. FRAMING: Crop from top of forehead to collarbone only. NO full body. NO feet. NO legs. Neutral seamless background. Single subject, single face, centered.
+        face: `Close-up beauty portrait of a young adult woman. FRAMING: Crop from top of forehead to collarbone only. Neutral seamless background. Single subject, single face, centered.
 [SUBJECT_DETAILS] wearing [MAKEUP_PHILOSOPHY].
 Lighting: [LIGHTING] paired with [FILL_TYPE] to flatter skin texture without overexposure.
 Camera: High-resolution full-frame digital camera, 85mm lens, f/5.6, [ANGLE] angle.
-Texture: Fine cinematic grain, pore-level realism, no beauty filter smoothing.
+Texture: Fine cinematic grain, pore-level realism.
 Style: [STYLE_ANCHOR]. Emotion: [EMOTION]. Aspect ratio 9:16.
-This is a single-subject close-up photograph of one human face. Exactly one head, two eyes, one nose, one mouth.`,
+This is a single-subject close-up photograph of one human face. The frame captures from the chest up exclusively.`,
 
-        eye: `Extreme macro close-up of a single eye and surrounding skin. FRAMING: Fill the frame with the eye area only — from brow to upper cheek, temple to temple. NO face, NO body, NO hands in frame.
+        eye: `Extreme macro close-up of a single eye and surrounding skin. FRAMING: Fill the frame with the eye area only — from brow to upper cheek, temple to temple.
 [PRODUCT_TYPE] with [FORMULATION_COLOR]. [SUBJECT_DETAILS].
 Lighting: [LIGHTING] to preserve lash definition and iris texture.
 Camera: High-resolution full-frame digital camera, 100mm macro lens, f/8, [ANGLE] angle.
 Texture: Fine cinematic grain, lash fiber detail, skin pore texture visible.
 Style: [STYLE_ANCHOR]. Aspect ratio 9:16.
-One eye only, centered. No multiple perspectives. Single continuous photograph.`,
+One eye only, centered. Single continuous photograph. Only the eye and surrounding skin are visible.`,
 
         hair: `Candid portrait photograph of a young adult woman showing her hairstyle. Hair described as [HAIR_TYPE], styled as [SPECIFIC_STYLE].
-FRAMING: Head and shoulders only. Face and hair fill the frame. Crop from top of hair to mid-chest. NO phone in frame. NO hand holding a phone. NO mirror. NO mirror reflection. NO device of any kind. NO extra arms, NO extra hands, NO bare feet, NO full body.
-ANATOMY: The subject's arms are naturally relaxed at her sides or one hand lightly touching her hair. She is not holding anything. Exactly two arms, both visible or one visible at most. No extra limbs of any kind.
-PHOTOGRAPHY AESTHETIC: Looks like it was shot on an iPhone 15 Pro by a friend standing nearby, not a selfie. Natural or ambient indoor lighting — window light or room ambient. Soft uneven falloff, mild highlight clipping, real shadow noise. No studio lighting, no ring light, no beauty dish.
-COLOR: iPhone Smart HDR processing. Realistic skin tones with slight warmth, true-to-life hair color, minor white balance variation. No cinematic color grading.
-SUBJECT REALISM: Real human features. Visible pores, minor blemishes, natural facial asymmetry. Flyaways, irregular strands, natural volume behavior. Minimal makeup. No beauty filter smoothing. No plastic skin.
-BACKGROUND: Real indoor environment — simple wall, soft room depth, slight natural imperfections. Background gently out of focus. No studio backdrop.
-COMPOSITION: Slightly off-center, loose framing, natural head position. Expression neutral or subtly engaged. Small natural head tilt or movement.
-POST-PROCESSING: Native iPhone pipeline only. Mild sharpening, light contrast. No cinematic grading, no retouching, no artificial grain overlays.
-Aspect ratio 9:16. Single continuous photograph. No collage, no composite, no split panels.`,
+FRAMING: Head and shoulders only. Face and hair fill the frame. Crop from top of hair to mid-chest. This is a tight head-and-shoulders portrait; the waist and legs are completely out of frame.
+ANATOMY: The subject's arms are naturally relaxed out of frame, or one hand lightly touching her hair. She is not holding anything. Ensure exactly one person and correct human anatomy.
+PHOTOGRAPHY AESTHETIC: Looks like it was shot on an iPhone 15 Pro by a friend standing nearby. Natural or ambient indoor lighting — window light or room ambient. Soft uneven falloff, mild highlight clipping, real shadow noise.
+COLOR: iPhone Smart HDR processing. Realistic skin tones with slight warmth, true-to-life hair color.
+SUBJECT REALISM: Real human features. Visible pores, minor blemishes. Flyaways, irregular strands, natural volume behavior. Minimal makeup. No plastic skin.
+BACKGROUND: Real indoor environment — simple wall, soft room depth. Background gently out of focus.
+COMPOSITION: Slightly off-center, loose framing. Expression neutral or subtly engaged.
+POST-PROCESSING: Native iPhone pipeline only. Mild sharpening, light contrast.
+Aspect ratio 9:16. Single continuous photograph.`,
 
         nails: `Professional close-up nail photograph. Nail style: [NAIL_COLOR] [NAIL_DESIGN] design, [NAIL_SHAPE] nails finished in [NAIL_FINISH].
-VISUAL MATCH REQUIREMENT: The nail color and design in the image MUST exactly match the item name. [NAIL_COLOR] is the dominant color of the polish. [NAIL_DESIGN] is the specific pattern or technique (e.g. half-moon, ombre, French tip, glazed, marble). This is non-negotiable.
-SUBJECT: ONE single hand only. Not two hands. One hand fills the frame.
-HAND POSE: Hand is slightly cupped or lightly fisted with fingers angled toward the camera so all five nails face forward and are fully visible. Similar to a natural relaxed curl — not flat, not splayed. Wrist visible at bottom of frame.
-FRAMING: Extreme close-up macro. The hand fills 80% of the frame. Shot from a slight front-overhead angle (30–45 degrees). Crop at mid-forearm. NO face, NO body, NO second hand.
-BACKGROUND: Soft blurred neutral background (cream, marble, or light stone). Background should be out of focus to emphasize the nails.
+VISUAL MATCH REQUIREMENT: The nail color and design in the image MUST exactly match the item name. [NAIL_COLOR] is the dominant color of the polish. [NAIL_DESIGN] is the specific pattern or technique.
+SUBJECT: ONE single hand only. One hand fills the frame.
+HAND POSE: Hand is slightly cupped or lightly fisted with fingers angled toward the camera so all five nails face forward and are fully visible. Wrist visible at bottom of frame.
+FRAMING: Extreme close-up macro. The hand fills 80% of the frame. Shot from a slight front-overhead angle (30–45 degrees). Crop at mid-forearm. Only the hand and background are visible.
+BACKGROUND: Soft blurred neutral background (cream, marble, or light stone).
 ANATOMY: Exactly ONE hand. Exactly FIVE fingers. Each finger is separate, clearly defined, naturally spaced. No finger is hidden behind another.
-FINGER INTEGRITY (MANDATORY): Do not generate extra fingers, missing fingers, fused fingers, mutated hands, deformed anatomy, duplicate fingers, or blurry finger edges. Every finger must have a clean, sharp, anatomically correct nail bed.
+FINGER INTEGRITY (MANDATORY): Ensure anatomically perfect hands with exactly five human fingers. Every finger must have a clean, sharp, anatomically correct nail bed.
 Lighting: [LIGHTING] with controlled specular highlights on polish surface. No clipping.
-Camera: High-resolution full-frame digital camera, 100mm macro lens, f/4 to f/5.6 for slight background separation.
+Camera: High-resolution full-frame digital camera, 100mm macro lens, f/4 to f/5.6.
 Texture: Cuticle detail, skin texture, [NAIL_FINISH] polish surface realism.
 Style: [STYLE_ANCHOR]. Aspect ratio 9:16.`
     };
