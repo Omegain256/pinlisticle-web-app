@@ -603,9 +603,9 @@ Texture: Fine cinematic grain, lash fiber detail, skin pore texture visible.
 Style: [STYLE_ANCHOR]. Aspect ratio 9:16.
 One eye only, centered. Single continuous photograph. Only the eye and surrounding skin are visible.`,
 
-        hair: `Candid portrait photograph of a young adult woman showing her hairstyle. Hair described as [HAIR_TYPE], styled as [SPECIFIC_STYLE].
-FRAMING: Head and shoulders only. Face and hair fill the frame. Crop from top of hair to mid-chest. This is a tight head-and-shoulders portrait; the waist and legs are completely out of frame.
-ANATOMY: The subject's arms are naturally relaxed out of frame, or one hand lightly touching her hair. She is not holding anything. Ensure exactly one person and correct human anatomy.
+        hair: `Close-up beauty portrait photograph of a young adult woman focusing on her face and hairstyle. Hair described as [HAIR_TYPE], styled as [SPECIFIC_STYLE].
+FRAMING: Extreme close-up of the face and hair only. The face and hair completely fill the frame. Crop from top of hair to just below the chin or collarbone. Show absolutely no body, no torso, and no arms. This is a face-focused headshot only.
+ANATOMY: Only the head and face are visible. No hands or arms in the frame. Ensure exactly one person and correct human anatomy.
 PHOTOGRAPHY AESTHETIC: Looks like it was shot on an iPhone 15 Pro by a friend standing nearby. Natural or ambient indoor lighting — window light or room ambient. Soft uneven falloff, mild highlight clipping, real shadow noise.
 COLOR: iPhone Smart HDR processing. Realistic skin tones with slight warmth, true-to-life hair color.
 SUBJECT REALISM: Real human features. Visible pores, minor blemishes. Flyaways, irregular strands, natural volume behavior. Minimal makeup. No plastic skin.

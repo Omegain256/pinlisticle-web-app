@@ -445,7 +445,7 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
                     if (isNails) {
                         exclusionSuffix = " Ensure anatomically perfect hands with exactly five human fingers. Clean background, highly realistic texture. One hand only. Exactly five fingers, naturally spaced.";
                     } else if (isHair) {
-                        exclusionSuffix = " Clean background. Realistic human features. Ensure only the head and shoulders or upper torso are visible. Ensure exactly one person.";
+                        exclusionSuffix = " Clean background. Realistic human features. Ensure extreme close-up of face and hair only. Absolutely no body, no torso, and no arms visible. Ensure exactly one person.";
                     } else {
                         // Face or eye
                         exclusionSuffix = " Clean background. Realistic human features, pore-level texture. Ensure tight cropping.";
