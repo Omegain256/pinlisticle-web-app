@@ -589,9 +589,10 @@ The final result must be indistinguishable from a real social media photo with p
     const TEMPLATES_BEAUTY = {
         face: `Close-up beauty portrait of a young adult woman. FRAMING: Crop from top of forehead to collarbone only. Neutral seamless background. Single subject, single face, centered.
 [SUBJECT_DETAILS] wearing [MAKEUP_PHILOSOPHY].
-Lighting: [LIGHTING] paired with [FILL_TYPE] to flatter skin texture without overexposure.
-Camera: High-resolution full-frame digital camera, 85mm lens, f/5.6, [ANGLE] angle.
-Texture: Fine cinematic grain, pore-level realism.
+Shot on an iPhone 15 Pro Max using the native camera system (24–28mm equivalent), deep depth of field, true mobile perspective with slight lens distortion at edges.
+Lighting is natural or practical (window light or indoor ambient), slightly uneven with soft falloff, mild highlight clipping on high points (nose bridge, forehead), and natural shadow noise in darker areas. No studio lighting or artificial glow. White balance slightly imperfect, preserving real-world color inconsistency.
+Color rendering follows smartphone HDR processing: realistic but slightly compressed contrast, mild sharpening artifacts, and subtle noise in shadows. Skin retains natural tonal variation without plastic smoothing or excessive clarity.
+Expression is neutral or subtly engaged, avoiding exaggerated emotion. Pose is casual with small, believable head movement. Composition slightly off-center with loose framing, allowing minor cropping inconsistencies.
 Style: [STYLE_ANCHOR]. Emotion: [EMOTION]. Aspect ratio 9:16.
 This is a single-subject close-up photograph of one human face. The frame captures from the chest up exclusively.`,
 
@@ -606,12 +607,11 @@ One eye only, centered. Single continuous photograph. Only the eye and surroundi
         hair: `Close-up beauty portrait photograph of a young adult woman focusing on her face and hairstyle. Hair described as [HAIR_TYPE], styled as [SPECIFIC_STYLE].
 FRAMING: Extreme close-up of the face and hair only. The face and hair completely fill the frame. Crop from top of hair to just below the chin or collarbone. Show absolutely no body, no torso, and no arms. This is a face-focused headshot only.
 ANATOMY: Only the head and face are visible. No hands or arms in the frame. Ensure exactly one person and correct human anatomy.
-PHOTOGRAPHY AESTHETIC: Looks like it was shot on an iPhone 15 Pro by a friend standing nearby. Natural or ambient indoor lighting — window light or room ambient. Soft uneven falloff, mild highlight clipping, real shadow noise.
-COLOR: iPhone Smart HDR processing. Realistic skin tones with slight warmth, true-to-life hair color.
-SUBJECT REALISM: Real human features. Visible pores, minor blemishes. Flyaways, irregular strands, natural volume behavior. Minimal makeup. No plastic skin.
+Shot on an iPhone 15 Pro Max using the native camera system (24–28mm equivalent), deep depth of field, true mobile perspective with slight lens distortion at edges.
+Lighting is natural or practical (window light or indoor ambient), slightly uneven with soft falloff, mild highlight clipping on high points (nose bridge, forehead), and natural shadow noise in darker areas. No studio lighting or artificial glow. White balance slightly imperfect, preserving real-world color inconsistency.
+Color rendering follows smartphone HDR processing: realistic but slightly compressed contrast, mild sharpening artifacts, and subtle noise in shadows. Skin retains natural tonal variation without plastic smoothing or excessive clarity.
+Expression is neutral or subtly engaged, avoiding exaggerated emotion. Pose is casual with small, believable head movement. Composition slightly off-center with loose framing, allowing minor cropping inconsistencies.
 BACKGROUND: Real indoor environment — simple wall, soft room depth. Background gently out of focus.
-COMPOSITION: Slightly off-center, loose framing. Expression neutral or subtly engaged.
-POST-PROCESSING: Native iPhone pipeline only. Mild sharpening, light contrast.
 Aspect ratio 9:16. Single continuous photograph.`,
 
         nails: `Professional close-up nail photograph. Nail style: [NAIL_COLOR] [NAIL_DESIGN] design, [NAIL_SHAPE] nails finished in [NAIL_FINISH].
