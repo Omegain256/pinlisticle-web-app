@@ -80,6 +80,7 @@ export async function pipelineClassifyTopic(keyword: string, apiKey: string, cat
     2. Determine the "Style Logic" required to solve it.
     3. Define the "Reader Outcome" (how they feel more capable).
     4. Categorize the style archetype as ONLY ONE of: "casual", "luxury", or "sporty".
+    5. Identify if the keyword implies a specific "subject_demographic" (e.g. "plus size", "petite", "mature", "tall", "hourglass"). If none, use "universal".
     
     Return a JSON brief.`;
 
@@ -93,6 +94,7 @@ export async function pipelineClassifyTopic(keyword: string, apiKey: string, cat
     2. Determine the "Technique/Product Logic" required.
     3. Define the "Reader Outcome" (confidence, skill, or aesthetic perfection).
     4. Categorize the style archetype as ONLY ONE of: "face", "eye", "hair", or "nails".
+    5. Identify if the keyword implies a specific "subject_demographic" (e.g. "plus size", "oily skin", "dark skin", "mature skin", "curly hair"). If none, use "universal".
     
     Return a JSON brief.`;
 
@@ -551,7 +553,7 @@ export async function pipelineVisualIntelligence(
     // ── Step C: Template selection ──────────────────────────
     const archetype = (briefJson?.style_archetype || "casual").toLowerCase();
     
-    const C1_IDENTITY = "Character C1 (female model, middle-parted deep brunette hair, hazel-brown eyes, prominent high cheekbones, natural fair skin texture)";
+    const C1_IDENTITY = styleDna?.subject_definition || "Character C1 (female model, middle-parted deep brunette hair, hazel-brown eyes, prominent high cheekbones, natural fair skin texture)";
     const E4_ENVIRONMENT = "Environment E4 (sterile minimalist bedroom, white walls, light oak wood floors, a neatly made low bed with white duvet, and a clean empty corner to ensure a sharp body silhouette)";
 
     const ANATOMY_LOCKDOWN_FASHION = `
@@ -652,6 +654,8 @@ ${activeTemplate}
     const systemTextBeauty = `You are a professional beauty photo analyst and AI image prompt engineer.
 STRICT CATEGORY ISOLATION (NON-NEGOTIABLE):
 - SUBJECT: Always a single young adult woman. One person only.
+- DEMOGRAPHIC LOCKDOWN: The article subject is defined as: ${briefJson?.subject_demographic || "universal"}.
+  - If the focus is "plus size", you MUST strictly describe the subject with a soft, rounder jawline and full cheeks. Absolutely NO prominent high cheekbones or thin, gaunt facial structures.
 - FRAMING: NEVER full-body. NEVER show feet or legs. NEVER show multiple angles or collages.
   - face/eye/makeup items → close-up portrait from forehead to collarbone only
   - hair items → strict face and hair focus only; no torso, no extended arms, no body below collarbone
@@ -784,6 +788,7 @@ STRICTLY BANNED WORDS (any field):
 obsessed, game-changer, must-have, stunning, viral, fashionista, flawlessly, look expensive, trendy girl, delve, elevate, chic, essential, timeless, effortless, versatile, curated, luxe, statement, iconic, investment piece.`;
 
     const systemInstructionBeauty = `You are a HIGH-END BEAUTY EDITOR building content skeleton cards for a beauty and hairstyle listicle. Audience: women 26-44.
+DEMOGRAPHIC FOCUS: ${briefJson?.subject_demographic || "universal"}.
 
 EDITORIAL MISSION: Focus on technical execution, macro details, and performance. Help women understand the "Why" behind the aesthetic.
 
@@ -796,7 +801,7 @@ FOR EACH ITEM CARD:
 6. freshness_signal: One angle most competitor articles on this keyword are missing.
 
 SHOT MATRIX RULES (MANDATORY — these feed the image generation):
-- CHARACTER ID: C1 (Match reference precisely: lock facial structure, skin tone, and hair). NO IDENTITY DRIFTING.
+- CHARACTER ID: C1 (Match demographic context: ${briefJson?.subject_demographic || "universal"}).
 - ENVIRONMENT ID: E4 (Match scene reference precisely as a sterile, editorial setting). NO ENVIRONMENTAL DRIFTING.
 - POSE ID: Neutral head and shoulder posture.
 - ANGLE ID: Extreme close-up focused strictly on the FACE and HAIR.
@@ -855,9 +860,12 @@ export async function pipelineGenerateStyleDNA(topic: string, briefJson: any, ap
 Generate a single Style DNA JSON object for an article about: "${topic}".
 BRIEF: ${JSON.stringify(briefJson)}
 
+DEMOGRAPHIC LOCKDOWN:
+If the BRIEF identifies a "subject_demographic" (e.g., "plus size", "mature", "oily skin"), the "subject_definition" MUST strictly reflect this. For "plus size", describe facial features consistent with a soft, rounder jawline and fuller cheeks.
+
 VOICE & AESTHETIC GOAL: 
 Create a cohesive "Visual Identity" for this article. Select ONE consistent vibe from these categories as inspiration:
-1. SUBJECT: Define the person (Age, Ethnicity, unique feature like 'sharp bob' or 'visible laugh lines').
+1. SUBJECT: Define the person (Age, Ethnicity, Body Type/Facial Structure matching the demographic, unique feature like 'sharp bob' or 'visible laugh lines').
 2. LOCATION: Select a specific setting. PRIORITISE variety across articles. Pool: [minimalist brutalist concrete loft, candlelit Italian bistro, sun-drenched conservatory with floor-to-ceiling glass, mid-century modern library, produce aisle of a boutique grocery, grand marble museum hallway, cluttered artist studio, high-ceilinged converted warehouse, penthouse rooftop at dusk].
 3. LIGHTING/WEATHER: Define the light (e.g. 'overcast winter afternoon', 'harsh direct on-camera flash', 'warm golden hour').
 4. CAMERA/AESTHETIC: Define the tech vibe (e.g. 'Shot on iPhone 16 Pro', 'Shot on Contax T2 35mm film', 'Shot on Sony A7RV 85mm f/1.4'). Reference a specific editorial photographer.
