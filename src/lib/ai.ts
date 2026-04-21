@@ -443,7 +443,7 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
                     const isHair = prompt.toLowerCase().includes("hair");
                     
                     if (isNails) {
-                        exclusionSuffix = " Ensure anatomically perfect hands with exactly five human fingers. Clean background, highly realistic texture. One hand only. Exactly five fingers, naturally spaced.";
+                        exclusionSuffix = " Exactly 5 human fingers. No more than 5 fingers. No extra nails. No fused skin. No webbed fingers. Each nail must be attached to exactly one finger. Total tally of digits in the frame must be five. Clean realistic skin texture with visible pores and fine lines.";
                     } else if (isHair) {
                         exclusionSuffix = " Clean background. Realistic human features with visible pores, natural skin texture, freckles, scars, and wrinkles. Directional lighting (45° key light, soft fill). Ensure the full face and the entire hairstyle are completely visible within the frame. DO NOT crop the face or the hair. Absolutely no body, no torso, and no arms visible. Ensure exactly one person.";
                     } else {

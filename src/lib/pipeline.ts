@@ -616,18 +616,17 @@ Expression is neutral or subtly engaged, avoiding exaggerated emotion. Pose is c
 BACKGROUND: Real indoor environment — simple wall, soft room depth. Background gently out of focus.
 Aspect ratio 9:16. Single continuous photograph.`,
 
-        nails: `Professional close-up nail photograph. Nail style: [NAIL_COLOR] [NAIL_DESIGN] design, [NAIL_SHAPE] nails finished in [NAIL_FINISH].
+        nails: `Extreme macro photograph of exactly five human fingernails on one single hand. Nail style: [NAIL_COLOR] [NAIL_DESIGN] design, [NAIL_SHAPE] nails finished in [NAIL_FINISH].
 VISUAL MATCH REQUIREMENT: The nail color and design in the image MUST exactly match the item name. [NAIL_COLOR] is the dominant color of the polish. [NAIL_DESIGN] is the specific pattern or technique.
-SUBJECT: ONE single hand only. One hand fills the frame.
-HAND POSE: Hand is slightly cupped or lightly fisted with fingers angled toward the camera so all five nails face forward and are fully visible. Wrist visible at bottom of frame.
-FRAMING: Extreme close-up macro. The hand fills 80% of the frame. Shot from a slight front-overhead angle (30–45 degrees). Crop at mid-forearm. Only the hand and background are visible.
+SUBJECT: ONE single hand only. Exactly 5 fingers visible.
+HAND POSE: Hand is posed naturally to display exactly five distinct nails. Fingers are naturally spaced; no fingers are overlapping or hidden. Each nail is cleanly attached to exactly one finger.
+FRAMING: Extreme macro close-up. The hand fills 80% of the frame. Crop at mid-forearm. Only the hand and background are visible.
 BACKGROUND: Soft blurred neutral background (cream, marble, or light stone).
-ANATOMY: Exactly ONE hand. Exactly FIVE fingers. Each finger is separate, clearly defined, naturally spaced. No finger is hidden behind another.
-FINGER INTEGRITY (MANDATORY): Ensure anatomically perfect hands with exactly five human fingers. Every finger must have a clean, sharp, anatomically correct nail bed.
-Lighting: [LIGHTING] with controlled specular highlights on polish surface. No clipping.
-Camera: High-resolution full-frame digital camera, 100mm macro lens, f/4 to f/5.6.
-Texture: Cuticle detail, skin texture, [NAIL_FINISH] polish surface realism.
-Style: [STYLE_ANCHOR]. Aspect ratio 9:16.`
+ANATOMY: Exactly ONE hand. Exactly FIVE fingers. Exactly FIVE nails. No more, no fewer. Total tally of digits must be five.
+REALISM LOCKDOWN: Shot on a high-resolution macro lens. Authentic skin texture with visible pores, fine lines on knuckles, and clean cuticles. [NAIL_FINISH] surface reflects light realistically with subtle specular highlights. No AI smoothing or plastic-like skin.
+Lighting: [LIGHTING] with professional softbox diffusion.
+Camera: Sony A7R V with 90mm Macro G OSS lens.
+Style: [STYLE_ANCHOR]. Aspect ratio 9:16. Single continuous photograph.`
     };
 
     const activeTemplate = category === "beauty" 
@@ -656,6 +655,12 @@ STRICT CATEGORY ISOLATION (NON-NEGOTIABLE):
 - SUBJECT: Always a single young adult woman. One person only.
 - DEMOGRAPHIC LOCKDOWN: The article subject is defined as: ${briefJson?.subject_demographic || "universal"}.
   - If the focus is "plus size", you MUST strictly describe the subject with a soft, rounder jawline and full cheeks. Absolutely NO prominent high cheekbones or thin, gaunt facial structures.
+- NAIL ANATOMY LOCKDOWN (MANDATORY):
+  - Exactly ONE hand visible.
+  - Exactly FIVE distinct fingers.
+  - Exactly FIVE distinct fingernails.
+  - Each nail MUST be attached to a unique finger. No sharing of fingers. No fused nails.
+  - Strictly forbid: extra joints, webbed skin, double-nails, or sixth digits.
 - FRAMING: NEVER full-body. NEVER show feet or legs. NEVER show multiple angles or collages.
   - face/eye/makeup items → close-up portrait from forehead to collarbone only
   - hair items → strict face and hair focus only; no torso, no extended arms, no body below collarbone
