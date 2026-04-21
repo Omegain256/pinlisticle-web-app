@@ -445,10 +445,10 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
                     if (isNails) {
                         exclusionSuffix = " Ensure anatomically perfect hands with exactly five human fingers. Clean background, highly realistic texture. One hand only. Exactly five fingers, naturally spaced.";
                     } else if (isHair) {
-                        exclusionSuffix = " Clean background. Realistic human features. Ensure the full face and the entire hairstyle are completely visible within the frame. DO NOT crop the face or the hair. Absolutely no body, no torso, and no arms visible. Ensure exactly one person.";
+                        exclusionSuffix = " Clean background. Realistic human features with visible pores, natural skin texture, freckles, scars, and wrinkles. Directional lighting (45° key light, soft fill). Ensure the full face and the entire hairstyle are completely visible within the frame. DO NOT crop the face or the hair. Absolutely no body, no torso, and no arms visible. Ensure exactly one person.";
                     } else {
                         // Face or eye
-                        exclusionSuffix = " Clean background. Realistic human features, pore-level texture. Ensure tight cropping.";
+                        exclusionSuffix = " Clean background. Realistic human features, pore-level texture with visible pores, natural skin texture, freckles, scars, and wrinkles. Directional lighting (45° key light, soft fill). Ensure tight cropping.";
                     }
                 } else {
                     exclusionSuffix = baseExclusions;
