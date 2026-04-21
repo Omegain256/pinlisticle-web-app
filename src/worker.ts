@@ -106,7 +106,7 @@ const worker = new Worker<PublishPipelineData>(
             if (!state.item_cards && state.brief && state.evidence_pack) {
                 console.log(`[Job ${job.id}] S4: Generating ${data.count} Item Evidence Cards...`);
                 // item_cards is an array as per ItemCardsSchema
-                state.item_cards = (await pipelineGenerateItemCards(targetToken, data.count, state.brief, state.evidence_pack, data.apiKey, data.modelPrefix)) as WorkerState["item_cards"];
+                state.item_cards = (await pipelineGenerateItemCards(targetToken, data.count, state.brief, state.evidence_pack, data.apiKey, data.modelPrefix, (data as any).category)) as WorkerState["item_cards"];
                 await job.updateData(data);
             }
             await job.updateProgress(50);

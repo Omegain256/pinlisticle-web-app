@@ -654,7 +654,7 @@ STRICT CATEGORY ISOLATION (NON-NEGOTIABLE):
 - SUBJECT: Always a single young adult woman. One person only.
 - FRAMING: NEVER full-body. NEVER show feet or legs. NEVER show multiple angles or collages.
   - face/eye/makeup items → close-up portrait from forehead to collarbone only
-  - hair items → head and shoulders only, no extended arms, no body below chest
+  - hair items → strict face and hair focus only; no torso, no extended arms, no body below collarbone
   - nail items → hands only against a neutral background; hands must NOT cover the face or any body part
 - BACKGROUND: Always neutral, seamless, and uncluttered. No props, no furniture, no scene.
 - ANATOMY: Exactly one head, exactly two arms, exactly two hands, exactly ten fingers total. No extra limbs.
@@ -757,11 +757,11 @@ ${activeTemplate}`;
 }
 
 // Stage 3: Item Cards
-export async function pipelineGenerateItemCards(keyword: string, count: number, briefJson: any, evidencePackJson: any, apiKey: string, modelPrefix: "pro" | "lite") {
+export async function pipelineGenerateItemCards(keyword: string, count: number, briefJson: any, evidencePackJson: any, apiKey: string, modelPrefix: "pro" | "lite", category: "fashion" | "beauty" = "fashion") {
     const modelId = resolveModelId(modelPrefix);
     const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
 
-    const systemInstruction = `You are a SHARP WARDROBE EDITOR building content skeleton cards for a fashion listicle. Audience: women 26-44.
+    const systemInstructionFashion = `You are a SHARP WARDROBE EDITOR building content skeleton cards for a fashion listicle. Audience: women 26-44.
 
 EDITORIAL MISSION: Help women make faster, smarter wardrobe decisions for real mornings, real budgets, real schedules.
 
@@ -783,6 +783,33 @@ SHOT MATRIX RULES (MANDATORY — these feed the image generation):
 STRICTLY BANNED WORDS (any field):
 obsessed, game-changer, must-have, stunning, viral, fashionista, flawlessly, look expensive, trendy girl, delve, elevate, chic, essential, timeless, effortless, versatile, curated, luxe, statement, iconic, investment piece.`;
 
+    const systemInstructionBeauty = `You are a HIGH-END BEAUTY EDITOR building content skeleton cards for a beauty and hairstyle listicle. Audience: women 26-44.
+
+EDITORIAL MISSION: Focus on technical execution, macro details, and performance. Help women understand the "Why" behind the aesthetic.
+
+FOR EACH ITEM CARD:
+1. item_name: Specific named look or hairstyle (e.g. "French Glossy Bob" or "Double-Winged Eyeliner").
+2. why_it_works: 2-3 reasons grounded in Performance/Symmetry/Texture/Tone logic.
+3. trend_support: Quote SPECIFIC data from the evidence pack (source + stat). Do NOT invent statistics.
+4. styling_notes: Specific products, tools, and application techniques.
+5. reader_value: The concrete aesthetic outcome.
+6. freshness_signal: One angle most competitor articles on this keyword are missing.
+
+SHOT MATRIX RULES (MANDATORY — these feed the image generation):
+- CHARACTER ID: C1 (Match reference precisely: lock facial structure, skin tone, and hair). NO IDENTITY DRIFTING.
+- ENVIRONMENT ID: E4 (Match scene reference precisely as a sterile, editorial setting). NO ENVIRONMENTAL DRIFTING.
+- POSE ID: Neutral head and shoulder posture.
+- ANGLE ID: Extreme close-up focused strictly on the FACE and HAIR.
+- NO FULL BODY. No outfits. No shoes.
+
+STRICTLY BANNED WORDS: same as fashion.`;
+
+    const systemInstruction = category === "beauty" ? systemInstructionBeauty : systemInstructionFashion;
+
+    const rotationInstruction = category === "beauty" 
+        ? "Rotation: ensure a mix of straight-on, 15° angled, and side-frontal headshots across the list. Focus strictly on the face and hair."
+        : "Rotation: ensure a mix of Full-body, Medium, and Detail shots across the list.";
+
     const prompt = `
 KEYWORD: "${keyword}"
 ARTICLE BRIEF:
@@ -791,7 +818,7 @@ ${JSON.stringify(briefJson, null, 2)}
 WEB RESEARCH:
 ${JSON.stringify(evidencePackJson, null, 2)}
 
-Generate exactly ${count} item evidence cards. Rotation: ensure a mix of Full-body, Medium, and Detail shots across the list.
+Generate exactly ${count} item evidence cards. ${rotationInstruction}
     `.trim();
 
     try {
@@ -813,7 +840,7 @@ Generate exactly ${count} item evidence cards. Rotation: ensure a mix of Full-bo
     } catch (err: any) {
         if (err instanceof ModelOverloadedError && modelPrefix === "pro") {
             console.warn(`[Resilience] Gemini Pro overloaded during item_cards. Falling back to Gemini Flash.`);
-            return pipelineGenerateItemCards(keyword, count, briefJson, evidencePackJson, apiKey, "lite");
+            return pipelineGenerateItemCards(keyword, count, briefJson, evidencePackJson, apiKey, "lite", category);
         }
         throw err;
     }

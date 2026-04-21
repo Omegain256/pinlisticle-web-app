@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
 
                 // Stage 4 ──────────────────────────────────────────────────
                 send("progress", { stage: "item_cards", pct: 35, message: `Generating ${itemCount} item cards…` });
-                const item_cards = await pipelineGenerateItemCards(targetKeyword, itemCount, brief, evidence_pack, apiKey, modelPrefix || "pro");
+                const item_cards = await pipelineGenerateItemCards(targetKeyword, itemCount, brief, evidence_pack, apiKey, modelPrefix || "pro", cat);
                 if (!item_cards?.length) throw new Error("No item cards generated.");
                 send("progress", { stage: "item_cards", pct: 50, message: "Item cards ready." });
 
