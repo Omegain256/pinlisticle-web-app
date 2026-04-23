@@ -616,14 +616,13 @@ Expression is neutral or subtly engaged, avoiding exaggerated emotion. Pose is c
 BACKGROUND: Real indoor environment — simple wall, soft room depth. Background gently out of focus.
 Aspect ratio 9:16. Single continuous photograph.`,
 
-        nails: `Extreme macro photograph of exactly one human hand. Nail style: [NAIL_COLOR] [NAIL_DESIGN] design, [NAIL_SHAPE] nails finished in [NAIL_FINISH].
+        nails: `Extreme macro photograph of a single hand gently resting on a soft velvet cloth, fingers softly curved. Nail style: [NAIL_COLOR] [NAIL_DESIGN] design, [NAIL_SHAPE] nails finished in [NAIL_FINISH].
 VISUAL MATCH REQUIREMENT: The nail color and design in the image MUST exactly match the item name. [NAIL_COLOR] is the dominant color of the polish. [NAIL_DESIGN] is the specific pattern or technique.
-SUBJECT: Photorealistic human hand with anatomically correct structure. Exactly five distinct fingers visible. Each finger is fully separated with clear, natural gaps between them. Natural finger proportions, correct joint placement.
-HAND POSE: Simple top-down hand pose with relaxed, naturally spread fingers. All fingers are fully visible and clearly distinct.
-FRAMING: Extreme macro close-up. Sharp focus on nails and fingertips. The hand fills 80% of the frame. Crop at mid-forearm. Only the hand and background are visible.
-BACKGROUND: Soft blurred neutral background (cream, marble, or light stone).
-ANATOMY: Exactly one hand only. Nails aligned one per finger, correctly attached at nail beds with natural cuticles.
-REALISM LOCKDOWN: Clinical accuracy and dermatological realism. Realistic skin texture with pores and fine lines. Realistic lighting, true-to-life shadows, accurate perspective. Camera-level realism similar to iPhone 15 Pro photography.
+SUBJECT: A single hand gently resting on a soft velvet cloth.
+HAND POSE: Fingers softly curved and resting gracefully on the velvet surface, demonstrating a relaxed and natural posture.
+FRAMING: Extreme macro close-up. Sharp focus on the nails. The hand fills 80% of the frame. Crop at mid-forearm.
+BACKGROUND: Soft velvet cloth.
+REALISM LOCKDOWN: Cinematic photography, authentic skin texture with pores and fine lines. Camera-level realism similar to iPhone 15 Pro photography.
 Lighting: [LIGHTING] with professional softbox diffusion.
 Style: [STYLE_ANCHOR]. Aspect ratio 9:16. Single continuous photograph.`
     };

@@ -443,7 +443,7 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
                     const isHair = prompt.toLowerCase().includes("hair");
                     
                     if (isNails) {
-                        exclusionSuffix = " Photorealistic human hand with perfect anatomical structure. Exactly five distinct fingers visible. Each finger is fully separated with clear, natural gaps. Natural finger proportions, correct joint placement. Realistic skin texture with pores and fine lines. Nails aligned one per finger, correctly attached at nail beds with natural cuticles. Realistic lighting, true-to-life shadows, accurate perspective. Authentic camera-level realism similar to iPhone 15 Pro photography.";
+                        exclusionSuffix = " A natural hand resting gracefully. Cinematic photography, realistic skin texture with pores and fine lines.";
                     } else if (isHair) {
                         exclusionSuffix = " Clean background. Realistic human features with visible pores, natural skin texture, freckles, scars, and wrinkles. Directional lighting (45° key light, soft fill). Ensure the full face and the entire hairstyle are completely visible within the frame. DO NOT crop the face or the hair. Absolutely no body, no torso, and no arms visible. Ensure exactly one person.";
                     } else {
