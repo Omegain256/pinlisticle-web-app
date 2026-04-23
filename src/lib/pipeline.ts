@@ -93,7 +93,7 @@ export async function pipelineClassifyTopic(keyword: string, apiKey: string, cat
     1. Identify the core "Beauty Tension" or "Performance Goal".
     2. Determine the "Technique/Product Logic" required.
     3. Define the "Reader Outcome" (confidence, skill, or aesthetic perfection).
-    4. Categorize the style archetype as ONLY ONE of: "face", "eye", "hair", or "nails".
+    4. Categorize the style archetype as ONLY ONE of: "face", "eye", or "hair".
     5. Identify if the keyword implies a specific "subject_demographic" (e.g. "plus size", "oily skin", "dark skin", "mature skin", "curly hair"). If none, use "universal".
     
     Return a JSON brief.`;
@@ -616,14 +616,7 @@ Expression is neutral or subtly engaged, avoiding exaggerated emotion. Pose is c
 BACKGROUND: Real indoor environment — simple wall, soft room depth. Background gently out of focus.
 Aspect ratio 9:16. Single continuous photograph.`,
 
-        nails: `Professional flat-lay nail photography. Nail style: [NAIL_COLOR] [NAIL_DESIGN] design, [NAIL_SHAPE] nails finished in [NAIL_FINISH].
-VISUAL MATCH REQUIREMENT: The nail color and design in the image MUST exactly match the item name. [NAIL_COLOR] is the dominant color of the polish. [NAIL_DESIGN] is the specific pattern or technique.
-SUBJECT: One complete human hand photographed from directly above (top-down bird's-eye view). The hand is lying completely flat and relaxed on a smooth surface with all five fingers gently spread apart. Each finger clearly separate. Soft warm organic skin with natural texture, visible pores, fine skin lines.
-FRAMING: Top-down flat-lay. Camera positioned directly overhead. The hand fills the vertical frame from fingertips to wrist. Shot on 85mm lens, f/4, sharp focus across all nails.
-BACKGROUND: Flat, clean, neutral surface (cream marble or white stone) visible around the hand.
-REALISM LOCKDOWN: iPhone 15 Pro quality photography. Authentic living human skin, warm skin tones, natural imperfections. Not a 3D render, not CGI.
-Lighting: Diffused soft overhead natural light, even exposure, no harsh shadows.
-Style: [STYLE_ANCHOR]. Aspect ratio 9:16. Single continuous photograph.`
+
     };
 
     const activeTemplate = category === "beauty" 
@@ -652,18 +645,11 @@ STRICT CATEGORY ISOLATION (NON-NEGOTIABLE):
 - SUBJECT: Always a single young adult woman. One person only.
 - DEMOGRAPHIC LOCKDOWN: The article subject is defined as: ${briefJson?.subject_demographic || "universal"}.
   - If the focus is "plus size", you MUST strictly describe the subject with a soft, rounder jawline and full cheeks. Absolutely NO prominent high cheekbones or thin, gaunt facial structures.
-- NAIL ANATOMY LOCKDOWN (MANDATORY):
-  - Exactly ONE hand visible.
-  - Exactly FIVE distinct fingers.
-  - Exactly FIVE distinct fingernails.
-  - Each nail MUST be attached to a unique finger. No sharing of fingers. No fused nails.
-  - Strictly forbid: extra joints, webbed skin, double-nails, or sixth digits.
 - FRAMING: NEVER full-body. NEVER show feet or legs. NEVER show multiple angles or collages.
   - face/eye/makeup items → close-up portrait from forehead to collarbone only
   - hair items → strict face and hair focus only; no torso, no extended arms, no body below collarbone
-  - nail items → hands only against a neutral background; hands must NOT cover the face or any body part
 - BACKGROUND: Always neutral, seamless, and uncluttered. No props, no furniture, no scene.
-- ANATOMY: Exactly one head, exactly two arms, exactly two hands, exactly ten fingers total. No extra limbs.
+- ANATOMY: Exactly one head, exactly two arms, exactly two hands. No extra limbs.
 
 VARIABLE SELECTION RULES:
 For each item, strictly rotate and select exactly ONE option from these arrays for AESTHETIC vars only:
@@ -673,20 +659,12 @@ For each item, strictly rotate and select exactly ONE option from these arrays f
 - [EMOTION]: "neutral", "detached", or "assertive"
 - [STYLE_ANCHOR]: "clinical beauty", "luxury campaign", "backstage editorial", or "dermal macro realism"
 
-NAIL ITEMS — CRITICAL RULE (NON-NEGOTIABLE):
-For nail items, [NAIL_SHAPE], [NAIL_FINISH], and [NAIL_COLOR] MUST be extracted directly from the item_name. The item name IS the specification. Do NOT use a generic pool.
-- Example: item_name "Cherry Red Half-Moon Nails" → [NAIL_COLOR] = "cherry red", [NAIL_DESIGN] = "half-moon", [NAIL_FINISH] = "glossy gel"
-- Example: item_name "Sage Green Matte Square Nails" → [NAIL_COLOR] = "sage green", [NAIL_SHAPE] = "square", [NAIL_FINISH] = "matte"
-- Example: item_name "Glazed Donut Chrome Nails" → [NAIL_FINISH] = "glazed chrome", [NAIL_SHAPE] = "almond"
-The generated image MUST visually match the item_name. A reader seeing the image must immediately recognize it as that specific style.
-
 ADDITIONAL BEAUTY VARS (Replace if applicable):
 - [HAIR_TYPE]: specific description derived from item_name (e.g. "long wavy brunette")
 - [SPECIFIC_STYLE]: specific style derived from item_name (e.g. "loose beach waves", "sleek low bun")
 - [HAIR_FINISH]: "wet", "matte", or "glossy"
 - [AIRFLOW_MOTION]: "static" or "subtle wind-blown motion"
 - [SURFACE_OBJECTION]: "glass interaction", "fabric resting", or "skin contact"
-NOTE: Hand positioning for nail shots is FIXED in the template — do NOT invent or override hand poses.
 
 - image_prompt: Assemble the prompt EXACTLY using the active template below. Replace ALL bracketed placeholders with specific details derived from the item_name.
 ${activeTemplate}`;
