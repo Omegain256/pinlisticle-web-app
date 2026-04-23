@@ -443,7 +443,7 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
                     const isHair = prompt.toLowerCase().includes("hair");
                     
                     if (isNails) {
-                        exclusionSuffix = " Extreme macro shot of a single living human finger. Candid editorial photography, organic soft human skin texture, authentic living person.";
+                        exclusionSuffix = " Professional flat-lay nail photography. Top-down bird's-eye view of one complete hand lying flat, all five fingers gently spread apart on a neutral surface. iPhone 15 Pro quality photography, authentic warm human skin.";
                     } else if (isHair) {
                         exclusionSuffix = " Clean background. Realistic human features with visible pores, natural skin texture, freckles, scars, and wrinkles. Directional lighting (45° key light, soft fill). Ensure the full face and the entire hairstyle are completely visible within the frame. DO NOT crop the face or the hair. Absolutely no body, no torso, and no arms visible. Ensure exactly one person.";
                     } else {

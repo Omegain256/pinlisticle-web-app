@@ -616,13 +616,13 @@ Expression is neutral or subtly engaged, avoiding exaggerated emotion. Pose is c
 BACKGROUND: Real indoor environment — simple wall, soft room depth. Background gently out of focus.
 Aspect ratio 9:16. Single continuous photograph.`,
 
-        nails: `Hyper-realistic extreme macro photograph of a living human finger showcasing nail art. Nail style: [NAIL_COLOR] [NAIL_DESIGN] design, [NAIL_SHAPE] nails finished in [NAIL_FINISH].
+        nails: `Professional flat-lay nail photography. Nail style: [NAIL_COLOR] [NAIL_DESIGN] design, [NAIL_SHAPE] nails finished in [NAIL_FINISH].
 VISUAL MATCH REQUIREMENT: The nail color and design in the image MUST exactly match the item name. [NAIL_COLOR] is the dominant color of the polish. [NAIL_DESIGN] is the specific pattern or technique.
-SUBJECT: A single living human finger resting casually. Organic, soft, warm human skin with authentic texture, visible pores, and natural imperfections.
-FRAMING: Extreme macro close-up. The single finger and nail fill 90% of the frame. Shot on 100mm macro lens, f/2.8.
-BACKGROUND: Softly blurred, natural warm background.
-REALISM LOCKDOWN: Candid, authentic editorial photography. Beautiful, living human subject.
-Lighting: [LIGHTING] with natural window light diffusion.
+SUBJECT: One complete human hand photographed from directly above (top-down bird's-eye view). The hand is lying completely flat and relaxed on a smooth surface with all five fingers gently spread apart. Each finger clearly separate. Soft warm organic skin with natural texture, visible pores, fine skin lines.
+FRAMING: Top-down flat-lay. Camera positioned directly overhead. The hand fills the vertical frame from fingertips to wrist. Shot on 85mm lens, f/4, sharp focus across all nails.
+BACKGROUND: Flat, clean, neutral surface (cream marble or white stone) visible around the hand.
+REALISM LOCKDOWN: iPhone 15 Pro quality photography. Authentic living human skin, warm skin tones, natural imperfections. Not a 3D render, not CGI.
+Lighting: Diffused soft overhead natural light, even exposure, no harsh shadows.
 Style: [STYLE_ANCHOR]. Aspect ratio 9:16. Single continuous photograph.`
     };
 
