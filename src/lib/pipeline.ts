@@ -616,14 +616,13 @@ Expression is neutral or subtly engaged, avoiding exaggerated emotion. Pose is c
 BACKGROUND: Real indoor environment — simple wall, soft room depth. Background gently out of focus.
 Aspect ratio 9:16. Single continuous photograph.`,
 
-        nails: `Extreme macro photograph of a single hand gently resting on a soft velvet cloth, fingers softly curved. Nail style: [NAIL_COLOR] [NAIL_DESIGN] design, [NAIL_SHAPE] nails finished in [NAIL_FINISH].
+        nails: `Hyper-realistic extreme macro photograph of a living human finger showcasing nail art. Nail style: [NAIL_COLOR] [NAIL_DESIGN] design, [NAIL_SHAPE] nails finished in [NAIL_FINISH].
 VISUAL MATCH REQUIREMENT: The nail color and design in the image MUST exactly match the item name. [NAIL_COLOR] is the dominant color of the polish. [NAIL_DESIGN] is the specific pattern or technique.
-SUBJECT: A single hand gently resting on a soft velvet cloth.
-HAND POSE: Fingers softly curved and resting gracefully on the velvet surface, demonstrating a relaxed and natural posture.
-FRAMING: Extreme macro close-up. Sharp focus on the nails. The hand fills 80% of the frame. Crop at mid-forearm.
-BACKGROUND: Soft velvet cloth.
-REALISM LOCKDOWN: Cinematic photography, authentic skin texture with pores and fine lines. Camera-level realism similar to iPhone 15 Pro photography.
-Lighting: [LIGHTING] with professional softbox diffusion.
+SUBJECT: A single living human finger resting casually. Organic, soft, warm human skin with authentic texture, visible pores, and natural imperfections.
+FRAMING: Extreme macro close-up. The single finger and nail fill 90% of the frame. Shot on 100mm macro lens, f/2.8.
+BACKGROUND: Softly blurred, natural warm background.
+REALISM LOCKDOWN: Candid, authentic editorial photography. Beautiful, living human subject.
+Lighting: [LIGHTING] with natural window light diffusion.
 Style: [STYLE_ANCHOR]. Aspect ratio 9:16. Single continuous photograph.`
     };
 
