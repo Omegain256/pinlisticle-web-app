@@ -616,14 +616,14 @@ Expression is neutral or subtly engaged, avoiding exaggerated emotion. Pose is c
 BACKGROUND: Real indoor environment — simple wall, soft room depth. Background gently out of focus.
 Aspect ratio 9:16. Single continuous photograph.`,
 
-        nails: `Extreme macro photograph of exactly one hand only. Nail style: [NAIL_COLOR] [NAIL_DESIGN] design, [NAIL_SHAPE] nails finished in [NAIL_FINISH].
+        nails: `Extreme macro photograph of exactly one human hand. Nail style: [NAIL_COLOR] [NAIL_DESIGN] design, [NAIL_SHAPE] nails finished in [NAIL_FINISH].
 VISUAL MATCH REQUIREMENT: The nail color and design in the image MUST exactly match the item name. [NAIL_COLOR] is the dominant color of the polish. [NAIL_DESIGN] is the specific pattern or technique.
-SUBJECT: Photorealistic human hand with anatomically correct structure. Exactly five fingers visible per hand. Each finger fully separated, no merging, no duplication, no extra digits. Natural finger proportions, correct joint placement.
-HAND POSE: Top-down hand pose or relaxed natural spread fingers. Avoid complex poses (gripping, crossing fingers, partial occlusion).
+SUBJECT: Photorealistic human hand with anatomically correct structure. Exactly five distinct fingers visible. Each finger is fully separated with clear, natural gaps between them. Natural finger proportions, correct joint placement.
+HAND POSE: Simple top-down hand pose with relaxed, naturally spread fingers. All fingers are fully visible and clearly distinct.
 FRAMING: Extreme macro close-up. Sharp focus on nails and fingertips. The hand fills 80% of the frame. Crop at mid-forearm. Only the hand and background are visible.
 BACKGROUND: Soft blurred neutral background (cream, marble, or light stone).
-ANATOMY: Exactly one hand only explicitly. Nails aligned one per finger, correctly attached at nail beds with natural cuticles. No warped anatomy, no fused fingers, no overlapping digits, no distorted nail shapes.
-REALISM LOCKDOWN: Clinical accuracy and dermatological realism. Realistic skin texture with pores and fine lines. Realistic lighting, true-to-life shadows, accurate perspective. Camera-level realism similar to iPhone 15 Pro photography. No CGI look, no plastic skin, no stylization. No AI smoothing.
+ANATOMY: Exactly one hand only. Nails aligned one per finger, correctly attached at nail beds with natural cuticles.
+REALISM LOCKDOWN: Clinical accuracy and dermatological realism. Realistic skin texture with pores and fine lines. Realistic lighting, true-to-life shadows, accurate perspective. Camera-level realism similar to iPhone 15 Pro photography.
 Lighting: [LIGHTING] with professional softbox diffusion.
 Style: [STYLE_ANCHOR]. Aspect ratio 9:16. Single continuous photograph.`
     };
