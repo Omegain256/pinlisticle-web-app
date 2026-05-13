@@ -65,18 +65,24 @@ export async function getAccessToken(): Promise<string> {
     }
 
     // 3. Fetch a new token via ADC
-    const auth = new GoogleAuth({ scopes: SCOPES });
-    const client = await auth.getClient();
-    const tokenResponse = await client.getAccessToken();
+    console.log("[Auth] Attempting Google Cloud ADC authentication...");
+    try {
+        const auth = new GoogleAuth({ scopes: SCOPES });
+        const client = await auth.getClient();
+        const tokenResponse = await client.getAccessToken();
 
-    if (!tokenResponse.token) {
-        throw new Error("ADC returned an empty token.");
+        if (!tokenResponse.token) {
+            throw new Error("ADC returned an empty token.");
+        }
+
+        _cachedToken = tokenResponse.token;
+        _tokenExpiresAt = now + 55 * 60 * 1000;
+        console.log(`[Auth] ✅ ADC Token acquired: ${_cachedToken.substring(0, 10)}...`);
+        return _cachedToken;
+    } catch (err: any) {
+        console.error(`[Auth] ❌ ADC Attempt failed: ${err.message}`);
+        throw err;
     }
-
-    _cachedToken = tokenResponse.token;
-    _tokenExpiresAt = now + 55 * 60 * 1000;
-    console.log("[ADC] New access token acquired successfully.");
-    return _cachedToken;
 }
 
 // ─── Universal auth applier ──────────────────────────────────────────────────────
@@ -85,12 +91,6 @@ export async function getAccessToken(): Promise<string> {
  * Applies authentication to a URL + headers using whichever method is available:
  *   1. ADC / Service Account  → Authorization: Bearer <token>  (no key in URL)
  *   2. GEMINI_API_KEY env var → ?key=<apiKey> appended to URL
- *
- * Production (Vercel/Render) without a service account JSON:
- *   Just add  GEMINI_API_KEY=AIzaSy...  in your environment variables.
- *
- * @param baseUrl  The endpoint URL without any auth params.
- * @param headers  Existing headers object (will be merged, not mutated).
  */
 export async function applyAuth(
     baseUrl: string,
@@ -103,21 +103,22 @@ export async function applyAuth(
             url: baseUrl,
             headers: { ...headers, Authorization: `Bearer ${token}` },
         };
-    } catch {
-        // ADC not available — fall through to API key
+    } catch (adcErr: any) {
+        // ADC failed, logging was handled in getAccessToken
     }
 
     // ── Path 2: GEMINI_API_KEY environment variable ────────────────────
     const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey) {
-        console.log("[Auth] Using GEMINI_API_KEY env var.");
+        console.log("[Auth] Falling back to GEMINI_API_KEY environment variable.");
         const sep = baseUrl.includes("?") ? "&" : "?";
         return { url: `${baseUrl}${sep}key=${apiKey}`, headers };
     }
 
     throw new Error(
-        "No authentication configured.\n" +
-        "  Local dev : run  gcloud auth application-default login\n" +
-        "  Production: add  GEMINI_API_KEY=AIzaSy...  in your Vercel/Render env vars"
+        "AUTHENTICATION FAILED:\n" +
+        "1. ADC: No credentials found. Run 'gcloud auth application-default login' locally.\n" +
+        "2. API Key: No GEMINI_API_KEY environment variable set.\n" +
+        "Please configure one of the above to continue."
     );
 }
