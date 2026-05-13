@@ -16,7 +16,10 @@ import * as os from "os";
 import * as path from "path";
 
 // Scopes required for Gemini + Imagen via Generative Language API
-const SCOPES = ["https://www.googleapis.com/auth/cloud-platform"];
+const SCOPES = [
+    "https://www.googleapis.com/auth/cloud-platform",
+    "https://www.googleapis.com/auth/generative-language"
+];
 
 // ─── Token cache ───────────────────────────────────────────────────────────────
 // Reuse the same token across requests until it's within 5 minutes of expiry.
