@@ -1,7 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Worker, Job } from "bullmq";
+import { loadEnvConfig } from "@next/env";
+
+// Load environment variables from .env.local / .env
+const projectDir = process.cwd();
+loadEnvConfig(projectDir);
+
 import { GENERATION_QUEUE_NAME, PublishPipelineData, createRedisClient } from "./lib/queue";
+
 import {
     pipelineClassifyTopic,
     pipelineSearchEvidence,
