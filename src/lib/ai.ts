@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-// Utility functions for interacting with Google's Generative Language API from the client.
-// This bypasses Vercel's strict 4.5MB payload limits and 10s Serverless Function timeouts.
+// Utility functions for interacting with Google's Generative Language API.
+// Authentication is handled via Application Default Credentials (ADC) server-side.
 
 // All currently available models are 2.x series, which use v1beta.
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -66,32 +66,39 @@ async function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Defensive access to keys to prevent browser-side crashes if imported into client components
-const getApiKeys = () => {
-    if (typeof process === 'undefined' || !process.env) return [];
-    return (process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || "")
-        .split(",")
-        .map(k => k.trim())
-        .filter(k => k);
-};
+// ─── ADC token injection (server-side only) ───────────────────────────────
+// ai.ts itself never imports google-auth-library or auth.ts.
+// Server-side entry points (pipeline.ts) call setAdcTokenGetter() at startup
+// to inject the ADC token supplier. Client bundles never see auth.ts at all.
+let _adcTokenGetter: (() => Promise<string>) | null = null;
 
-let currentKeyIndex = 0;
+/**
+ * Register the ADC token getter. Call this once from server-side code (e.g. pipeline.ts)
+ * before any AI fetch calls are made.
+ */
+export function setAdcTokenGetter(getter: () => Promise<string>): void {
+    _adcTokenGetter = getter;
+}
 
+async function getAdcToken(): Promise<string | null> {
+    if (!_adcTokenGetter) return null;
+    try {
+        return await _adcTokenGetter();
+    } catch {
+        return null;
+    }
+}
+
+// Kept for any remaining client-side callers that pass a key string.
 export function parseApiKeys(keysString: string): string[] {
     if (!keysString) return [];
     return keysString.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
 }
 
-export async function fetchAvailableModels(keysString: string): Promise<DiscoveredModel[]> {
-    const keys = parseApiKeys(keysString);
-    if (keys.length === 0) return [];
-    
+// Fetches available models via the ADC-authenticated /api/models route (client-side)
+export async function fetchAvailableModels(_keysString?: string): Promise<DiscoveredModel[]> {
     try {
-        const res = await fetch("/api/models", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ apiKey: keys[0] })
-        });
+        const res = await fetch("/api/models", { method: "GET" });
         const data = await res.json();
         if (data.success) {
             localStorage.setItem("pinlisticle_discovered_models", JSON.stringify(data.models));
@@ -109,97 +116,85 @@ export function getCachedModels(): DiscoveredModel[] {
     return saved ? JSON.parse(saved) : [];
 }
 
+/**
+ * fetchWithKeyRotation — now ADC-aware.
+ *
+ * Server-side (Node.js): uses ADC Bearer token, ignores keysString entirely.
+ * Client-side: kept for safety but all AI calls now go through server routes.
+ *
+ * URL templates may still contain `?key=API_KEY_PLACEHOLDER` — on server-side
+ * that suffix is stripped and replaced with an Authorization header.
+ */
 export async function fetchWithKeyRotation(
     keysString: string,
     urlTemplate: string,
     options: any,
     alternativeUrlTemplate?: string
 ): Promise<any> {
-    const keys = parseApiKeys(keysString);
-    if (keys.length === 0) throw new Error("No API keys provided. Please add them in Settings.");
+    // ── Server-side path: use ADC token ───────────────────────────────────────
+    const adcToken = await getAdcToken();
+    if (adcToken) {
+        const tryUrls = alternativeUrlTemplate
+            ? [{ url: urlTemplate, label: "Primary" }, { url: alternativeUrlTemplate, label: "Alternative" }]
+            : [{ url: urlTemplate, label: "Primary" }];
 
-    const tryModels = alternativeUrlTemplate 
-        ? [{ url: urlTemplate, label: "Primary" }, { url: alternativeUrlTemplate, label: "Alternative" }]
-        : [{ url: urlTemplate, label: "Primary" }];
-
-    let lastError: any = null;
-
-    for (const modelConfig of tryModels) {
-        let attempts = 0;
-        const maxKeys = keys.length;
-
-        while (attempts < maxKeys) {
-            const key = keys[currentKeyIndex % keys.length];
-            currentKeyIndex++; // Rotate for the next call
-            attempts++;
-
-            const finalUrl = modelConfig.url.replace("API_KEY_PLACEHOLDER", key);
+        let lastError: any = null;
+        for (const { url, label } of tryUrls) {
+            // Strip the ?key=... query param — ADC uses a header instead
+            const cleanUrl = url.replace(/[?&]key=API_KEY_PLACEHOLDER/, "");
+            const mergedOptions = {
+                ...options,
+                headers: {
+                    ...(options.headers || {}),
+                    "Authorization": `Bearer ${adcToken}`,
+                },
+            };
 
             let retryAttempt = 0;
-            const maxRetriesPerKey = 3; // Increased retries for transient failures
-
-            while (retryAttempt <= maxRetriesPerKey) {
+            const maxRetries = 3;
+            while (retryAttempt <= maxRetries) {
                 try {
-                    const res = await fetch(finalUrl, options);
+                    const res = await fetch(cleanUrl, mergedOptions);
                     const data = await res.json();
-                    
-                    if (res.ok) {
-                        return data;
+                    if (res.ok) return data;
+
+                    const errorMsg = data.error?.message || `HTTP ${res.status}`;
+                    const isOverload = res.status === 503 || res.status === 500 ||
+                        errorMsg.toLowerCase().includes("overloaded") ||
+                        errorMsg.toLowerCase().includes("high demand");
+
+                    if (isOverload && retryAttempt < maxRetries) {
+                        const wait = Math.pow(2, retryAttempt + 1) * 1000 + Math.random() * 500;
+                        console.warn(`[ADC] ${label} overloaded. Waiting ${Math.round(wait)}ms... (${retryAttempt + 1}/${maxRetries})`);
+                        await sleep(wait);
+                        retryAttempt++;
+                        continue;
                     }
-
-                    const errorMsg = data.error?.message || "Unknown error";
-                    const isQuotaError = res.status === 429 || 
-                                       errorMsg.toLowerCase().includes("quota") || 
-                                       errorMsg.toLowerCase().includes("limit exceeded");
-
-                    const isOverloadError = res.status === 503 || 
-                                          res.status === 500 || // Sometimes internal errors are transient spikes
-                                          errorMsg.toLowerCase().includes("high demand") || 
-                                          errorMsg.toLowerCase().includes("overloaded");
-
-                    if (isQuotaError) {
-                        console.warn(`[Quota] Key ...${key.slice(-4)} exhausted. Rotating.`);
-                        lastError = data.error;
-                        break; // rotate key
-                    } else if (isOverloadError) {
-                        lastError = data.error;
-                        // EAGER ROTATION: If a key is overloaded, don't wait on it. 
-                        // Move to the next key immediately. We only wait if we've 
-                        // tried ALL keys and all are overloaded.
-                        if (attempts < maxKeys) {
-                            console.warn(`[Demand] ${modelConfig.label} overloaded on key ...${key.slice(-4)}. Rotating to next key immediately.`);
-                            break; // break retry loop to rotate key
-                        } else {
-                            // We have already tried every single key in the rotation.
-                            // NOW we perform the exponential backoff sleep.
-                            const waitTime = Math.pow(2, retryAttempt + 1) * 1000 + (Math.random() * 500);
-                            console.warn(`[Demand] ALL KEYS overloaded. Waiting ${Math.round(waitTime)}ms then retrying full rotation... (${retryAttempt + 1}/${maxRetriesPerKey})`);
-                            await sleep(waitTime);
-                            retryAttempt++;
-                            continue; // retry this same circuit (will wrap back to keys[0])
-                        }
-                    } else {
-                        throw new Error(errorMsg); // Fatal error (syntax, auth, etc.)
-                    }
+                    lastError = new Error(errorMsg);
+                    break;
                 } catch (e: any) {
-                    if (e.name === "AbortError" || e.message.includes("fetch failed")) {
-                        break; // rotate key on network failure
-                    }
-                    throw e; 
+                    if (e.name === "AbortError") throw e;
+                    lastError = e;
+                    break;
                 }
             }
+            if (tryUrls.length > 1 && label === "Primary") {
+                console.warn(`[ADC] Primary model failed. Trying alternative...`);
+            }
         }
-        
-        if (tryModels.length > 1 && modelConfig.label === "Primary") {
-            console.warn(`[TierSwap] Primary model overloaded across ALL keys. Attempting Tier-Swap to Alternative model...`);
-        }
+        throw lastError || new Error("ADC: All model attempts exhausted.");
     }
 
-    const finalErrorMsg = lastError?.message || "All provided API keys and model tiers exhausted.";
-    if (finalErrorMsg.toLowerCase().includes("high demand") || finalErrorMsg.toLowerCase().includes("overloaded")) {
-        throw new ModelOverloadedError(finalErrorMsg);
-    }
-    throw new QuotaExceededError(finalErrorMsg);
+    // ── Client-side / no-ADC fallback ──────────────────────────────────────────
+    // Check GEMINI_API_KEY env var as a last resort (server-side only)
+    const envKey = typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || '') : '';
+    const keys = parseApiKeys(keysString || envKey);
+    if (keys.length === 0) throw new Error("No API key configured. Set GEMINI_API_KEY in your environment variables.");
+    const finalUrl = urlTemplate.replace("API_KEY_PLACEHOLDER", keys[0]);
+    const res = await fetch(finalUrl, options);
+    const data = await res.json();
+    if (res.ok) return data;
+    throw new Error(data.error?.message || "API request failed.");
 }
 
 // ─── Generation Utilities ──────────────────────────────────────────────────
@@ -421,30 +416,40 @@ export async function generateImage(params: { prompt: string; apiKey: string; pr
 }
 
 /**
- * Special rotation logic for Imagen sub-models (Standard, Fast, Ultra) 
- * to pool their independent quotas on a single key before moving to next key.
+ * Imagen generation with ADC Bearer token.
+ * Rotates through Imagen sub-models (Fast → Standard → Ultra) to maximise quota.
  */
 async function tryGenerateWithRotation(keysString: string, prompt: string, models: readonly string[], referenceImages?: ImageReference[], category: "fashion" | "beauty" = "fashion") {
-    const keys = parseApiKeys(keysString);
+    // Get ADC token (server-side)
+    const adcToken = await getAdcToken();
+    
+    // Fallback: Check GEMINI_API_KEY env var if no ADC
+    const envKey = typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || '') : '';
+    const keys = adcToken ? ["ADC"] : parseApiKeys(keysString || envKey);
+    
+    if (!adcToken && keys.length === 0) {
+        throw new Error("No authentication configured for Imagen. Set GEMINI_API_KEY or use ADC.");
+    }
+
     let lastError: any = null;
 
     for (const key of keys) {
         for (const modelId of models) {
-            // All Imagen models use the :predict endpoint
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predict?key=${key}`;
+            // URL construction
+            const url = key === "ADC"
+                ? `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predict`
+                : `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predict?key=${key}`;
 
             try {
-                // Imagen 4.0 handles positive reinforcement better than negative lists which can trigger hallucinations.
                 const baseExclusions = " Ensure anatomically correct human anatomy, exactly two arms, two legs, and natural features. Clean, realistic photographic texture.";
+
 
                 let exclusionSuffix = "";
                 if (category === "beauty") {
                     const isHair = prompt.toLowerCase().includes("hair");
-                    
                     if (isHair) {
                         exclusionSuffix = " Clean background. Realistic human features with visible pores, natural skin texture, freckles, scars, and wrinkles. Directional lighting (45° key light, soft fill). Ensure the full face and the entire hairstyle are completely visible within the frame. DO NOT crop the face or the hair. Absolutely no body, no torso, and no arms visible. Ensure exactly one person.";
                     } else {
-                        // Face or eye
                         exclusionSuffix = " Clean background. Realistic human features, pore-level texture with visible pores, natural skin texture, freckles, scars, and wrinkles. Directional lighting (45° key light, soft fill). Ensure tight cropping.";
                     }
                 } else {
@@ -452,17 +457,15 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
                 }
 
                 const hardenedPrompt = `${prompt} ${exclusionSuffix}`;
-
                 const body = JSON.stringify({
                     instances: [{ prompt: hardenedPrompt }],
-                    parameters: { 
-                        sampleCount: 1, 
-                        aspectRatio: "9:16", 
+                    parameters: {
+                        sampleCount: 1,
+                        aspectRatio: "9:16",
                         outputOptions: { mimeType: "image/jpeg" },
                     }
                 });
 
-                // Abort the request if it hangs for more than 55 seconds (RESULT_CODE_HUNG)
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 55_000);
 
@@ -470,7 +473,10 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
                 try {
                     res = await fetch(url, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(key === "ADC" ? { 'Authorization': `Bearer ${adcToken}` } : {}),
+                        },
                         body,
                         signal: controller.signal,
                     });
@@ -489,14 +495,15 @@ async function tryGenerateWithRotation(keysString: string, prompt: string, model
                     continue;
                 }
 
-                // Any non-OK response: log and try next model (never throw here)
-                const errorMsg = data.error?.message || `HTTP ${res.status} from ${modelId}`;
-                console.warn(`[Image] ${modelId} on key ...${key.slice(-4)} failed: ${errorMsg}. Trying next model...`);
+                const rawErrorMsg = data.error?.message || `HTTP ${res.status} from ${modelId}`;
+                const isDenied = res.status === 403 || rawErrorMsg.toLowerCase().includes("denied") || rawErrorMsg.toLowerCase().includes("permission");
+                const errorMsg = isDenied
+                    ? `Imagen API access denied. Ensure the Cloud AI Platform API is enabled on your project and your service account has the 'AI Platform User' role.`
+                    : rawErrorMsg;
+                console.warn(`[Image] ${modelId} failed: ${rawErrorMsg}. Trying next model...`);
                 lastError = new Error(errorMsg);
-                // continue to next model
 
             } catch (e: any) {
-                // Network-level errors — log and try next model
                 console.warn(`[Image] ${modelId} threw: ${e.message}. Trying next model...`);
                 lastError = e;
             }

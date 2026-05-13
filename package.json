@@ -13,6 +13,7 @@
     "bullmq": "^5.73.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "google-auth-library": "^10.6.2",
     "idb-keyval": "^6.2.2",
     "ioredis": "^5.10.1",
     "lucide-react": "^0.576.0",

@@ -9,7 +9,11 @@
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-import { fetchWithKeyRotation } from "./ai";
+import { fetchWithKeyRotation, setAdcTokenGetter } from "./ai";
+import { getAccessToken } from "./auth";
+
+// Register ADC token getter so fetchWithKeyRotation calls here use Bearer auth.
+setAdcTokenGetter(getAccessToken);
 
 // ─── Step A: Search for precise raw images via DuckDuckGo Image proxy ──────────
 

@@ -2,10 +2,17 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import {
     fetchWithKeyRotation,
+    setAdcTokenGetter,
     sanitizeModelId,
     MODELS_DEFAULT,
     ModelOverloadedError
 } from "./ai";
+import { getAccessToken } from "./auth";
+
+// Register ADC token getter for all fetchWithKeyRotation calls in this module.
+// This runs at module-init time (server-side only) so every pipeline call is
+// automatically authenticated via ADC — no API key required.
+setAdcTokenGetter(getAccessToken);
 import {
     TopicClassificationSchema,
     EvidencePackSchema,
@@ -65,6 +72,104 @@ export function stripHeavyData(obj: any): any {
     return stripped;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Beauty / Hair — demographic sanitization utilities
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Ethnic/racial identifiers that must NEVER be forwarded to image generation
+ * for the Beauty category. The article's written angle can reference these
+ * demographics, but our stock-image pipeline must stay ethnicity-neutral so
+ * that the same visuals work universally on Pinterest.
+ */
+const BEAUTY_ETHNIC_SIGNALS = [
+    // Racial
+    "black", "white", "asian", "latina", "hispanic", "indian", "middle eastern",
+    "african american", "african", "caucasian", "mixed race", "biracial",
+    // Skin-tone
+    "dark skin", "dark skinned", "deep skin", "ebony", "melanin",
+    "fair skin", "fair skinned", "light skin", "pale skin",
+    "olive skin", "tan skin", "brown skin", "caramel skin",
+    // Hair-texture ethnicity proxies
+    "4c hair", "4b hair", "4a hair", "3c hair", "afro", "natural hair",
+    "textured hair",
+];
+
+/** Demographic tokens that signal a specific age group rather than ethnicity */
+const BEAUTY_AGE_SIGNALS: Array<{ pattern: RegExp; label: string }> = [
+    { pattern: /\b(over|above|50\+|60\+|70\+|age\s*50|age\s*60|senior|elderly|grandmother|grandma|60s|70s)/i, label: "mature" },
+    { pattern: /\b(over|above|40\+|45\+|age\s*40|age\s*45|40s|midlife)/i, label: "40s" },
+    { pattern: /\b(30s|age\s*30|thirty)/i, label: "30s" },
+    { pattern: /\b(teen|teenage|teenage|younger|young|20s|twenties|age\s*20)/i, label: "young" },
+];
+
+/**
+ * Given a `subject_demographic` string coming out of Stage 1 (Topic Classification)
+ * for a BEAUTY article, returns a sanitized version that removes any ethnic/racial
+ * signal while preserving age, skin-condition, and body-type signals.
+ *
+ * e.g. "black women"       → "universal"
+ *      "mature black women" → "mature women"
+ *      "plus size women"    → "plus size women"  (unchanged — not ethnic)
+ *      "oily skin"         → "oily skin"         (unchanged)
+ */
+export function sanitizeBeautyDemographic(demographic: string): string {
+    if (!demographic || demographic === "universal") return "universal";
+
+    const lower = demographic.toLowerCase().trim();
+
+    // Check if any ethnic signal is present
+    const hasEthnicSignal = BEAUTY_ETHNIC_SIGNALS.some(signal => lower.includes(signal));
+    if (!hasEthnicSignal) return demographic; // Nothing to sanitize
+
+    // Strip ethnic tokens and rebuild the remaining descriptor
+    let cleaned = lower;
+    for (const signal of BEAUTY_ETHNIC_SIGNALS) {
+        // Use word-boundary-safe replacement
+        cleaned = cleaned.replace(new RegExp(`\\b${signal.replace(/[-\s]/g, "[\\s-]")}\\b`, "gi"), "");
+    }
+
+    // Collapse extra whitespace and remove orphaned punctuation
+    cleaned = cleaned.replace(/[,/]+/g, " ").replace(/\s{2,}/g, " ").trim();
+
+    // What's left after stripping ethnicity?
+    // If nothing meaningful remains, return "universal"
+    const meaningfulRemainder = cleaned
+        .replace(/\b(women|woman|girl|girls|female|females|ladies|lady)\b/gi, "")
+        .trim();
+
+    return meaningfulRemainder.length > 2 ? cleaned : "universal";
+}
+
+/**
+ * Converts a sanitized `subject_demographic` into a concrete visual age
+ * description suitable for injection into image prompts.
+ *
+ * e.g. "mature"       → "woman in her mid-50s to early 60s"
+ *      "40s"          → "woman in her early-to-mid 40s"
+ *      "young"        → "woman in her mid-20s"
+ *      "universal"    → "woman in her 30s"   (neutral default)
+ */
+export function resolveBeautyAgeDescription(demographic: string): string {
+    const lower = (demographic || "").toLowerCase();
+
+    // Check age signals against the original keyword demographic
+    if (/\b(over\s*60|60\+|70\+|senior|elderly|grandmother|grandma)\b/.test(lower)) {
+        return "woman in her late 50s to early 60s, with visible aging: fine lines, silver or grey hair, mature skin texture";
+    }
+    if (/\b(over\s*50|50\+|age\s*50|mature|midlife)\b/.test(lower)) {
+        return "woman in her early-to-mid 50s, with mature skin texture, subtle smile lines, and natural hair";
+    }
+    if (/\b(40s|over\s*40|40\+|age\s*40|45\+)\b/.test(lower)) {
+        return "woman in her early-to-mid 40s, with a naturally mature appearance";
+    }
+    if (/\b(teen|teenage|young|20s|twenties)\b/.test(lower)) {
+        return "woman in her early-to-mid 20s";
+    }
+    // Default neutral age
+    return "woman in her late 20s to mid-30s";
+}
+
 // Stage 1: Classify Topic (Brief)
 export async function pipelineClassifyTopic(keyword: string, apiKey: string, category: "fashion" | "beauty" = "fashion") {
     const modelId = resolveModelId("lite", true); // Classification is simple, use flash
@@ -94,7 +199,14 @@ export async function pipelineClassifyTopic(keyword: string, apiKey: string, cat
     2. Determine the "Technique/Product Logic" required.
     3. Define the "Reader Outcome" (confidence, skill, or aesthetic perfection).
     4. Categorize the style archetype as ONLY ONE of: "face", "eye", or "hair".
-    5. Identify if the keyword implies a specific "subject_demographic" (e.g. "plus size", "oily skin", "dark skin", "mature skin", "curly hair"). If none, use "universal".
+    5. Identify if the keyword implies a specific "subject_demographic" for the IMAGE generation context.
+       STRICT DEMOGRAPHIC RULES (for subject_demographic field ONLY):
+       - NEVER include racial or ethnic identifiers (e.g. "black", "white", "Asian", "Latina", "African American", skin tone descriptions). Always omit these — use "universal" instead.
+       - DO capture age-related signals (e.g. "mature women", "over 50", "women in 40s", "teens").
+       - DO capture skin-condition signals (e.g. "oily skin", "dry skin", "acne-prone").
+       - DO capture body-type signals (e.g. "plus size").
+       - DO capture hair-texture/type signals (e.g. "curly hair", "fine hair", "thick hair").
+       - If only an ethnicity/race was mentioned with no other qualifier, use "universal".
     
     Return a JSON brief.`;
 
@@ -115,7 +227,16 @@ export async function pipelineClassifyTopic(keyword: string, apiKey: string, cat
         }),
     });
 
-    return extractJSONData(data);
+    const result = extractJSONData(data);
+
+    // Post-process: for beauty/hair, strip any ethnicity that leaked into subject_demographic.
+    // This is a hard guardrail — the LLM prompt above should prevent it, but we enforce it here
+    // deterministically so no AI variance can bypass it.
+    if (category === "beauty" && result?.subject_demographic) {
+        result.subject_demographic = sanitizeBeautyDemographic(result.subject_demographic);
+    }
+
+    return result;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -588,8 +709,14 @@ OUTFIT: [OUTFIT] | POSE: [POSE].
 The final result must be indistinguishable from a real social media photo with perfect anatomical integrity.`,
     };
 
+    // Resolve the age appearance description for the templates.
+    // This replaces the generic "young adult woman" with age-accurate phrasing
+    // so that e.g. "haircuts for women over 50" actually shows 50+ subjects.
+    const templateAgeDesc = resolveBeautyAgeDescription(briefJson?.subject_demographic || "universal");
+
     const TEMPLATES_BEAUTY = {
-        face: `Close-up beauty portrait of a young adult woman. FRAMING: Crop from top of forehead to collarbone only. Neutral seamless background. Single subject, single face, centered.
+        face: `Close-up beauty portrait of a ${templateAgeDesc}, ethnicity-neutral. FRAMING: Crop from top of forehead to collarbone only. Neutral seamless background. Single subject, single face, centered.
+DO NOT specify any racial or ethnic group. DO NOT describe skin tone in terms of race. Natural, universally relatable complexion.
 [SUBJECT_DETAILS] wearing [MAKEUP_PHILOSOPHY].
 Shot on an iPhone 15 Pro Max using the native camera system (24–28mm equivalent), deep depth of field, true mobile perspective with slight lens distortion at edges.
 Lighting is natural or practical (window light or indoor ambient) with directional lighting (45° key light, soft fill), slightly uneven with soft falloff, mild highlight clipping on high points (nose bridge, forehead), and natural shadow noise in darker areas. No studio lighting or artificial glow. White balance slightly imperfect, preserving real-world color inconsistency.
@@ -599,14 +726,15 @@ Style: [STYLE_ANCHOR]. Emotion: [EMOTION]. Aspect ratio 9:16.
 This is a single-subject close-up photograph of one human face. The frame captures from the chest up exclusively.`,
 
         eye: `Extreme macro close-up of a single eye and surrounding skin. FRAMING: Fill the frame with the eye area only — from brow to upper cheek, temple to temple.
-[PRODUCT_TYPE] with [FORMULATION_COLOR]. [SUBJECT_DETAILS].
+[PRODUCT_TYPE] with [FORMULATION_COLOR]. [SUBJECT_DETAILS]. Ethnicity-neutral subject — do NOT specify race or skin-tone in racial terms.
 Lighting: [LIGHTING] to preserve lash definition and iris texture.
 Camera: High-resolution full-frame digital camera, 100mm macro lens, f/8, [ANGLE] angle.
 Texture: Fine cinematic grain, lash fiber detail, skin pore texture visible.
 Style: [STYLE_ANCHOR]. Aspect ratio 9:16.
 One eye only, centered. Single continuous photograph. Only the eye and surrounding skin are visible.`,
 
-        hair: `Close-up beauty portrait photograph of a young adult woman focusing entirely on her face and hairstyle. Hair described as [HAIR_TYPE], styled as [SPECIFIC_STYLE].
+        hair: `Close-up beauty portrait photograph of a ${templateAgeDesc}, focusing entirely on her face and hairstyle. Hair described as [HAIR_TYPE], styled as [SPECIFIC_STYLE].
+ETHNICITY: Ethnicity-neutral subject. DO NOT specify any racial group, skin color in racial terms, or ethnicity. Universally relatable appearance.
 FRAMING: Head and face portrait. The full face and the entire hairstyle must be completely visible within the frame. DO NOT crop the face. DO NOT crop the top or sides of the hair. Both the face and the hair must be 100% visible in the picture. Crop just below the chin or collarbone. Show absolutely no body, no torso, and no arms.
 ANATOMY: Only the head and face are visible. No hands or arms in the frame. Ensure exactly one person and correct human anatomy.
 Shot on an iPhone 15 Pro Max using the native camera system (24–28mm equivalent), deep depth of field, true mobile perspective with slight lens distortion at edges.
@@ -640,11 +768,18 @@ RULES FOR EACH FIELD:
 ${activeTemplate}
 ...where [OUTFIT] is a specific description of the garments, [PHONE_COLOR] is the assigned color, and [POSE] is the pose described above.`;
 
+    // Resolve the age appearance description for this article's demographic.
+    // This ensures "over 50" articles actually show 50+ women, not "young adult" defaults.
+    const beautyAgeDesc = resolveBeautyAgeDescription(briefJson?.subject_demographic || "universal");
+
     const systemTextBeauty = `You are a professional beauty photo analyst and AI image prompt engineer.
 STRICT CATEGORY ISOLATION (NON-NEGOTIABLE):
-- SUBJECT: Always a single young adult woman. One person only.
-- DEMOGRAPHIC LOCKDOWN: The article subject is defined as: ${briefJson?.subject_demographic || "universal"}.
-  - If the focus is "plus size", you MUST strictly describe the subject with a soft, rounder jawline and full cheeks. Absolutely NO prominent high cheekbones or thin, gaunt facial structures.
+- SUBJECT: Always a single ${beautyAgeDesc}. One person only.
+- ETHNICITY / SKIN TONE: NEVER specify a racial or ethnic group. NEVER use terms like "black woman", "white woman", "Asian woman", "Latina", or any skin-tone descriptor tied to race. The subject must be ethnicity-neutral and universally relatable. Use natural, unspecified skin tone only.
+- DEMOGRAPHIC LOCKDOWN (NON-ETHNIC ONLY): The article's demographic context is: ${briefJson?.subject_demographic || "universal"}.
+  - If the focus is "plus size", describe a soft, rounder jawline and full cheeks. Absolutely NO prominent high cheekbones or thin, gaunt facial structures.
+  - If the focus involves age (e.g. "mature", "over 50", "40s"), ensure visible age-appropriate features: fine lines, natural mature skin texture, age-consistent hair.
+  - Skin condition signals (e.g. "oily skin", "acne-prone") may be referenced in a realistic, non-stigmatizing way.
 - FRAMING: NEVER full-body. NEVER show feet or legs. NEVER show multiple angles or collages.
   - face/eye/makeup items → close-up portrait from forehead to collarbone only
   - hair items → strict face and hair focus only; no torso, no extended arms, no body below collarbone
@@ -836,16 +971,24 @@ export async function pipelineGenerateStyleDNA(topic: string, briefJson: any, ap
     const modelId = resolveModelId("lite", true);
     const urlTemplate = `${GEMINI_BASE}/${modelId}:generateContent?key=API_KEY_PLACEHOLDER`;
 
+    const isBeuatyCategory = briefJson?.niche === "beauty" || briefJson?.style_archetype === "face" || briefJson?.style_archetype === "eye" || briefJson?.style_archetype === "hair";
+    const beautyStyleDNANote = isBeuatyCategory ? `
+BEAUTY / HAIR STRICT RULES:
+- ETHNICITY IS BANNED from subject_definition. NEVER mention race, ethnicity, or skin tone in racial terms (e.g. do NOT write "Black woman", "Asian model", "dark skin"). Use age-neutral, ethnicity-neutral phrasing only.
+- AGE: If the demographic is "mature", "over 50", "40s", etc., you MUST describe the person with visibly appropriate age features (fine lines, mature skin, grey or silver highlights, etc.). Do NOT describe a "young adult" if the demographic is mature.
+- Use the resolved age from subject_demographic to anchor the subject_definition precisely.
+` : "";
+
     const prompt = `
 Generate a single Style DNA JSON object for an article about: "${topic}".
 BRIEF: ${JSON.stringify(briefJson)}
-
+${beautyStyleDNANote}
 DEMOGRAPHIC LOCKDOWN:
-If the BRIEF identifies a "subject_demographic" (e.g., "plus size", "mature", "oily skin"), the "subject_definition" MUST strictly reflect this. For "plus size", describe facial features consistent with a soft, rounder jawline and fuller cheeks.
+If the BRIEF identifies a "subject_demographic" (e.g., "plus size", "mature", "oily skin"), the "subject_definition" MUST strictly reflect this. For "plus size", describe facial features consistent with a soft, rounder jawline and fuller cheeks. For age-related demographics ("mature", "over 50", "40s"), describe a person with visibly mature features.
 
 VOICE & AESTHETIC GOAL: 
 Create a cohesive "Visual Identity" for this article. Select ONE consistent vibe from these categories as inspiration:
-1. SUBJECT: Define the person (Age, Ethnicity, Body Type/Facial Structure matching the demographic, unique feature like 'sharp bob' or 'visible laugh lines').
+1. SUBJECT: Define the person (Age matching the demographic, ethnicity-neutral, Body Type/Facial Structure matching the demographic, unique feature like 'sharp bob' or 'visible laugh lines').
 2. LOCATION: Select a specific setting. PRIORITISE variety across articles. Pool: [minimalist brutalist concrete loft, candlelit Italian bistro, sun-drenched conservatory with floor-to-ceiling glass, mid-century modern library, produce aisle of a boutique grocery, grand marble museum hallway, cluttered artist studio, high-ceilinged converted warehouse, penthouse rooftop at dusk].
 3. LIGHTING/WEATHER: Define the light (e.g. 'overcast winter afternoon', 'harsh direct on-camera flash', 'warm golden hour').
 4. CAMERA/AESTHETIC: Define the tech vibe (e.g. 'Shot on iPhone 16 Pro', 'Shot on Contax T2 35mm film', 'Shot on Sony A7RV 85mm f/1.4'). Reference a specific editorial photographer.

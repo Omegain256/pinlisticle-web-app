@@ -9,8 +9,14 @@ import {
     pipelineVisualIntelligence,
     stripHeavyData,
 } from "@/lib/pipeline";
-import { generateImage, getShotMatrixReferences } from "@/lib/ai";
+import { generateImage, getShotMatrixReferences, setAdcTokenGetter } from "@/lib/ai";
 import { pipelineSearchImages } from "@/lib/imageSearch";
+import { getAccessToken } from "@/lib/auth";
+
+// Register ADC token getter for Imagen (generateImage) calls in this route.
+// pipeline.ts already registers it for Gemini text calls; this covers image generation.
+setAdcTokenGetter(getAccessToken);
+
 
 export const maxDuration = 300;
 
@@ -24,14 +30,18 @@ export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
     const body = await req.json();
-    const { topic, keyword, tone, count, apiKey, modelPrefix, amazonTag, imageMode, category } = body;
+    // apiKey is no longer required — authentication uses ADC server-side
+    const { topic, keyword, tone, count, modelPrefix, amazonTag, imageMode, category } = body;
 
-    if ((!topic && !keyword) || !apiKey) {
+    if (!topic && !keyword) {
         return new Response(
-            JSON.stringify({ success: false, error: "Topic/keyword and API Key required" }),
+            JSON.stringify({ success: false, error: "Topic or keyword is required" }),
             { status: 400, headers: { "Content-Type": "application/json" } }
         );
     }
+
+    // Sentinel passed to pipeline functions — ADC token is acquired internally
+    const apiKey = "";
 
     const targetKeyword = keyword || topic;
     const itemCount     = count || 7;

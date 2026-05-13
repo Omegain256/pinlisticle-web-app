@@ -1,29 +1,17 @@
 import { NextResponse } from "next/server";
+import { applyAuth } from "@/lib/auth";
 
-// ─── Available models on this API key ────────────────────────────────────────
-// gemini-2.5-pro       → best quality, 1M token context, supports thinking
-// gemini-2.0-flash-lite → fast & lightweight, ideal for large batches
-//
-// Note: gemini-1.5-flash has been deprecated from v1beta. Use the models above.
-
-const MODELS = {
-    pro: "gemini-2.5-pro",
-    lite: "gemini-2.5-flash",
-} as const;
-
-type ModelKey = keyof typeof MODELS;
+// ─── Models ───────────────────────────────────────────────────────────────────
+// gemini-2.5-pro  → best quality, 1M token context, supports thinking
+// gemini-2.5-flash → fast & lightweight, ideal for large batches
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 export async function POST(req: Request) {
     try {
-        const { topic, keyword, tone, count, apiKey, model: modelPref, brandVoice, internalLinks } = await req.json();
+        const { topic, keyword, tone, count, model: modelPref, brandVoice, internalLinks } = await req.json();
 
-        if (!apiKey) {
-            return NextResponse.json({ error: "No Gemini API Key provided." }, { status: 401 });
-        }
-
-        // Dashboard-confirmed models: gemini-2.5-flash (1K RPM) > gemini-2.5-pro (150 RPM)
+        // ── Model selection ────────────────────────────────────────────────────
         let modelId = "gemini-2.5-flash";
         if (modelPref === "lite" || modelPref === "gemini-2.0-flash-lite" || modelPref === "gemini-2.0-flash") {
             modelId = "gemini-2.5-flash";
@@ -32,6 +20,10 @@ export async function POST(req: Request) {
         } else if (modelPref && modelPref.includes("gemini")) {
             modelId = modelPref;
         }
+
+        // ── Auth (ADC → GEMINI_API_KEY fallback) ──────────────────────────────
+        const baseUrl = `${GEMINI_BASE}/${modelId}:generateContent`;
+        const { url: authUrl, headers: authHeaders } = await applyAuth(baseUrl);
 
         const system_instruction_arr = [
             "You are an elite editorial writer for a high-end fashion publication. Your goal is to write a Pinterest listicle that feels like a human-written story, not a corporate press release.",
@@ -97,9 +89,13 @@ export async function POST(req: Request) {
         prompt += `        { "product_name": "Specific real-world brand/product name", "amazon_search_term": "precise search term for Amazon" }\n`;
         prompt += `      ] // Generate EXACTLY 3 product recommendations per listicle item.\n    }\n  ]\n}`;
 
-        const response = await fetch(`${GEMINI_BASE}/${modelId}:generateContent?key=${apiKey}`, {
+        // ── Call Gemini ──────────────────────────────────────────────────────
+        const response = await fetch(authUrl, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                ...authHeaders,
+            },
             body: JSON.stringify({
                 system_instruction: { parts: [{ text: system_instruction }] },
                 contents: [{ parts: [{ text: prompt }] }],

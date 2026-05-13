@@ -561,11 +561,6 @@ export default function BatchPage() {
             status: "queued",
         }));
 
-        if (!settings.geminiKey) {
-            toast.error("Gemini API key is missing. Go to Settings first.");
-            return;
-        }
-
         setRows(newRows);
         setStep(2);
     };
@@ -586,8 +581,6 @@ export default function BatchPage() {
         const current: QueueRow[] = items.map((r) => ({ ...r, status: "queued" as QueueRow["status"] }));
         setRows([...current]);
 
-        const settings = getSettings();
-        const apiKey = settings.geminiKey;
         const modelToUse = selectedModel;
 
         for (let i = 0; i < current.length; i++) {
@@ -609,7 +602,6 @@ export default function BatchPage() {
                         keyword: current[i].seoKeyword || current[i].keyword,
                         tone: current[i].tone,
                         count: current[i].count,
-                        apiKey,
                         modelPrefix: modelToUse,
                         amazonTag: current[i].amazonTag,
                         imageMode: current[i].imageMode,

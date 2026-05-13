@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { applyAuth } from "@/lib/auth";
 
 const MODELS = {
     pro: "gemini-2.5-pro",
@@ -11,13 +12,9 @@ const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 export async function POST(req: Request) {
     try {
-        const { topic, itemTitle, itemContent, apiKey, model: modelPref } = await req.json();
+        const { topic, itemTitle, itemContent, model: modelPref } = await req.json();
 
-        if (!apiKey) {
-            return NextResponse.json({ error: "No Gemini API Key provided." }, { status: 401 });
-        }
-
-        // Dashboard-confirmed models: gemini-2.5-flash (1K RPM) > gemini-2.5-pro (150 RPM)
+        // ── Model selection ────────────────────────────────────────────────
         let modelId = "gemini-2.5-flash";
         if (modelPref === "lite" || modelPref === "gemini-2.0-flash-lite" || modelPref === "gemini-2.0-flash") {
             modelId = "gemini-2.5-flash";
@@ -26,6 +23,10 @@ export async function POST(req: Request) {
         } else if (modelPref && modelPref.includes("gemini")) {
             modelId = modelPref;
         }
+
+        // ── Auth (ADC → GEMINI_API_KEY fallback) ──────────────────────────────
+        const baseUrl = `${GEMINI_BASE}/${modelId}:generateContent`;
+        const { url: authUrl, headers: authHeaders } = await applyAuth(baseUrl);
 
         const system_instruction = [
             "You are an expert Pinterest content creator and editor.",
@@ -49,9 +50,13 @@ export async function POST(req: Request) {
         prompt += `  "content": "Deeply researched, trendy, highly specific description. Exactly ~60 words. No generic info."\n`;
         prompt += `}`;
 
-        const response = await fetch(`${GEMINI_BASE}/${modelId}:generateContent?key=${apiKey}`, {
+        // ── Call Gemini ───────────────────────────────────────────────────────
+        const response = await fetch(authUrl, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                ...authHeaders,
+            },
             body: JSON.stringify({
                 system_instruction: { parts: [{ text: system_instruction }] },
                 contents: [{ parts: [{ text: prompt }] }],

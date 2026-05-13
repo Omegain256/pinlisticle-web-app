@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { Save, Key, Link as LinkIcon, Globe, Cpu, CheckCircle2, Plus, Trash2, RefreshCw } from "lucide-react";
+import { Save, Link as LinkIcon, Globe, Cpu, CheckCircle2, RefreshCw, ShieldCheck, Plus, Trash2 } from "lucide-react";
 import { fetchAvailableModels, getCachedModels, type DiscoveredModel } from "@/lib/ai";
 
 const MODELS = [
@@ -33,9 +33,9 @@ const IMAGEN_MODELS = [
     { id: "imagen-3.0-fast-generate-001", name: "Imagen 3 Fast", badge: "Legacy Fast", desc: "Reliable high-speed fallback engine.", color: "border-slate-100 bg-white", badgeClass: "badge-queued" },
 ];
 
+
 export default function Settings() {
     const [formData, setFormData] = useState({
-        geminiKey: "",
         amazonTag: "",
         brandVoice: "",
         internalLinks: "",
@@ -49,10 +49,10 @@ export default function Settings() {
     const [isSyncing, setIsSyncing] = useState(false);
     const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const performSync = async (key: string) => {
-        if (!key || isSyncing) return;
+    const performSync = async () => {
+        if (isSyncing) return;
         setIsSyncing(true);
-        const models = await fetchAvailableModels(key);
+        const models = await fetchAvailableModels();
         if (models.length > 0) setDiscovered(models);
         setIsSyncing(false);
     };
@@ -104,19 +104,12 @@ export default function Settings() {
         setIsLoaded(true);
     }, []);
 
-    // Auto-sync when API key changes (debounced)
+    // Auto-sync models on first load (no key needed — ADC handles auth server-side)
     useEffect(() => {
         if (!isLoaded) return;
-        if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-        
-        syncTimeoutRef.current = setTimeout(() => {
-            if (formData.geminiKey) performSync(formData.geminiKey);
-        }, 1500);
-
-        return () => {
-            if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-        };
-    }, [formData.geminiKey, isLoaded]);
+        performSync();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isLoaded]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -240,28 +233,26 @@ export default function Settings() {
             </div>
 
             <form onSubmit={handleSave} className="space-y-5">
-                {/* ── API Key ─────────────────────────────────────────── */}
-                <div className="glass-panel p-5">
-                    <div className="flex items-center gap-2 mb-4 text-purple-600">
-                        <Key size={17} />
-                        <h2 className="text-sm font-semibold">Gemini API</h2>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
-                            API Keys
-                        </label>
-                        <textarea
-                            name="geminiKey"
-                            value={formData.geminiKey}
-                            onChange={(e) => setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }))}
-                            placeholder={`AIzaSy...\nAIzaSy...`}
-                            className="premium-input font-mono text-xs min-h-[80px] resize-y"
-                        />
-                        <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-                            Used for both text generation (Gemini) and image generation (Imagen). 
-                            <br/>
-                            <span className="text-purple-600 font-medium">Pro Tip:</span> Enter multiple API keys (separated by commas or newlines) to automatically load balance requests. This permanently bypasses the 70 requests/day Imagen quota by pooling multiple free Google accounts.
-                        </p>
+                {/* ── Auth Status Banner ───────────────────────────────── */}
+                <div className="glass-panel p-5 border-l-4 border-l-emerald-500">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                            <ShieldCheck size={17} className="text-emerald-600" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold text-slate-800">Server-Side Authentication Active</p>
+                            <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                                Authentication is managed on the server. No client-side API keys required.
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-100">
+                                    Option A: Google Cloud ADC (Local/Cloud identity)
+                                </span>
+                                <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100">
+                                    Option B: GEMINI_API_KEY Environment Variable
+                                </span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -275,7 +266,7 @@ export default function Settings() {
                         <div className="flex gap-2">
                             <button 
                                 type="button"
-                                onClick={() => performSync(formData.geminiKey)} 
+                                onClick={() => performSync()} 
                                 disabled={isSyncing}
                                 className="text-[10px] font-bold text-purple-600 hover:text-purple-700 bg-purple-50 px-2 py-1 rounded-full border border-purple-100 flex items-center gap-1 transition-all active:scale-95 disabled:opacity-50"
                             >
