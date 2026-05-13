@@ -20,7 +20,12 @@ import {
     stripHeavyData,
 } from "./lib/pipeline";
 import { pipelineSearchImages } from "./lib/imageSearch";
-import { generateImage, getShotMatrixReferences } from "./lib/ai";
+import { generateImage, getShotMatrixReferences, setAdcTokenGetter } from "./lib/ai";
+import { getAccessToken } from "./lib/auth";
+
+// Register ADC token getter so the worker can authenticate with Google Cloud.
+setAdcTokenGetter(getAccessToken);
+
 
 console.log("Starting PinListicle BullMQ Worker...");
 
