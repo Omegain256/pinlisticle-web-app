@@ -393,10 +393,10 @@ export async function pipelineSearchEvidence(keyword: string, briefJson: any, ap
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                system_instruction: { parts: [{ text: `You are a research assistant. Today is ${now}. Search for the most current 2026 fashion articles, outfit ideas, and trend reports for the given keyword. Focus on authoritative fashion sources.` }] },
-                contents: [{ parts: [{ text: `Search for the very latest 2026 fashion content about: "${keyword}". Find the top articles from Vogue, Who What Wear, Harper's Bazaar, Refinery29, InStyle, Elle, and Pinterest.` }] }],
-                tools: [{ googleSearch: {} }],
-                generationConfig: { temperature: 0.1 },
+                system_instruction: { parts: [{ text: `You are a high-end fashion research assistant. Today is ${now}. Your goal is to find CURRENT 2026 fashion articles, style reports, and product drops for the specific keyword. Focus on authoritative sources like Vogue, Harper's Bazaar, and Who What Wear.` }] },
+                contents: [{ parts: [{ text: `Provide a detailed report on the latest 2026 fashion trends and outfit ideas for: "${keyword}". You MUST search the web and cite specific article URLs from major fashion publications.` }] }],
+                tools: [{ google_search_retrieval: {} }],
+                generationConfig: { temperature: 0.2 },
             }),
         });
         groundingData = searchData;
@@ -411,14 +411,19 @@ export async function pipelineSearchEvidence(keyword: string, briefJson: any, ap
     const articleContents: Array<{ url: string; title: string, markdown: string }> = [];
     let allReferenceImageUrls: string[] = [];
 
-    // If grounded search found no URLs, use a direct Jina search on key fashion sites
+    // If grounded search found no URLs, use Jina Search (s.jina.ai) to find them
     if (pageUrls.length === 0) {
-        const fallbackUrls = [
-            `https://www.whowhatwear.com/search?q=${encodeURIComponent(keyword)}`,
-            `https://www.refinery29.com/en-us/search?q=${encodeURIComponent(keyword)}`,
-            `https://www.vogue.com/search?q=${encodeURIComponent(keyword)}`,
-        ];
-        pageUrls = fallbackUrls;
+        console.log(`[S2] No grounding URLs found. Performing deep Jina Search for "${keyword}"...`);
+        const searchResults = await fetchViaJina(`https://s.jina.ai/${encodeURIComponent(keyword + " fashion trends 2026")}`);
+        if (searchResults) {
+            // Extract anything that looks like a fashion URL from the search results
+            const foundUrls = searchResults.match(/https?:\/\/[^\s)]+/g) || [];
+            pageUrls = foundUrls.filter(u => 
+                FASHION_SOURCE_PRIORITY.some(s => u.includes(s)) ||
+                (u.includes(".com/") && !u.includes("google") && !u.includes("jina.ai"))
+            );
+            console.log(`[S2] Jina Search discovered ${pageUrls.length} potential fashion sources.`);
+        }
     }
 
     // Filter for editorial article URLs — reject search pages, homepages, generic nav
