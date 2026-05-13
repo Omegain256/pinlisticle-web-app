@@ -395,7 +395,7 @@ export async function pipelineSearchEvidence(keyword: string, briefJson: any, ap
             body: JSON.stringify({
                 system_instruction: { parts: [{ text: `You are a high-end fashion research assistant. Today is ${now}. Your goal is to find CURRENT 2026 fashion articles, style reports, and product drops for the specific keyword. Focus on authoritative sources like Vogue, Harper's Bazaar, and Who What Wear.` }] },
                 contents: [{ parts: [{ text: `Provide a detailed report on the latest 2026 fashion trends and outfit ideas for: "${keyword}". You MUST search the web and cite specific article URLs from major fashion publications.` }] }],
-                tools: [{ google_search_retrieval: {} }],
+                tools: [{ google_search: {} }],
                 generationConfig: { temperature: 0.2 },
             }),
         });

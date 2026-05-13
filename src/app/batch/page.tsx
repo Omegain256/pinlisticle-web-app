@@ -697,6 +697,7 @@ export default function BatchPage() {
                 imageMap.clear();
                 featuredImageB64 = undefined;
 
+                const settings = getSettings();
                 const html = buildArticleHtml(articleData, current[i].amazonTag, settings.internalLinks);
                 const articleId = `article-${Date.now()}-${i}`;
                 await saveArticle({
