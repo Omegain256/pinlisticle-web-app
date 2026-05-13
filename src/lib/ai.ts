@@ -77,14 +77,21 @@ let _adcTokenGetter: (() => Promise<string>) | null = null;
  * before any AI fetch calls are made.
  */
 export function setAdcTokenGetter(getter: () => Promise<string>): void {
+    console.log("[AI-DEBUG] ADC Token Getter registered.");
     _adcTokenGetter = getter;
 }
 
 async function getAdcToken(): Promise<string | null> {
-    if (!_adcTokenGetter) return null;
+    if (!_adcTokenGetter) {
+        console.log("[AI-DEBUG] No ADC getter registered — skipping ADC path.");
+        return null;
+    }
     try {
-        return await _adcTokenGetter();
-    } catch {
+        console.log("[AI-DEBUG] Requesting token from registered ADC getter...");
+        const token = await _adcTokenGetter();
+        return token;
+    } catch (err: any) {
+        console.log(`[AI-DEBUG] ADC getter threw error: ${err.message}`);
         return null;
     }
 }
