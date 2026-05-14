@@ -356,21 +356,22 @@ export function extractImagesFromMarkdown(markdown: string): string[] {
 /** Extract page URLs from Gemini groundingChunks and rank by fashion source priority */
 function extractAndRankPageUrls(groundingData: any): string[] {
     const chunks: any[] = groundingData?.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const entryPoints: any[] = groundingData?.candidates?.[0]?.groundingMetadata?.searchEntryPoint || [];
     const urls: string[] = [];
+    
     for (const chunk of chunks) {
         const uri: string = chunk?.web?.uri || "";
-        // EXCLUSION: Filter out internal Google Search grounding redirect URLs.
-        // These URLs are not scrapeable by Jina and result in 403 or hang errors.
-        if (uri && uri.startsWith("http") && !uri.includes("vertexaisearch.cloud.google.com")) {
+        if (uri && uri.startsWith("http") && !uri.includes("google.com") && !uri.includes("vertexaisearch")) {
             urls.push(uri);
         }
     }
-    // Also pull from search suggestions
-    const suggestions = groundingData?.candidates?.[0]?.groundingMetadata?.webSearchQueries || [];
+
+    // dedupe
+    const uniqueUrls = Array.from(new Set(urls));
     
-    return urls.sort((a, b) => {
-        const rankA = FASHION_SOURCE_PRIORITY.findIndex(s => a.includes(s));
-        const rankB = FASHION_SOURCE_PRIORITY.findIndex(s => b.includes(s));
+    return uniqueUrls.sort((a, b) => {
+        const rankA = FASHION_SOURCE_PRIORITY.findIndex(s => a.toLowerCase().includes(s.toLowerCase()));
+        const rankB = FASHION_SOURCE_PRIORITY.findIndex(s => b.toLowerCase().includes(s.toLowerCase()));
         return (rankA === -1 ? 99 : rankA) - (rankB === -1 ? 99 : rankB);
     });
 }
@@ -393,10 +394,10 @@ export async function pipelineSearchEvidence(keyword: string, briefJson: any, ap
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                system_instruction: { parts: [{ text: `You are a high-end fashion research assistant. Today is ${now}. Your goal is to find CURRENT 2026 fashion articles, style reports, and product drops for the specific keyword. Focus on authoritative sources like Vogue, Harper's Bazaar, and Who What Wear.` }] },
-                contents: [{ parts: [{ text: `Provide a detailed report on the latest 2026 fashion trends and outfit ideas for: "${keyword}". You MUST search the web and cite specific article URLs from major fashion publications.` }] }],
+                system_instruction: { parts: [{ text: `You are a high-end fashion research assistant. Today is ${now}. Your goal is to DISCOVER current fashion articles and style reports for the specific keyword using Google Search. You MUST provide real-world URLs in your citations.` }] },
+                contents: [{ parts: [{ text: `Search the web for the absolute latest (2026) trends and editorial reviews for: "${keyword}". Return a list of specific article URLs from authoritative fashion sources.` }] }],
                 tools: [{ google_search: {} }],
-                generationConfig: { temperature: 0.2 },
+                generationConfig: { temperature: 0.1 },
             }),
         });
         groundingData = searchData;
@@ -416,13 +417,28 @@ export async function pipelineSearchEvidence(keyword: string, briefJson: any, ap
         console.log(`[S2] No grounding URLs found. Performing deep Jina Search for "${keyword}"...`);
         const searchResults = await fetchViaJina(`https://s.jina.ai/${encodeURIComponent(keyword + " fashion trends 2026")}`);
         if (searchResults) {
-            // Extract anything that looks like a fashion URL from the search results
-            const foundUrls = searchResults.match(/https?:\/\/[^\s)]+/g) || [];
-            pageUrls = foundUrls.filter(u => 
-                FASHION_SOURCE_PRIORITY.some(s => u.includes(s)) ||
-                (u.includes(".com/") && !u.includes("google") && !u.includes("jina.ai"))
-            );
-            console.log(`[S2] Jina Search discovered ${pageUrls.length} potential fashion sources.`);
+            // Extract URLs: look for any http(s) link that isn't a known generic search engine or tracker
+            const foundUrls = searchResults.match(/https?:\/\/[^\s"'<>\])]+/g) || [];
+            console.log(`[S2] Jina Search raw links found: ${foundUrls.length}`);
+            
+            pageUrls = Array.from(new Set(foundUrls.filter(u => {
+                const lower = u.toLowerCase();
+                // Block lists
+                if (lower.includes("google.com")) return false;
+                if (lower.includes("jina.ai")) return false;
+                if (lower.includes("facebook.com")) return false;
+                if (lower.includes("instagram.com")) return false;
+                if (lower.includes("amazon.com")) return false;
+                if (lower.includes("pinterest.com")) return false;
+                if (lower.includes("youtube.com")) return false;
+                
+                // Keep if it matches a priority source or looks like a specific article/post
+                const isPriority = FASHION_SOURCE_PRIORITY.some(s => lower.includes(s.toLowerCase()));
+                const looksLikeArticle = lower.split("/").length > 4; // usually articles have deeper paths
+                
+                return isPriority || looksLikeArticle;
+            })));
+            console.log(`[S2] Jina Search discovered ${pageUrls.length} potential fashion sources after filtering.`);
         }
     }
 
