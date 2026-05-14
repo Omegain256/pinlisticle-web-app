@@ -899,9 +899,9 @@ FOR EACH ITEM CARD:
 
 SHOT MATRIX RULES (MANDATORY — these feed the image generation):
 - CHARACTER ID: C1 (Match reference precisely: lock facial structure, skin tone, and hair). NO IDENTITY DRIFTING.
-- ENVIRONMENT ID: E4 (Match scene reference precisely as a sterile, editorial setting). NO ENVIRONMENTAL DRIFTING (Do not add furniture, plants, or windows).
-- POSE ID: P1 (Standing straight, front).
-- ANGLE ID: A1 (Full body, head-to-toe).
+- ENVIRONMENT ROTATION (MANDATORY): Rotate through these 6 specific scenes: [Bedroom, Walk-in Closet, Living Room, White Brick Wall, Stylish Hallway, Bedroom Mirror].
+- SHOT STYLE: If the scene is 'Bedroom Mirror', use 'Mirror Selfie' style. For ALL other scenes, use 'Professional Editorial' (third-person view).
+- ANGLE ID: A1 (Full body, head-to-toe). Feet MUST be visible in every shot.
 - OUTFIT_DESCRIPTION: Explicit styling for the clothing layers ONLY.
 
 STRICTLY BANNED WORDS (any field):
@@ -994,10 +994,10 @@ If the BRIEF identifies a "subject_demographic" (e.g., "plus size", "mature", "o
 VOICE & AESTHETIC GOAL: 
 Create a cohesive "Visual Identity" for this article. Select ONE consistent vibe from these categories as inspiration:
 1. SUBJECT: Define the person (Age matching the demographic, ethnicity-neutral, Body Type/Facial Structure matching the demographic, unique feature like 'sharp bob' or 'visible laugh lines').
-2. LOCATION: Select a specific setting. PRIORITISE variety across articles. Pool: [minimalist brutalist concrete loft, candlelit Italian bistro, sun-drenched conservatory with floor-to-ceiling glass, mid-century modern library, produce aisle of a boutique grocery, grand marble museum hallway, cluttered artist studio, high-ceilinged converted warehouse, penthouse rooftop at dusk].
-3. LIGHTING/WEATHER: Define the light (e.g. 'overcast winter afternoon', 'harsh direct on-camera flash', 'warm golden hour').
-4. CAMERA/AESTHETIC: Define the tech vibe (e.g. 'Shot on iPhone 16 Pro', 'Shot on Contax T2 35mm film', 'Shot on Sony A7RV 85mm f/1.4'). Reference a specific editorial photographer.
-5. TEXTURE & FINISH: Define the skin/film texture (e.g. 'Visible pores, honest skin', 'Heavy 35mm film grain, subtle halation').
+2. LOCATION: Select a specific high-end interior setting. PRIORITISE variety. Pool: [Parisian bedroom with floor-to-ceiling linen curtains, modern walk-in closet with warm LED lighting, sun-drenched minimalist living room with velvet sofa, white-washed brick wall loft, grand marble hallway with architectural shadows, architectural bedroom mirror with gold frame].
+3. LIGHTING/WEATHER: Define the light (e.g. 'morning window light', 'soft ambient indoor glow', 'harsh sunlight through slats').
+4. CAMERA/AESTHETIC: Define the tech vibe (e.g. 'Shot on iPhone 16 Pro', 'Shot on Sony A7RV 35mm f/1.4', 'Shot on Fujifilm X100VI').
+5. TEXTURE & FINISH: Define the skin/film texture (e.g. 'Visible skin texture, zero airbrushing', 'Fine grain, soft lens bloom').
 
 Return a JSON object matching StyleDNASchema.
     `.trim();
@@ -1174,14 +1174,14 @@ EXACTLY 3 sentences per item content. No more, no less:
 ════ IMAGE PROMPT MASTER STRUCTURE ════
 Formula: [SHOT_TYPE] of [SUBJECT] wearing [FABRICS+DRAPE]. [LOCATION]. [LIGHTING]. [CAMERA]. [TEXTURE]. [QUALITY].
 
-  SHOT_TYPE: "Full-length frame, shoes to crown, mid-stride" — ALWAYS. Feet MUST be visible. No exceptions.
+  SHOT_TYPE: If location is "Mirror", use "Mirror selfie shot, full body visible in reflection". Otherwise use "Full-length editorial street-style frame, shoes to crown, candid movement" — ALWAYS ensure feet are visible.
   SUBJECT: ${styleDNA?.subject_definition || "A woman, 28-40, natural makeup, modern unforced style"}
-  FABRICS+DRAPE: Name specific fabrics (e.g. "matte nylon anorak, straight-leg dark denim, rubber Cherokee boots").
-  LOCATION: Specific + varied — ROTATE across list. Do NOT repeat. Pool: [fog-slicked cobblestone, timber-clad coffee shop doorway, brutalist concrete stair, moss-covered stone wall, rail platform at rush hour, wet asphalt parking garage, candlelit bistro window, art museum marble hallway, sun-drenched conservatory].
-  LIGHTING: ${styleDNA?.lighting_and_weather || "Overcast daylight, soft even shadows, no blown highlights"}
-  CAMERA: ${styleDNA?.camera_and_aesthetic || "Sony A7RV 85mm f/1.4, ISO 800"}
-  TEXTURE: ${styleDNA?.texture_and_finish || "Visible pores, honest skin, subtle halation on highlights"}
-  QUALITY: Photorealistic, 4K UHD, no AI artifacts, no text, no watermarks, no cropped feet.
+  FABRICS+DRAPE: Name specific fabrics (e.g. "heavy wool coat, silk slip skirt, leather knee-high boots").
+  LOCATION: Specific Interior Rotation. Pool: [Minimalist bedroom with neutral linens, modern walk-in closet with backlit shelves, bright living room with white boucle chair, white-washed brick wall background, architectural hallway with natural light, large floor-standing mirror in bedroom].
+  LIGHTING: ${styleDNA?.lighting_and_weather || "Soft window light, natural indoor shadows"}
+  CAMERA: ${styleDNA?.camera_and_aesthetic || "Sony A7RV 35mm f/1.8"}
+  TEXTURE: ${styleDNA?.texture_and_finish || "Visible skin texture, zero airbrushing, high-end realism"}
+  QUALITY: Professional fashion photography, 8k, photorealistic, no distorted hands, feet visible.
 
 If a batch item has "image_prompt_seed.engineered_image_prompt", use it VERBATIM for that item's image_prompt. Do NOT modify.
 `;
