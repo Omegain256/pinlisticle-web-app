@@ -30,11 +30,12 @@ export function sanitizeModelId(modelId: string): string {
     return DEPRECATED_MODEL_MAP[modelId] || modelId;
 }
 
-// Confirmed working Imagen 4.0 models — ordered fast→quality for best quota usage
+// Confirmed working Imagen models — ordered for best quota usage/reliability
 const IMAGEN_MODELS_DEFAULT = [
     "imagen-4.0-fast-generate-001",
     "imagen-4.0-generate-001",
-    "imagen-4.0-ultra-generate-001",
+    "imagen-3.0-generate-001",
+    "imagen-3.0-fast-generate-001",
 ] as const;
 
 export interface DiscoveredModel {
@@ -77,21 +78,14 @@ let _adcTokenGetter: (() => Promise<string>) | null = null;
  * before any AI fetch calls are made.
  */
 export function setAdcTokenGetter(getter: () => Promise<string>): void {
-    console.log("[AI-DEBUG] ADC Token Getter registered.");
     _adcTokenGetter = getter;
 }
 
 async function getAdcToken(): Promise<string | null> {
-    if (!_adcTokenGetter) {
-        console.log("[AI-DEBUG] No ADC getter registered — skipping ADC path.");
-        return null;
-    }
+    if (!_adcTokenGetter) return null;
     try {
-        console.log("[AI-DEBUG] Requesting token from registered ADC getter...");
-        const token = await _adcTokenGetter();
-        return token;
-    } catch (err: any) {
-        console.log(`[AI-DEBUG] ADC getter threw error: ${err.message}`);
+        return await _adcTokenGetter();
+    } catch {
         return null;
     }
 }
