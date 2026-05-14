@@ -84,3 +84,32 @@ export async function compressArticleImages(article: any): Promise<any> {
     console.log(`[ImageUtil] Compression complete in ${Date.now() - startTime}ms.`);
     return article;
 }
+
+/**
+ * Converts a Base64 string to a binary Blob for efficient storage.
+ */
+export function base64ToBlob(base64: string, mimeType = "image/jpeg"): Blob {
+    const cleanBase64 = base64.includes(",") ? base64.split(",")[1] : base64;
+    const byteCharacters = atob(cleanBase64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type: mimeType });
+}
+
+/**
+ * Converts a binary Blob back to a Base64 string for legacy UI support or API payloads.
+ */
+export async function blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const result = reader.result as string;
+            resolve(result.split(",")[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}

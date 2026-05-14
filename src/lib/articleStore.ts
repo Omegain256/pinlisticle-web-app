@@ -1,5 +1,5 @@
-import { get, set, del } from 'idb-keyval';
-import { compressArticleImages } from '@/lib/image';
+import { get, set, del, keys } from 'idb-keyval';
+import { compressArticleImages, base64ToBlob, blobToBase64 } from '@/lib/image';
 
 export interface ArticleMetadata {
     id: string;
@@ -51,8 +51,9 @@ export interface GeneratedArticle extends ArticleMetadata {
 }
 
 const META_STORE_KEY = "pinlisticle_articles_metadata";
-const LEGACY_STORE_KEY = "pinlisticle_articles"; // The old massive array key
+const LEGACY_STORE_KEY = "pinlisticle_articles";
 const DATA_PREFIX = "pinlisticle_data_";
+const BINARY_PREFIX = "pinlisticle_bin_";
 
 // Session-scoped guard: migration only runs ONCE per page load, not on every saveArticle
 let _migrationCheckedThisSession = false;
@@ -134,12 +135,47 @@ export async function listArticles(): Promise<ArticleMetadata[]> {
 }
 
 /**
- * Saves an article with sharding logic.
+ * Saves an article with Binary Sharding.
+ * Heavy images are converted to binary Blobs and stored separately to keep JSON small.
  */
 export async function saveArticle(article: GeneratedArticle): Promise<void> {
     if (!isClient()) return;
     
-    // Use direct metadata read — does NOT trigger migration check (avoids DB locking during batch)
+    // 1. Extract and store images as binary Blobs
+    const binaryWrites: Promise<void>[] = [];
+    
+    if (article.data) {
+        // Handle featured image
+        if (article.data.featured_image_base64 && article.data.featured_image_base64.length > 50) {
+            const blob = base64ToBlob(article.data.featured_image_base64);
+            const binKey = `${BINARY_PREFIX}${article.id}_featured`;
+            binaryWrites.push(set(binKey, blob));
+            article.data.featured_image_base64 = "[BINARY_POINTER]";
+        }
+
+        // Handle listicle items
+        for (let i = 0; i < article.data.listicle_items.length; i++) {
+            const item = article.data.listicle_items[i];
+            
+            // AI Images
+            if (item.image_base64 && item.image_base64.length > 50 && item.image_base64 !== "[BINARY_POINTER]") {
+                const blob = base64ToBlob(item.image_base64);
+                const binKey = `${BINARY_PREFIX}${article.id}_item_${i}`;
+                binaryWrites.push(set(binKey, blob));
+                item.image_base64 = "[BINARY_POINTER]";
+            }
+
+            // Web Images
+            if (item.web_image?.image_base64 && item.web_image.image_base64.length > 50 && item.web_image.image_base64 !== "[BINARY_POINTER]") {
+                const blob = base64ToBlob(item.web_image.image_base64, item.web_image.mime_type);
+                const binKey = `${BINARY_PREFIX}${article.id}_web_${i}`;
+                binaryWrites.push(set(binKey, blob));
+                item.web_image.image_base64 = "[BINARY_POINTER]";
+            }
+        }
+    }
+
+    // 2. Update metadata
     const metadata = await getMetadataDirect();
     const metaObj: ArticleMetadata = {
         id: article.id,
@@ -156,8 +192,9 @@ export async function saveArticle(article: GeneratedArticle): Promise<void> {
         metadata.unshift(metaObj);
     }
     
-    // Save metadata and full data separately — parallel writes for speed
+    // 3. Save everything
     await Promise.all([
+        ...binaryWrites,
         set(META_STORE_KEY, metadata),
         set(`${DATA_PREFIX}${article.id}`, article)
     ]);
@@ -167,28 +204,52 @@ export async function saveArticle(article: GeneratedArticle): Promise<void> {
  * Retrieves full article data by ID.
  * Performs lazy one-time compression if images are still oversized (pre-fix articles).
  */
+/**
+ * Retrieves full article data and re-hydrates binary images.
+ */
 export async function getArticle(id: string): Promise<GeneratedArticle | undefined> {
     if (!isClient()) return undefined;
     try {
         const article = await get(`${DATA_PREFIX}${id}`) as GeneratedArticle | undefined;
-        if (!article) return undefined;
+        if (!article || !article.data) return article;
 
-        // Lazy compression: check if any image is oversized (>250KB base64 ≈ raw ~187KB)
-        const LARGE_B64_THRESHOLD = 250_000;
-        const needsCompression = article.data?.listicle_items?.some(
-            (item: any) => (item.image_base64 && item.image_base64.length > LARGE_B64_THRESHOLD) ||
-                           (item.web_image?.image_base64 && item.web_image.image_base64.length > LARGE_B64_THRESHOLD)
-        );
+        // Re-hydrate images from binary storage
+        const hydrationTasks: Promise<void>[] = [];
 
-        if (needsCompression) {
-            // Compress in the background — don't await so UI is not blocked
-            compressArticleImages(article).then(async (compressed) => {
-                await set(`${DATA_PREFIX}${id}`, compressed);
-            }).catch(() => { /* non-fatal */ });
+        // Featured image
+        if (article.data.featured_image_base64 === "[BINARY_POINTER]") {
+            hydrationTasks.push((async () => {
+                const blob = await get(`${BINARY_PREFIX}${id}_featured`) as Blob;
+                if (blob) article.data!.featured_image_base64 = await blobToBase64(blob);
+            })());
+        }
+
+        // Listicle items
+        for (let i = 0; i < article.data.listicle_items.length; i++) {
+            const item = article.data.listicle_items[i];
+            
+            if (item.image_base64 === "[BINARY_POINTER]") {
+                hydrationTasks.push((async (idx: number) => {
+                    const blob = await get(`${BINARY_PREFIX}${id}_item_${idx}`) as Blob;
+                    if (blob) article.data!.listicle_items[idx].image_base64 = await blobToBase64(blob);
+                })(i));
+            }
+
+            if (item.web_image?.image_base64 === "[BINARY_POINTER]") {
+                hydrationTasks.push((async (idx: number) => {
+                    const blob = await get(`${BINARY_PREFIX}${id}_web_${idx}`) as Blob;
+                    if (blob) article.data!.listicle_items[idx].web_image!.image_base64 = await blobToBase64(blob);
+                })(i));
+            }
+        }
+
+        if (hydrationTasks.length > 0) {
+            await Promise.all(hydrationTasks);
         }
 
         return article;
-    } catch {
+    } catch (err) {
+        console.error("[Storage] Failed to hydrate article:", err);
         return undefined;
     }
 }
@@ -196,15 +257,24 @@ export async function getArticle(id: string): Promise<GeneratedArticle | undefin
 /**
  * Deletes an article and its sharded data.
  */
+/**
+ * Deletes an article and all associated binary binary Blobs.
+ */
 export async function deleteArticle(id: string): Promise<void> {
     if (!isClient()) return;
-    // Use direct read — migration not needed for delete
     const metadata = await getMetadataDirect();
     const updated = metadata.filter((m) => m.id !== id);
     
+    // Find all binary keys for this article
+    const allKeys = await keys();
+    const binaryKeysToDelete = allKeys.filter(k => 
+        typeof k === 'string' && k.startsWith(`${BINARY_PREFIX}${id}`)
+    );
+
     await Promise.all([
         set(META_STORE_KEY, updated),
-        del(`${DATA_PREFIX}${id}`)
+        del(`${DATA_PREFIX}${id}`),
+        ...binaryKeysToDelete.map(k => del(k))
     ]);
 }
 
