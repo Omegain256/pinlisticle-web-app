@@ -1167,9 +1167,7 @@ Every item: (1) Names a real wardrobe problem. (2) Explains the style logic. (3)
 
 ════ BANNED WORDS — CHECK BEFORE RETURNING ════
 chic, elevate, essential, game-changer, viral, obsessed, timeless, effortless, versatile,
-statement, curated, luxe, chicness, wardrobe staple, must-have, stunning, take your look,
-style moment, fashion-forward, trendy, delve, look expensive, fashionista, flawlessly,
-elevated, iconic, investment piece, Amazon hack, trendy girl.
+statement, curated, luxe, chicness, wardrobe staple, must-have, stunning, investment piece, Amazon hack, trendy girl.
 
 USE INSTEAD: polished, grounded, deliberate, sharp, balanced, clean line, sensible,
 intentional, practical, specific, honest, considered.
@@ -1187,19 +1185,15 @@ EXACTLY 3 sentences per item content. No more, no less:
 - article_intro: MAX 2 sentences. State the real wardrobe problem this article solves.
 - No padding sentences. No vague opener ("This look is perfect for...").
 
-════ IMAGE PROMPT MASTER STRUCTURE ════
-Formula: [SHOT_TYPE] of [SUBJECT] wearing [FABRICS+DRAPE]. [LOCATION]. [LIGHTING]. [CAMERA]. [TEXTURE]. [QUALITY].
+════ TECHNICAL IMAGE PROMPT MASTER STRUCTURE ════
+You are a Technical Fashion Photographer and AI Prompt Architect. 
+Your goal is to generate HYPERREALISTIC IMAGE PROMPTS using the MASTER REALISM FORMULA.
 
-  SHOT_TYPE: If location is "Mirror", use "Mirror selfie shot, full body visible in reflection". Otherwise use "Full-length editorial street-style frame, shoes to crown, candid movement" — ALWAYS ensure feet are visible.
-  SUBJECT: ${styleDNA?.subject_definition || "A woman, 28-40, natural makeup, modern unforced style"}
-  FABRICS+DRAPE: Name specific fabrics (e.g. "heavy wool coat, silk slip skirt, leather knee-high boots").
-  LOCATION: Specific Interior Rotation. Pool: [Minimalist bedroom with neutral linens, modern walk-in closet with backlit shelves, bright living room with white boucle chair, white-washed brick wall background, architectural hallway with natural light, large floor-standing mirror in bedroom].
-  LIGHTING: ${styleDNA?.lighting_and_weather || "Soft window light, natural indoor shadows"}
-  CAMERA: ${styleDNA?.camera_and_aesthetic || "Sony A7RV 35mm f/1.8"}
-  TEXTURE: ${styleDNA?.texture_and_finish || "Visible skin texture, zero airbrushing, high-end realism"}
-  QUALITY: Professional fashion photography, 8k, photorealistic, no distorted hands, feet visible.
+FORMULA: Shot on [DEVICE], computational photography, realistic phone photo aesthetic, sensor grain, sharpening halos. [SHOT_TYPE], [LIGHT_BEHAVIOR] from [DIRECTION] at [ANGLE] degrees, [COLOR_TEMP]K, [AMBIENT_MIX]. [REFLECTIVE_SURFACE] showing [ACCURACY]%, micro-detail, chromatic shift. [CAMERA_DIST], frame fill, [CEILING]% top, [FLOOR]% bottom. [DEPTH_PLANES] focus falloff. [SUBJECT_BIO]: ${styleDNA?.subject_definition || "A woman, 28-40, natural makeup, modern unforced style"}, pore texture, asymmetry, vein visibility. [GARMENT_PHYSICS]: [FABRIC] ([HEX]) with [TEXTURE], [BEHAVIOR] (fabric pulling, natural folds). [ENVIRONMENT]: [SETTING], [KEY_ELEMENTS], [IMPERFECTIONS] (scuff marks, rug displacement). [POST]: shadow crush, highlight clipping.
 
-If a batch item has "image_prompt_seed.engineered_image_prompt", use it VERBATIM for that item's image_prompt. Do NOT modify.
+PALETTE: HEX: [HEX_VALUES].
+
+The output MUST be a technical, cold, photographic breakdown. NO VAGUE ADJECTIVES. Use precise numbers and HEX codes.
 `;
 
     const instructions = isFirst
@@ -1218,7 +1212,7 @@ CRITICAL OUTPUT RULES:
 1. item_index: Copy EXACTLY from the BATCH ITEMS provided.
 2. title: Specific. NO NUMBERS. Name a garment or outfit combo.
 3. content: EXACTLY 3 sentences. Hook → Meaning+Utility → Direction.
-4. image_prompt: If item has image_prompt_seed.engineered_image_prompt, copy it VERBATIM. Otherwise use MASTER STRUCTURE.
+4. image_prompt: If item has image_prompt_seed.engineered_image_prompt, copy it VERBATIM. Otherwise use MASTER REALISM FORMULA.
 5. Scan every field for BANNED WORDS before returning. Replace any found.
 6. article_intro (first batch only): Max 2 sentences naming the wardrobe problem.
 
