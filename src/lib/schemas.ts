@@ -131,11 +131,11 @@ export const StyleDNASchema = {
   properties: {
     article_id: { type: "STRING" },
     style_family: { type: "STRING" },
-    subject_definition: { type: "STRING" }, // Article-wide consistent person
-    location_definition: { type: "STRING" }, // Article-wide consistent location
-    lighting_and_weather: { type: "STRING" }, // Article-wide consistent lighting
-    camera_and_aesthetic: { type: "STRING" }, // Article-wide consistent tech vibe
-    texture_and_finish: { type: "STRING" }, // Article-wide consistent skin/film texture
+    subject_definition: { type: "STRING" }, 
+    location_definition: { type: "STRING" }, 
+    lighting_and_weather: { type: "STRING" }, 
+    camera_and_aesthetic: { type: "STRING" }, 
+    texture_and_finish: { type: "STRING" }, 
     palette_base: { type: "ARRAY", items: { type: "STRING" } },
     realism_constraints: { type: "ARRAY", items: { type: "STRING" } },
     diversity_rotation: {
@@ -149,7 +149,7 @@ export const StyleDNASchema = {
     },
     negative_prompt: { type: "STRING" }
   },
-  required: ["article_id", "style_family", "subject_definition", "location_definition", "lighting_and_weather", "camera_and_aesthetic", "texture_and_finish", "palette_base", "realism_constraints", "diversity_rotation", "negative_prompt"]
+  required: ["article_id", "style_family", "subject_definition", "lighting_and_weather", "camera_and_aesthetic", "texture_and_finish", "palette_base", "realism_constraints", "diversity_rotation", "negative_prompt"]
 };
 
 // STAGE 2.5: Visual Intelligence — Per-outfit Visual DNA derived from real reference images
