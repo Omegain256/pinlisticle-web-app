@@ -305,20 +305,31 @@ export async function generateContent(params: {
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
                 responseMimeType: "application/json",
-                temperature: 0.8,
+                temperature: 0.7, // Slightly lower temperature for better JSON stability
                 topP: 0.95,
-                topK: 40,
             },
         }),
     }, alternativeUrlTemplate);
 
-    const textPayload = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!textPayload) throw new Error("Invalid response format from Gemini (missing text candidate).");
+    const candidate = data.candidates?.[0];
+    const textPayload = candidate?.content?.parts?.[0]?.text;
+    
+    if (!textPayload) {
+        const reason = candidate?.finishReason || "UNKNOWN";
+        const safety = candidate?.safetyRatings || [];
+        console.error(`[AI] Empty response. Reason: ${reason}. Safety:`, safety);
+        
+        if (reason === "SAFETY") {
+            throw new Error("Gemini blocked this content due to safety filters. Try a different topic.");
+        }
+        throw new Error(`AI returned an empty response (Finish Reason: ${reason}). Please try again.`);
+    }
 
     try {
         return JSON.parse(textPayload);
-    } catch {
-        throw new Error("Failed to parse JSON from Gemini.");
+    } catch (err) {
+        console.error("[AI] JSON Parse Error. Payload:", textPayload);
+        throw new Error("AI returned invalid JSON format. Retrying may help.");
     }
 }
 
