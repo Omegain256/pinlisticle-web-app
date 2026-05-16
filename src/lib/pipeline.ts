@@ -782,7 +782,7 @@ STRICT SHOT MATRIX COMPLIANCE (MANDATORY):
 - ENVIRONMENT: Extract a highly specific setting from the reference images. The environment
   must match the outfit's register — casual outfits go in lived-in spaces; polished outfits
   go in clean architectural spaces. If no reference is obvious, use \${TOPIC_ENVIRONMENT}.
-- OUTFIT: Derive specific styling from reference images. Name every garment and its color in HEX.
+- OUTFIT: Derive specific styling from reference images. Name every garment and its color in HEX. STRICT ADHERENCE to the article topic: "${keyword}". If the topic specifies a color (e.g., "Black"), the garments MUST be that color. DO NOT hallucinate contradictory colors.
 - POSE: Assign a specific pose from the POSE POOL below. Rotate — never repeat the same pose twice consecutively.
 
 POSE POOL:
@@ -1207,11 +1207,12 @@ Each entry: 5–7 sentences. Split into exactly 3 paragraphs. Never one block of
   chino") — not just "a blazer" or "trousers."
 - When referencing color, name it specifically: "off-white," "camel," "slate grey" — not "neutral."
 - One concrete styling action per entry minimum.
+- COLOR/TOPIC ADHERENCE: You must strictly adhere to the topic "${keyword}". If the topic specifies a color (e.g., "Black"), that color MUST dominate the styling. NEVER introduce contradictory colors (e.g., brown) unless specifically explaining a deliberate contrast.
 
 ════ FORMATTING ════
-- title: NO NUMBERS. Specific. Name a garment or outfit combination.
-- seo_title: NO NUMBERS. Written for search intent. Example: "Winter Outfits With Trench Coats."
-- pinterest_title: NO NUMBERS. Written for a visual discovery audience — name the visual outcome.
+- title: NO NUMBERS OR NUMBER WORDS (e.g., 'Five', '10'). Specific. Name a garment or outfit combination.
+- seo_title: NO NUMBERS OR NUMBER WORDS (e.g., 'Five', '10'). Written for search intent. Example: "Winter Outfits With Trench Coats."
+- pinterest_title: NO NUMBERS OR NUMBER WORDS (e.g., 'Five', '10'). Written for a visual discovery audience — name the visual outcome.
 - article_intro: EXACTLY 2 sentences. Sentence 1: Name the specific problem this article solves.
   Sentence 2: State what the reader will be able to do after reading it.
   BAD: "Finding the right outfits can be hard. This list has you covered."
