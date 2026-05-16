@@ -775,7 +775,14 @@ Aspect ratio 9:16. Single continuous photograph.`,
     // ── Step D: Build VisualDNA for all items in a single Gemini Vision call ───
     const visionParts: any[] = [];
 
+    const topicAnchor = styleDNA?.topic_anchor_text || "";
+    const visualRuleset = styleDNA?.visual_ruleset_text || "";
+
     const systemTextFashion = `You are a professional fashion photo analyst and AI image prompt engineer.
+
+${topicAnchor}
+
+${visualRuleset}
 
 STRICT SHOT MATRIX COMPLIANCE (MANDATORY):
 - SUBJECT: Always use \${C1_IDENTITY}. NO IDENTITY DRIFTING between cards.
@@ -1021,6 +1028,56 @@ Create a cohesive "Visual Identity" for this article. Select ONE consistent vibe
 4. CAMERA/AESTHETIC: Define the tech vibe (e.g. 'Shot on iPhone 16 Pro', 'Shot on Sony A7RV 35mm f/1.4', 'Shot on Fujifilm X100VI').
 5. TEXTURE & FINISH: Define the skin/film texture (e.g. 'Visible skin texture, zero airbrushing', 'Fine grain, soft lens bloom').
 
+CRITICAL REQUIREMENT - TOPIC ANCHOR & VISUAL RULESET:
+You MUST generate two highly structured markdown blocks exactly matching these templates:
+
+1. topic_anchor_text
+\`\`\`
+════ TOPIC ANCHOR — DEFINE ONCE, INJECT INTO ALL GENERATION STEPS ════
+
+MAIN_TOPIC: [Topic Name]
+CORE_WARDROBE_PROBLEM: [Specify the tension or problem]
+READER_CONTEXT: [Where is the reader wearing this?]
+VISUAL_WORLD: [e.g. Urban, Lived-in, Clean]
+OUTFIT_REGISTER: [e.g. Smart-casual, polished]
+FORBIDDEN_TERRITORY: [What not to wear or show based on the topic]
+\`\`\`
+
+2. visual_ruleset_text
+\`\`\`
+════ VISUAL RULESET — MANDATORY FOR ALL GENERATION STEPS ════
+
+  ── COLOR PALETTE ──
+  APPROVED PALETTE: [List 6-9 colors with exact HEX codes that fit the topic perfectly]
+  ACCENT COLORS (use sparingly — max 1 per image): [1-2 colors with HEX codes]
+  BANNED COLORS: [Colors that contradict the topic, e.g. Neon, bright pink]
+
+  ── COLOR COMBINATION RULES ──
+  APPROVED COMBINATIONS: 
+    — [Combo 1]
+    — [Combo 2]
+    — [Combo 3]
+  BANNED COMBINATIONS: 
+    — [Combo 1]
+    — [Combo 2]
+
+  ── TOPIC-SPECIFIC STYLING DIRECTIVES ──
+  ALWAYS: 
+    — [Rule 1]
+    — [Rule 2]
+  NEVER:
+    — [Rule 1]
+    — [Rule 2]
+
+  ── CROSS-CARD CONSISTENCY RULES ──
+  These rules apply across the ENTIRE article set, not just per card:
+  
+  PALETTE CONSISTENCY: Every image must draw from the APPROVED PALETTE. No card should introduce a color not listed above.
+  ENVIRONMENT MOOD CONSISTENCY: All environments must share the same general light quality.
+  SUBJECT CONSISTENCY: Same model description across all cards.
+  REGISTER CONSISTENCY: No single card should sit outside [OUTFIT_REGISTER]. The set must read as one coherent editorial.
+\`\`\`
+
 Return a JSON object matching StyleDNASchema.
     `.trim();
 
@@ -1166,7 +1223,38 @@ async function executeDraftBatch(params: {
     const urlTemplate = `${GEMINI_BASE}/${primaryModelId}:generateContent?key=API_KEY_PLACEHOLDER`;
     const alternativeUrlTemplate = `${GEMINI_BASE}/${secondaryModelId}:generateContent?key=API_KEY_PLACEHOLDER`;
 
+    const topicAnchor = styleDNA?.topic_anchor_text || "";
+    const visualRuleset = styleDNA?.visual_ruleset_text || "";
+
     const systemInstruction = `You are a SHARP WARDROBE EDITOR writing for women aged 26–44 making real style decisions.
+
+${topicAnchor}
+
+${visualRuleset}
+
+════ VISUAL RULESET — ARTICLE COMPLIANCE ════
+Reference these rules when naming colors, garments, and outfit combinations 
+in every entry. The written entry and the image it pairs with must be 
+describing the same outfit in the same palette.
+
+COLOR COMPLIANCE:
+  — Only name colors from the APPROVED PALETTE when describing garments.
+  — Use exact color names from the palette — not generic terms like "neutral" 
+    or "dark." Write "camel," "slate grey," "off-white" — the exact palette names.
+  — If an entry calls for an accent, use only ACCENT COLORS and use only one.
+  — Never name a BANNED COLOR in any entry, even as a contrast or foil.
+
+OUTFIT COMPLIANCE:
+  — Every outfit described must follow TOPIC-SPECIFIC STYLING DIRECTIVES.
+  — Check ALWAYS and NEVER lists before finalising each entry.
+  — If the outfit described in ¶2 violates any NEVER rule — rewrite it.
+
+CROSS-ENTRY PALETTE CHECK:
+  — After drafting all entries, review the full set.
+  — No two entries should use identical color combinations.
+  — Every entry must use at least two colors from the APPROVED PALETTE.
+  — The full set of entries should collectively cover a range of the 
+    APPROVED PALETTE — not cluster around the same 2–3 colors.
 
 ════ EDITORIAL PROMISE ════
 Every entry must do three things:
@@ -1277,30 +1365,56 @@ toe shape, and color HEX.
 
 6. PHYSICS
    Garment: [GARMENT_TYPE — Must EXACTLY match the core garment from your text] in [FABRIC] ([HEX — Must EXACTLY match the color from your text and the topic]), [TEXTURE_DETAIL].
-   Behavior at pose: [SPECIFIC FABRIC BEHAVIOR given the assigned pose — e.g., "blazer
-   hem lifting slightly at back due to mid-stride lean," "trouser break pooling at ankle
-   on weight-bearing leg only"].
+   Behavior at pose: [SPECIFIC FABRIC BEHAVIOR given the assigned pose].
    Footwear: [STYLE], [TOE_SHAPE], [HEEL_HEIGHT], color [HEX], [MATERIAL].
 
 7. ENVIRONMENT
    Setting: [ENVIRONMENT from rotation pool — full description].
    Key elements: [2–3 SPECIFIC PROPS OR SURFACES in frame, each with material and color HEX].
-   Imperfections: [SPECIFIC FLAW — e.g., "paint scuff on skirting board," "slight shadow
-   unevenness on wall," "dust particle visible in light shaft"].
+   Imperfections: [SPECIFIC FLAW].
    NO MIRRORS unless Environment [6] is assigned.
 
 8. POST-PROCESSING
    Skin grade: [SKIN_TONE_GRADE] — [HIGHLIGHT_HANDLING] in highlights, [SHADOW_HANDLING]
    in shadows, [MIDTONE_SHIFT] midtone shift.
    Grain: [GRAIN_SIZE] grain at [ISO_EQUIVALENT] ISO equivalent, visible in flat areas.
-   Contrast: [CONTRAST_CURVE — e.g., "gentle S-curve, shadow crush below 15%, highlight
-   clip above 92%"].
-   Color: [GRADE_STYLE — e.g., "slightly cooled highlights, warm shadows, no desaturation"].
+   Contrast: [CONTRAST_CURVE].
+   Color: [GRADE_STYLE].
 
-PALETTE: HEX values for all garments, skin, environment surfaces, and light color: [HEX_LIST].
+════ COHERENCE GATE — RUN BEFORE FINALISING EVERY PROMPT ════
+This gate has four layers. All four must pass before the prompt is accepted.
 
-OUTPUT: A cold, technical, photographic brief. No vague adjectives. All values must be
-specific — numbers, HEX codes, named directions, named materials.
+  LAYER 1 — TOPIC CHECK:
+  (1a) Does every garment belong within [MAIN_TOPIC] and [OUTFIT_REGISTER]?
+  (1b) Does the environment reflect [VISUAL_WORLD]?
+  (1c) Do all props and surfaces avoid [FORBIDDEN_TERRITORY]?
+  → If any answer is NO: correct before proceeding.
+
+  LAYER 2 — COLOR CHECK:
+  (2a) Are all garment colors drawn from APPROVED PALETTE or ACCENT COLORS?
+  (2b) Is there no more than 1 accent color in this image?
+  (2c) Are all BANNED COLORS absent — including in props, walls, and surfaces?
+  (2d) Does the color combination follow APPROVED COMBINATIONS?
+  (2e) Does the combination avoid all BANNED COMBINATIONS?
+  → If any answer is NO: replace the non-compliant color before proceeding.
+  → State the HEX code for every garment color before writing the final prompt 
+    — this forces an explicit check rather than a vague description.
+
+  LAYER 3 — STYLING DIRECTIVE CHECK:
+  (3a) Does the image follow every rule in the ALWAYS list?
+  (3b) Does the image violate any rule in the NEVER list?
+  (3c) Is the hero item of [MAIN_TOPIC] clearly the primary read of the image?
+  → If (3b) is YES or (3c) is NO: rewrite the styling section before proceeding.
+
+  LAYER 4 — CROSS-CARD CONSISTENCY CHECK:
+  (4a) Does this image use the same subject description as all other cards?
+  (4b) Does the light quality match the ENVIRONMENT MOOD CONSISTENCY rule?
+  (4c) Does the palette draw from the same APPROVED PALETTE as all other cards?
+  (4d) Does this card's OUTFIT_REGISTER match the register of the full set?
+  → If any answer is NO: adjust before proceeding. Flag the inconsistency 
+    in a note before the final prompt so it can be reviewed.
+
+OUTPUT: A cold, technical, photographic brief. No vague adjectives. All values must be specific — numbers, HEX codes, named directions, named materials. MUST STRICTLY PASS THE COHERENCE GATE.
 `;
 
     const instructions = isFirst

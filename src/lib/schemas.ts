@@ -147,9 +147,11 @@ export const StyleDNASchema = {
       },
       required: ["age_range", "body_types", "hair_textures"]
     },
-    negative_prompt: { type: "STRING" }
+    negative_prompt: { type: "STRING" },
+    topic_anchor_text: { type: "STRING" },
+    visual_ruleset_text: { type: "STRING" }
   },
-  required: ["article_id", "style_family", "subject_definition", "lighting_and_weather", "camera_and_aesthetic", "texture_and_finish", "palette_base", "realism_constraints", "diversity_rotation", "negative_prompt"]
+  required: ["article_id", "style_family", "subject_definition", "lighting_and_weather", "camera_and_aesthetic", "texture_and_finish", "palette_base", "realism_constraints", "diversity_rotation", "negative_prompt", "topic_anchor_text", "visual_ruleset_text"]
 };
 
 // STAGE 2.5: Visual Intelligence — Per-outfit Visual DNA derived from real reference images
