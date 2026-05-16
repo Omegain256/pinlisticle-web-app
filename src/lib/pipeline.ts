@@ -1207,7 +1207,7 @@ Each entry: 5–7 sentences. Split into exactly 3 paragraphs. Never one block of
   chino") — not just "a blazer" or "trousers."
 - When referencing color, name it specifically: "off-white," "camel," "slate grey" — not "neutral."
 - One concrete styling action per entry minimum.
-- COLOR/TOPIC ADHERENCE: You must strictly adhere to the topic "${keyword}". If the topic specifies a color (e.g., "Black"), that color MUST dominate the styling. NEVER introduce contradictory colors (e.g., brown) unless specifically explaining a deliberate contrast.
+- TOPIC ADHERENCE (CRITICAL): Every single item must feature the exact core garment and color specified in the topic "${keyword}". Do not drift to similar items (e.g., do not generate a "slip skirt" if the topic says "mini skirt"). If the topic specifies a color (e.g., "White"), that color MUST dominate the garment. NEVER introduce contradictory colors.
 
 ════ FORMATTING ════
 - title: NO NUMBERS OR NUMBER WORDS (e.g., 'Five', '10'). Specific. Name a garment or outfit combination.
@@ -1276,7 +1276,7 @@ toe shape, and color HEX.
    Pose: [POSE from POSE POOL — name the full pose description verbatim].
 
 6. PHYSICS
-   Garment: [GARMENT_TYPE] in [FABRIC] ([HEX]), [TEXTURE_DETAIL].
+   Garment: [GARMENT_TYPE — Must EXACTLY match the core garment from your text] in [FABRIC] ([HEX — Must EXACTLY match the color from your text and the topic]), [TEXTURE_DETAIL].
    Behavior at pose: [SPECIFIC FABRIC BEHAVIOR given the assigned pose — e.g., "blazer
    hem lifting slightly at back due to mid-stride lean," "trouser break pooling at ankle
    on weight-bearing leg only"].
