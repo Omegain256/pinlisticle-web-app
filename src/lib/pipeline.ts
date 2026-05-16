@@ -696,36 +696,36 @@ export async function pipelineVisualIntelligence(
     const archetype = (briefJson?.style_archetype || "casual").toLowerCase();
     
     const C1_IDENTITY = styleDna?.subject_definition || "Character C1 (female model, middle-parted deep brunette hair, hazel-brown eyes, prominent high cheekbones, natural fair skin texture)";
-    const E4_ENVIRONMENT = "Environment E4 (sterile minimalist bedroom, white walls, light oak wood floors, a neatly made low bed with white duvet, and a clean empty corner to ensure a sharp body silhouette)";
+    const TOPIC_ENVIRONMENT = styleDna?.location_definition || "a clean, minimalist environment appropriate for the look";
 
     const ANATOMY_LOCKDOWN_FASHION = `
 STRICT ANATOMY (NON-NEGOTIABLE): This is a natural human with exactly two arms, two hands, and two legs. 
-- One hand holds the smartphone taking the picture in the mirror, while the other hand rests naturally.
 - Ensure sharp, continuous silhouette.
-- The image must feature exactly one person.`;
+- The image must feature exactly one person.
+- Models must NEVER be barefoot. They must always be wearing appropriate stylish shoes, heels, or boots.`;
 
     const TEMPLATES_FASHION = {
         casual: `Full-body candid portrait of ${C1_IDENTITY} modeling a casual everyday outfit.
-PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is wearing stylish shoes. Captured as a mirror selfie holding a [PHONE_COLOR] smartphone; the mirror frame is clearly visible.
+PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is wearing stylish shoes.
 ${ANATOMY_LOCKDOWN_FASHION}
-AESTHETIC: High-quality unedited smartphone photo, authentic social media post style. Natural indoor lighting with subtle shadows.
-She is standing in ${E4_ENVIRONMENT}. There is clear white empty space between her body and the background to ensure a sharp, clean silhouette.
+AESTHETIC: High-quality unedited smartphone photo, authentic social media post style. Natural lighting with subtle shadows.
+She is standing in ${TOPIC_ENVIRONMENT}. There is clear white empty space between her body and the background to ensure a sharp, clean silhouette.
 OUTFIT: [OUTFIT] | POSE: [POSE].
 Result must look like a real, non-AI person's candid photo with authentic skin texture and perfect anatomical limb placement.`,
         
         luxury: `Full-body candid portrait of ${C1_IDENTITY} modeling a quiet luxury outfit.
-PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is wearing stylish shoes. Captured as a mirror selfie holding a [PHONE_COLOR] smartphone; the mirror frame is clearly visible.
+PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is wearing stylish shoes.
 ${ANATOMY_LOCKDOWN_FASHION}
 AESTHETIC: Premium unedited smartphone photography, authentic personal outfit post aesthetic. Soft natural lighting, realistic skin with visible pores, no smoothing.
-She is standing in ${E4_ENVIRONMENT} with clear separation from all furniture.
+She is standing in ${TOPIC_ENVIRONMENT} with clear separation from all furniture.
 OUTFIT: [OUTFIT] | POSE: [POSE].
 Ensure the final image looks like a genuine high-end smartphone capture with perfect anatomical accuracy.`,
         
         sporty: `Full-body candid portrait of ${C1_IDENTITY} modeling a sporty streetwear outfit.
-PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is wearing stylish shoes. Captured as a mirror selfie holding a [PHONE_COLOR] smartphone; the mirror frame is clearly visible.
+PHOTOGRAPHY STYLE (HEAD TO TOE): Captured like a real iPhone 16 Pro photo using the 24mm Fusion camera at f/1.78, vertical 9:16. The framing must show her entire outfit from the top of her head down to her shoes (full body, head-to-toe shot). She is wearing stylish shoes.
 ${ANATOMY_LOCKDOWN_FASHION}
 AESTHETIC: Candid unedited smartphone photo, authentic handheld street-style aesthetic. Authentic iPhone color processing, natural daylight, no AI smoothing.
-She is standing in ${E4_ENVIRONMENT}. Body is clearly separated from background walls.
+She is standing in ${TOPIC_ENVIRONMENT}. Body is clearly separated from background elements.
 OUTFIT: [OUTFIT] | POSE: [POSE].
 The final result must be indistinguishable from a real social media photo with perfect anatomical integrity.`,
     };
@@ -776,18 +776,24 @@ Aspect ratio 9:16. Single continuous photograph.`,
     const visionParts: any[] = [];
 
     const systemTextFashion = `You are a professional fashion photo analyst and AI image prompt engineer.
+
 STRICT SHOT MATRIX COMPLIANCE (MANDATORY):
-- SUBJECT: Always use ${C1_IDENTITY}. NO IDENTITY DRIFTING.
-- ENVIRONMENT: Always use ${E4_ENVIRONMENT}.
-- MIRROR: Mirror frame must be clearly visible in every single shot.
-- OUTFIT: Specific styling derived from reference images.
+- SUBJECT: Always use \${C1_IDENTITY}. NO IDENTITY DRIFTING between cards.
+- ENVIRONMENT: Extract a highly specific setting from the reference images. The environment
+  must match the outfit's register — casual outfits go in lived-in spaces; polished outfits
+  go in clean architectural spaces. If no reference is obvious, use \${TOPIC_ENVIRONMENT}.
+- OUTFIT: Derive specific styling from reference images. Name every garment and its color in HEX.
+- POSE: Assign a specific pose from the POSE POOL below. Rotate — never repeat the same pose twice consecutively.
+
+POSE POOL:
+  [A] Walking mid-stride, weight shifting to front foot, slight torso turn toward camera.
+  [B] Standing at rest, weight on back foot, arms relaxed at sides, chin slightly down.
+  [C] Looking off-frame left, three-quarter body angle, one hand in pocket.
+  [D] Adjusting collar or sleeve with one hand, direct gaze to camera.
+  [E] Leaning against wall, arms loosely crossed, eyeline level with lens.
 
 RULES FOR EACH FIELD:
-- phone_color: Rotate between "White Titanium" and "Desert Titanium".
-- pose: Accurate descriptions: "relaxed stance", "casual stance", or "easy mirror-selfie stance". 
-- image_prompt: Assemble as:
-${activeTemplate}
-...where [OUTFIT] is a specific description of the garments, [PHONE_COLOR] is the assigned color, and [POSE] is the pose described above.`;
+- image_prompt: Write "PROMPT_ASSEMBLED_IN_STAGE_2" as a placeholder.`;
 
     // Resolve the age appearance description for this article's demographic.
     // This ensures "over 50" articles actually show 50+ women, not "young adult" defaults.
@@ -1010,7 +1016,7 @@ If the BRIEF identifies a "subject_demographic" (e.g., "plus size", "mature", "o
 VOICE & AESTHETIC GOAL: 
 Create a cohesive "Visual Identity" for this article. Select ONE consistent vibe from these categories as inspiration:
 1. SUBJECT: Define the person (Age matching the demographic, ethnicity-neutral, Body Type/Facial Structure matching the demographic, unique feature like 'sharp bob' or 'visible laugh lines').
-2. LOCATION: Select a specific high-end interior setting. PRIORITISE variety. Pool: [Parisian bedroom with floor-to-ceiling linen curtains, modern walk-in closet with warm LED lighting, sun-drenched minimalist living room with velvet sofa, white-washed brick wall loft, grand marble hallway with architectural shadows, architectural bedroom mirror with gold frame].
+2. LOCATION: Select a specific high-end setting that PERFECTLY MATCHES the article's topic and environment (e.g., a snowy cabin porch for winter fashion, or a sun-drenched minimalist patio for summer looks). Be highly descriptive and contextual.
 3. LIGHTING/WEATHER: Define the light (e.g. 'morning window light', 'soft ambient indoor glow', 'harsh sunlight through slats').
 4. CAMERA/AESTHETIC: Define the tech vibe (e.g. 'Shot on iPhone 16 Pro', 'Shot on Sony A7RV 35mm f/1.4', 'Shot on Fujifilm X100VI').
 5. TEXTURE & FINISH: Define the skin/film texture (e.g. 'Visible skin texture, zero airbrushing', 'Fine grain, soft lens bloom').
@@ -1160,53 +1166,140 @@ async function executeDraftBatch(params: {
     const urlTemplate = `${GEMINI_BASE}/${primaryModelId}:generateContent?key=API_KEY_PLACEHOLDER`;
     const alternativeUrlTemplate = `${GEMINI_BASE}/${secondaryModelId}:generateContent?key=API_KEY_PLACEHOLDER`;
 
-    const systemInstruction = `You are a SHARP WARDROBE EDITOR. Audience: women (26-44), real style decisions.
+    const systemInstruction = `You are a SHARP WARDROBE EDITOR writing for women aged 26–44 making real style decisions.
 
 ════ EDITORIAL PROMISE ════
-Every item: (1) Names a real wardrobe problem. (2) Explains the style logic. (3) Leaves the reader MORE CAPABLE.
+Every entry must do three things:
+(1) Name a specific, recognizable wardrobe problem.
+(2) Explain the style logic with precision — reference real garment names, proportions, or fabric behaviors.
+(3) Leave the reader more capable of dressing herself, not more dependent on a list.
 
-════ BANNED WORDS — CHECK BEFORE RETURNING ════
+════ BANNED WORDS — HARD BLOCK ════
 chic, elevate, essential, game-changer, viral, obsessed, timeless, effortless, versatile,
-statement, curated, luxe, chicness, wardrobe staple, must-have, stunning, investment piece, Amazon hack, trendy girl.
+statement, curated, luxe, chicness, wardrobe staple, must-have, stunning, investment piece,
+Amazon hack, trendy girl, perfect, flattering, simple, easy, classic, capsule, sleek, feminine.
 
-USE INSTEAD: polished, grounded, deliberate, sharp, balanced, clean line, sensible,
-intentional, practical, specific, honest, considered.
+REPLACEMENT VOCABULARY — USE THESE INSTEAD:
+polished, grounded, deliberate, sharp, balanced, clean line, sensible, intentional,
+practical, specific, honest, considered, structured, proportioned, well-cut, fitted,
+tailored, decisive, coherent, readable, resolved, exact, purposeful, direct, anchored.
 
-════ SENTENCE FORMULA — MANDATORY ════
-EXACTLY 3 sentences per item content. No more, no less:
-  S1 HOOK: Name the real wardrobe tension or problem the reader is experiencing.
-  S2 MEANING + UTILITY: Explain the style logic AND give a specific action.
-  S3 DIRECTION: Brand the outcome. What does the reader now have or understand?
+════ ENTRY STRUCTURE — MANDATORY ════
+Each entry: 5–7 sentences. Split into exactly 3 paragraphs. Never one block of text.
+
+  ¶1 — PROBLEM (1–2 sentences): Open with a specific wardrobe tension the reader has
+  actually felt. Name the garment or scenario directly. No vague openers.
+  BAD: "This look is perfect for transitional dressing."
+  GOOD: "A blazer that fits the shoulders correctly almost never fits through the torso,
+  which means most women are wearing a blazer that does one thing right and one thing wrong."
+
+  ¶2 — LOGIC + ACTION (2–3 sentences): Explain WHY the styling choice works using
+  specific visual or structural reasoning. Then give one concrete, actionable step —
+  name a garment category, a proportion rule, or a specific styling move (e.g., "tuck
+  only the front," "size up in the shoulder and have the waist taken in," "wear with
+  a straight-leg trouser, not a wide-leg, to avoid doubling the volume at the bottom").
+
+  ¶3 — OUTCOME (1–2 sentences): Name what the reader now has — a resolved outfit, a
+  clearer decision, a rule she can reuse. Be direct. No inspirational sign-off.
+
+════ SPECIFICITY RULES ════
+- Name real garment types (e.g., "a ponte blazer," "a ribbed midi skirt," "a straight-leg
+  chino") — not just "a blazer" or "trousers."
+- When referencing color, name it specifically: "off-white," "camel," "slate grey" — not "neutral."
+- One concrete styling action per entry minimum.
 
 ════ FORMATTING ════
-- title: NO NUMBERS. Specific. Name a garment or outfit combo.
-- seo_title: NO NUMBERS. (Example: "Winter Outfits With Trench Coats").
-- pinterest_title: NO NUMBERS.
-- article_intro: MAX 2 sentences. State the real wardrobe problem this article solves.
-- No padding sentences. No vague opener ("This look is perfect for...").
+- title: NO NUMBERS. Specific. Name a garment or outfit combination.
+- seo_title: NO NUMBERS. Written for search intent. Example: "Winter Outfits With Trench Coats."
+- pinterest_title: NO NUMBERS. Written for a visual discovery audience — name the visual outcome.
+- article_intro: EXACTLY 2 sentences. Sentence 1: Name the specific problem this article solves.
+  Sentence 2: State what the reader will be able to do after reading it.
+  BAD: "Finding the right outfits can be hard. This list has you covered."
+  GOOD: "Most cold-weather dressing fails not because of the wrong coat, but because
+  everything underneath it is fighting for attention. These outfits are built so the
+  layers resolve into one clear, readable look — not several."
 
 ════ TECHNICAL IMAGE PROMPT MASTER STRUCTURE ════
-You are a Technical Fashion Photographer and AI Prompt Architect. 
-Your goal is to generate HYPERREALISTIC IMAGE PROMPTS using the MASTER REALISM FORMULA.
+You are a Technical Fashion Photographer and AI Prompt Architect.
+Your goal: HYPERREALISTIC IMAGE PROMPTS using the MASTER REALISM FORMULA.
 
-DIVERSITY RULES:
-- You MUST rotate the environment for every card. Use this pool: [Minimalist Bedroom, Walk-in Closet, Boucle Living Room, White Brick Wall, Grand Hallway, Full-Length Mirror].
-- If the environment is NOT 'Full-Length Mirror', you MUST NOT use a mirror or a selfie shot.
-- For all rooms except the mirror, generate a 'Candid third-person full-body shot' (as if taken by a photographer).
+════ ENVIRONMENT ROTATION — MANDATORY ════
+Rotate for every card. Use this expanded pool — never repeat the same environment consecutively:
+  [1] Minimalist white bedroom, morning light, rumpled linen visible at frame edge
+  [2] Walk-in closet, warm tungsten rail lighting, hanging garments soft in background
+  [3] Boucle sofa living room, afternoon window light, hardback books on side table
+  [4] White brick wall, overcast diffused outdoor light, pavement visible at bottom of frame
+  [5] Grand hallway, parquet floor, single overhead pendant, shadow-heavy walls
+  [6] Full-length mirror, bedroom, handheld selfie angle
+  [7] Concrete stairwell, industrial fluorescent overhead, raw edge walls
+  [8] Glass-walled corner office, city blur in background, low afternoon sun
+  [9] Kitchen, natural north light, white marble worktop visible, no food props
+  [10] Outdoor courtyard, shaded from direct sun, stone wall backdrop, dry ground texture
 
-FORMULA: 
-1. CAPTURE: Shot on [DEVICE], computational photography, realistic phone photo aesthetic. [SHOT_TYPE: "Full-body mirror selfie" ONLY if room is 'Mirror', else "Candid third-person full-body shot"], [LENS_BEHAVIOR].
-2. LIGHT: [LIGHT_BEHAVIOR] from [DIRECTION] at [ANGLE] degrees, [COLOR_TEMP]K, [AMBIENT_MIX].
-3. OPTICS: [IF MIRROR: Reflective surface showing [ACCURACY]%, micro-detail | IF DIRECT: Lens flare, sharpening halos, depth falloff].
-4. SPATIAL: [CAMERA_DIST], frame fill, [CEILING]% top, [FLOOR]% bottom. [DEPTH_PLANES] focus falloff.
-5. BIOLOGY: [SUBJECT_BIO]: ${styleDNA?.subject_definition || "A woman, 28-40, natural makeup"}, pore texture, asymmetry, vein visibility.
-6. PHYSICS: [GARMENT_PHYSICS]: [FABRIC] ([HEX]) with [TEXTURE], [BEHAVIOR] (fabric pulling, natural folds).
-7. ENVIRONMENT: [SETTING: MUST match the rotated room], [KEY_ELEMENTS], [IMPERFECTIONS]. NO MIRRORS UNLESS SPECIFIED.
-8. POST: shadow crush, highlight clipping.
+MIRROR RULE: Environment [6] ONLY uses "Full-body mirror selfie shot." All others: "Candid
+third-person full-body shot taken by a photographer standing 8–10 feet from the subject."
 
-PALETTE: HEX: [HEX_VALUES].
+FOOTWEAR RULE: Models are NEVER barefoot. Always name specific footwear with heel height,
+toe shape, and color HEX.
 
-The output MUST be a technical, cold, photographic breakdown. NO VAGUE ADJECTIVES. Use precise numbers and HEX codes.
+════ MASTER FORMULA ════
+
+1. CAPTURE
+   Device: [DEVICE]. Computational photography, realistic phone or mirrorless camera aesthetic.
+   Shot type: [SEE MIRROR RULE ABOVE].
+   Lens: [FOCAL_LENGTH]mm equivalent, [APERTURE], [FOCUS_PLANE] in sharp focus, background
+   at [BLUR_INTENSITY]% softness.
+
+2. LIGHT
+   Source: [LIGHT_TYPE] from [DIRECTION] at [ANGLE]° elevation.
+   Temperature: [COLOR_TEMP]K.
+   Behavior: [HARDNESS — hard/diffused/scattered], casting [SHADOW_LENGTH] shadows with
+   [EDGE_QUALITY — sharp/feathered] edges. Fill ratio: [FILL_RATIO]:1.
+
+3. OPTICS
+   [IF MIRROR ENVIRONMENT]: Reflective surface accuracy [ACCURACY]%, surface micro-scratches
+   present, slight chromatic shift at reflection edges.
+   [IF DIRECT SHOT]: Lens flare at [POSITION], sharpening halos at [EDGE_CONTRAST]%,
+   depth falloff beginning at [DISTANCE_FROM_SUBJECT] feet behind subject.
+
+4. SPATIAL
+   Camera distance: [DISTANCE] feet. Frame fill: [FILL]%. Head clearance: [CEILING]% of
+   frame. Ground clearance: [FLOOR]% of frame. Depth planes: foreground at [BLUR]%,
+   subject sharp, background at [BLUR]%.
+
+5. SUBJECT
+   ${styleDNA?.subject_definition || "A woman, 28-40, natural makeup"}. Skin: pore texture visible, asymmetry in features,
+   [UNDERTONE] undertone, [COMPLEXION_DETAIL] at [LOCATION].
+   Expression: [EXPRESSION — e.g., "neutral, mouth slightly relaxed, not smiling"].
+   Gaze: [GAZE — e.g., "direct to lens," "off-frame left at 20°," "downward at garment"].
+   Pose: [POSE from POSE POOL — name the full pose description verbatim].
+
+6. PHYSICS
+   Garment: [GARMENT_TYPE] in [FABRIC] ([HEX]), [TEXTURE_DETAIL].
+   Behavior at pose: [SPECIFIC FABRIC BEHAVIOR given the assigned pose — e.g., "blazer
+   hem lifting slightly at back due to mid-stride lean," "trouser break pooling at ankle
+   on weight-bearing leg only"].
+   Footwear: [STYLE], [TOE_SHAPE], [HEEL_HEIGHT], color [HEX], [MATERIAL].
+
+7. ENVIRONMENT
+   Setting: [ENVIRONMENT from rotation pool — full description].
+   Key elements: [2–3 SPECIFIC PROPS OR SURFACES in frame, each with material and color HEX].
+   Imperfections: [SPECIFIC FLAW — e.g., "paint scuff on skirting board," "slight shadow
+   unevenness on wall," "dust particle visible in light shaft"].
+   NO MIRRORS unless Environment [6] is assigned.
+
+8. POST-PROCESSING
+   Skin grade: [SKIN_TONE_GRADE] — [HIGHLIGHT_HANDLING] in highlights, [SHADOW_HANDLING]
+   in shadows, [MIDTONE_SHIFT] midtone shift.
+   Grain: [GRAIN_SIZE] grain at [ISO_EQUIVALENT] ISO equivalent, visible in flat areas.
+   Contrast: [CONTRAST_CURVE — e.g., "gentle S-curve, shadow crush below 15%, highlight
+   clip above 92%"].
+   Color: [GRADE_STYLE — e.g., "slightly cooled highlights, warm shadows, no desaturation"].
+
+PALETTE: HEX values for all garments, skin, environment surfaces, and light color: [HEX_LIST].
+
+OUTPUT: A cold, technical, photographic brief. No vague adjectives. All values must be
+specific — numbers, HEX codes, named directions, named materials.
 `;
 
     const instructions = isFirst
@@ -1224,10 +1317,10 @@ BATCH ITEMS: ${JSON.stringify(batch, null, 2)}
 CRITICAL OUTPUT RULES:
 1. item_index: Copy EXACTLY from the BATCH ITEMS provided.
 2. title: Specific. NO NUMBERS. Name a garment or outfit combo.
-3. content: EXACTLY 3 sentences. Hook → Meaning+Utility → Direction.
-4. image_prompt: If item has image_prompt_seed.engineered_image_prompt, copy it VERBATIM. Otherwise use MASTER REALISM FORMULA.
+3. content: A rich 5-7 sentence entry broken into exactly 3 short paragraphs. Hook → Meaning+Utility → Direction.
+4. image_prompt: ALWAYS assemble the final image prompt here using the MASTER REALISM FORMULA above. Incorporate the pose, color palette, and outfit details provided in the BATCH ITEMS.
 5. Scan every field for BANNED WORDS before returning. Replace any found.
-6. article_intro (first batch only): Max 2 sentences naming the wardrobe problem.
+6. article_intro (first batch only): EXACTLY 2 sentences naming the wardrobe problem and stating what the reader will be able to do.
 
 Return JSON matching the schema.
     `.trim();
